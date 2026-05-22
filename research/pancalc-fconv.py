@@ -85,9 +85,21 @@ def build_image_header(bit_depth, data_size):
 
 def convert_image(input_path, output_path, bit_depth=16):
     img = Image.open(input_path)
-    img = img.resize((WIDTH, HEIGHT), Image.LANCZOS)
     if img.mode != 'RGB':
         img = img.convert('RGB')
+
+    # Preservar aspect ratio: redimensionar para que quepa en 384x192 y centrar con letterbox
+    src_w, src_h = img.size
+    scale = min(WIDTH / src_w, HEIGHT / src_h)
+    new_w = int(src_w * scale)
+    new_h = int(src_h * scale)
+    img = img.resize((new_w, new_h), Image.LANCZOS)
+
+    canvas = Image.new('RGB', (WIDTH, HEIGHT), (0, 0, 0))
+    x_offset = (WIDTH - new_w) // 2
+    y_offset = (HEIGHT - new_h) // 2
+    canvas.paste(img, (x_offset, y_offset))
+    img = canvas
 
     pixels = [img.getpixel((x, y)) for y in range(HEIGHT) for x in range(WIDTH)]
 
