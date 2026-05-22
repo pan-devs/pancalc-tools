@@ -5,7 +5,7 @@ Formato: CP (Casio Provided), 384×192 px, RGB565 (16-bit) o 3-bit indexado.
 """
 
 import argparse, struct, zlib, os, sys
-from PIL import Image
+from PIL import Image, ImageOps
 
 WIDTH  = 384
 HEIGHT = 192
@@ -83,26 +83,8 @@ def build_image_header(bit_depth, data_size):
     return bytes(buf)
 
 
-def convert_image(input_path, output_path, bit_depth=16):
-    img = Image.open(input_path)
-    if img.mode != 'RGB':
-        img = img.convert('RGB')
-
-    # Preservar aspect ratio: redimensionar para que quepa en 384x192 y centrar con letterbox
-    src_w, src_h = img.size
-    scale = min(WIDTH / src_w, HEIGHT / src_h)
-    new_w = int(src_w * scale)
-    new_h = int(src_h * scale)
-    img = img.resize((new_w, new_h), Image.LANCZOS)
-
-    canvas = Image.new('RGB', (WIDTH, HEIGHT), (0, 0, 0))
-    x_offset = (WIDTH - new_w) // 2
-    y_offset = (HEIGHT - new_h) // 2
-    canvas.paste(img, (x_offset, y_offset))
-    img = canvas
-
-    pixels = [img.getpixel((x, y)) for y in range(HEIGHT) for x in range(WIDTH)]
-
+def _encode_g3p_bytes(pixels, bit_depth):
+    """Codifica píxeles RGB (384×192) a bytes .g3p completos (header + datos)."""
     if bit_depth == 16:
         raw_data = bytearray()
         for r, g, b in pixels:
@@ -135,13 +117,68 @@ def convert_image(input_path, output_path, bit_depth=16):
     metadata = build_metadata(total_size)
     header_32 = build_header_32bit(total_size)
 
-    g3p = header_32 + metadata + img_hdr + obfuscated
+    return header_32 + metadata + img_hdr + obfuscated
 
-    with open(output_path, 'wb') as f:
-        f.write(g3p)
 
-    print(f"OK: {input_path} -> {output_path}")
-    print(f"    {len(g3p)} bytes, {bit_depth}-bit, {WIDTH}x{HEIGHT}")
+def convert_image(input_path, output_path, bit_depth=16, split="auto", overlap=0):
+    img = Image.open(input_path)
+    img = ImageOps.exif_transpose(img) or img
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+
+    src_w, src_h = img.size
+    scale_w = WIDTH / src_w
+    fit_h = int(src_h * scale_w)
+
+    do_split = split == "on" or (split == "auto" and src_h > src_w and fit_h > HEIGHT)
+
+    if do_split:
+        # --- MODO VERTICAL: dividir en tiras con solapamiento ---
+        img = img.resize((WIDTH, fit_h), Image.LANCZOS)
+        step = max(1, HEIGHT - overlap)
+        n_strips = (fit_h - overlap + step - 1) // step
+        base, ext = os.path.splitext(output_path)
+
+        for i in range(n_strips):
+            y_start = i * step
+            y_end = min(y_start + HEIGHT, fit_h)
+            strip = img.crop((0, y_start, WIDTH, y_end))
+
+            if strip.height < HEIGHT:
+                canvas = Image.new('RGB', (WIDTH, HEIGHT), (0, 0, 0))
+                canvas.paste(strip, (0, (HEIGHT - strip.height) // 2))
+                strip = canvas
+
+            pixels = [strip.getpixel((x, y)) for y in range(HEIGHT) for x in range(WIDTH)]
+            g3p_bytes = _encode_g3p_bytes(pixels, bit_depth)
+
+            strip_name = f"{base}_{i+1:03d}{ext}"
+            with open(strip_name, 'wb') as f:
+                f.write(g3p_bytes)
+
+            print(f"OK: {os.path.basename(input_path)} -> {os.path.basename(strip_name)}")
+            print(f"    Strip {i+1}/{n_strips}, {len(g3p_bytes)} bytes, {bit_depth}-bit, {WIDTH}x{HEIGHT}")
+    else:
+        # --- MODO HORIZONTAL / PANORÁMICA: letterbox ---
+        scale = min(WIDTH / src_w, HEIGHT / src_h)
+        new_w = int(src_w * scale)
+        new_h = int(src_h * scale)
+        img = img.resize((new_w, new_h), Image.LANCZOS)
+
+        canvas = Image.new('RGB', (WIDTH, HEIGHT), (0, 0, 0))
+        x_offset = (WIDTH - new_w) // 2
+        y_offset = (HEIGHT - new_h) // 2
+        canvas.paste(img, (x_offset, y_offset))
+        canvas_img = canvas
+
+        pixels = [canvas_img.getpixel((x, y)) for y in range(HEIGHT) for x in range(WIDTH)]
+        g3p_bytes = _encode_g3p_bytes(pixels, bit_depth)
+
+        with open(output_path, 'wb') as f:
+            f.write(g3p_bytes)
+
+        print(f"OK: {input_path} -> {output_path}")
+        print(f"    {len(g3p_bytes)} bytes, {bit_depth}-bit, {WIDTH}x{HEIGHT}")
 
 
 def _nearest_color(pixel):
@@ -232,6 +269,10 @@ def main():
                         help="bits: 3 (8 colores) o 16 (65536)")
     parser.add_argument("--decode", action="store_true",
                         help="Decodificar .g3p a PNG")
+    parser.add_argument("--split", choices=["auto", "on", "off"], default="auto",
+                        help="Dividir fotos verticales en varias tiras (auto: solo si es retrato)")
+    parser.add_argument("--overlap", type=int, default=16,
+                        help="Pixeles de solapamiento entre tiras (default: 16)")
 
     args = parser.parse_args()
 
@@ -250,7 +291,7 @@ def main():
         if not output:
             base = os.path.splitext(args.input)[0]
             output = f"{base}.g3p"
-        convert_image(args.input, output, args.bits)
+        convert_image(args.input, output, args.bits, args.split, args.overlap)
 
 
 if __name__ == "__main__":
