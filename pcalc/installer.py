@@ -1,3 +1,4 @@
+import os
 """
 pcalc/installer.py — Install, remove and track add-ins on a connected Casio Prizm.
 Handles direct .g3a downloads and zip archives containing .g3a files.
@@ -139,48 +140,111 @@ def _extract_g3a_from_zip(zip_bytes: bytes, zip_file: str) -> bytes:
             )
         return zf.read(target)
 
-
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
-def install(addin: dict, calc: Calculator, progress_callback=None) -> Path:
+
+def _get_addin_files(addin: dict) -> list[dict]:
+    """Resolve the list of files to install from an add-in dict."""
+    if "files" in addin:
+        return addin["files"]
+
+    addin_id = addin["id"]
+    dl_url   = addin["download_url"]
+    dl_type  = addin.get("download_type", "direct")
+    zip_file = addin.get("zip_file", f"{addin_id}.g3a")
+
+    return [{
+        "download_url": dl_url,
+        "download_type": dl_type,
+        "zip_file": zip_file,
+    }]
+
+
+def _resolve_file_name(file_info: dict, addin_id: str) -> str:
+    """Determine the output file name for a file info entry."""
+    if "filename" in file_info:
+        return file_info["filename"]
+    if file_info.get("download_type") == "zip":
+        return file_info.get("zip_file", f"{addin_id}.g3a")
+    return Path(file_info["download_url"]).name
+
+
+def _write_with_progress(dest: Path, data: bytes, filename: str, write_callback=None) -> None:
+    """Write bytes to a file in chunks, reporting progress via write_callback(filename, current, total)."""
+    chunk_size = 8192
+    total = len(data)
+    written = 0
+    if write_callback:
+        write_callback(filename, 0, total)
+    try:
+        with open(dest, 'wb') as f:
+            while written < total:
+                chunk = data[written:written + chunk_size]
+                f.write(chunk)
+                written += len(chunk)
+                if write_callback:
+                    write_callback(filename, written, total)
+            f.flush()
+            try:
+                os.fsync(f.fileno())
+            except OSError:
+                pass
+    except OSError as e:
+        raise RuntimeError(f"Failed to write '{filename}' to calculator: {e}")
+
+
+def install(addin: dict, calc: Calculator, progress_callback=None, write_callback=None) -> list[Path]:
     """
-    Download and install an add-in to the connected calculator.
+    Download and install one or more add-in files to the connected calculator.
 
     Args:
         addin: Add-in dict from the registry.
         calc: Connected Calculator instance.
-        progress_callback: Optional callable(downloaded, total) for progress.
+        progress_callback: Optional callable(downloaded, total) for download progress.
+        write_callback: Optional callable(filename, written, total) for write progress.
 
     Returns:
-        Path to the installed .g3a file on the calculator.
+        List of Paths to the installed files on the calculator.
 
     Raises:
         RuntimeError: On download, extraction, or copy errors.
     """
-    addin_id   = addin["id"]
-    name       = addin.get("name", addin_id)
-    dl_url     = addin["download_url"]
-    dl_type    = addin.get("download_type", "direct")
-    zip_file   = addin.get("zip_file", f"{addin_id}.g3a")
-    g3a_name   = zip_file if dl_type == "zip" else Path(dl_url).name
+    addin_id = addin["id"]
+    name     = addin.get("name", addin_id)
 
-    # Download
-    raw = _download_bytes(dl_url, progress_callback=progress_callback)
+    files_info = _get_addin_files(addin)
+    installed_paths = []
+    file_records = []
 
-    # Extract from zip if needed
-    if dl_type == "zip":
-        g3a_bytes = _extract_g3a_from_zip(raw, zip_file)
-    else:
-        g3a_bytes = raw
+    for i, file_info in enumerate(files_info):
+        dl_url  = file_info["download_url"]
+        dl_type = file_info.get("download_type", "direct")
+        zip_file = file_info.get("zip_file", f"{addin_id}.g3a")
+        filename = _resolve_file_name(file_info, addin_id)
 
-    # Copy to calculator root
-    dest = calc.mount_path / g3a_name
-    try:
-        dest.write_bytes(g3a_bytes)
-    except OSError as e:
-        raise RuntimeError(f"Failed to write to calculator: {e}")
+        # Download
+        raw = _download_bytes(dl_url, progress_callback=progress_callback)
+
+        # Extract from zip if needed
+        if dl_type == "zip":
+            g3a_bytes = _extract_g3a_from_zip(raw, zip_file)
+        else:
+            g3a_bytes = raw
+
+        # Check write access
+        if not os.access(calc.mount_path, os.W_OK):
+            raise RuntimeError(
+                f"Calculator at '{calc.mount_path}' is mounted read-only. "
+                f"Safely eject and reconnect, then try again."
+            )
+
+        # Write to calculator with progress
+        dest = calc.mount_path / filename
+        _write_with_progress(dest, g3a_bytes, filename, write_callback=write_callback)
+        installed_paths.append(dest)
+        file_records.append({"filename": filename, "sha256": _sha256(g3a_bytes)})
 
     # Record as installed
     installed = _load_installed()
@@ -188,13 +252,12 @@ def install(addin: dict, calc: Calculator, progress_callback=None) -> Path:
         "id":         addin_id,
         "name":       name,
         "version":    addin.get("version", "unknown"),
-        "filename":   g3a_name,
-        "sha256":     _sha256(g3a_bytes),
+        "files":      file_records,
         "mount_path": str(calc.mount_path),
     }
     _save_installed(installed)
 
-    return dest
+    return installed_paths
 
 
 def remove(addin_id: str, calc: Calculator) -> None:
@@ -212,15 +275,22 @@ def remove(addin_id: str, calc: Calculator) -> None:
     if addin_id not in installed:
         raise RuntimeError(f"'{addin_id}' is not installed.")
 
-    entry    = installed[addin_id]
-    filename = entry.get("filename", f"{addin_id}.g3a")
-    g3a_path = calc.mount_path / filename
+    entry = installed[addin_id]
 
-    if g3a_path.exists():
-        try:
-            g3a_path.unlink()
-        except OSError as e:
-            raise RuntimeError(f"Failed to remove file from calculator: {e}")
+    # Resolve files to remove (supports both multi-file and legacy single-file)
+    files_to_remove = []
+    if "files" in entry:
+        files_to_remove = [f["filename"] for f in entry["files"]]
+    elif "filename" in entry:
+        files_to_remove = [entry["filename"]]
+
+    for filename in files_to_remove:
+        path = calc.mount_path / filename
+        if path.exists():
+            try:
+                path.unlink()
+            except OSError as e:
+                raise RuntimeError(f"Failed to remove '{filename}' from calculator: {e}")
 
     del installed[addin_id]
     _save_installed(installed)
@@ -235,24 +305,32 @@ def verify(addin_id: str, calc: Calculator) -> bool:
         calc: Connected Calculator instance.
 
     Returns:
-        True if the checksum matches, False otherwise.
+        True if all checksums match, False otherwise.
 
     Raises:
-        RuntimeError: If the add-in is not installed or file is missing.
+        RuntimeError: If the add-in is not installed or any file is missing.
     """
     installed = _load_installed()
     if addin_id not in installed:
         raise RuntimeError(f"'{addin_id}' is not installed.")
 
-    entry    = installed[addin_id]
-    filename = entry.get("filename", f"{addin_id}.g3a")
-    g3a_path = calc.mount_path / filename
+    entry = installed[addin_id]
 
-    if not g3a_path.exists():
-        raise RuntimeError(
-            f"File '{filename}' not found on calculator. "
-            f"It may have been deleted manually."
-        )
+    # Resolve files to verify (supports both multi-file and legacy single-file)
+    files_to_verify = []
+    if "files" in entry:
+        files_to_verify = entry["files"]
+    elif "filename" in entry:
+        files_to_verify = [{"filename": entry["filename"], "sha256": entry.get("sha256", "")}]
 
-    actual = _sha256(g3a_path.read_bytes())
-    return actual == entry.get("sha256", "")
+    for f in files_to_verify:
+        path = calc.mount_path / f["filename"]
+        if not path.exists():
+            raise RuntimeError(
+                f"File '{f['filename']}' not found on calculator. "
+                f"It may have been deleted manually."
+            )
+        actual = _sha256(path.read_bytes())
+        if actual != f.get("sha256", ""):
+            return False
+    return True

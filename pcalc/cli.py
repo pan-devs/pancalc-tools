@@ -253,28 +253,36 @@ def cmd_install(app, name):
         console.print(f"\n  [bold red]Error:[/] {e}\n")
         return
 
-    # Download + install with progress bar
+    # Download + install with progress bars
     with Progress(
         "[progress.description]{task.description}",
-        BarColumn(bar_width=30, style=theme.PRIMARY, complete_style=theme.ACCENT),
+        BarColumn(bar_width=30, style=theme.PRIMARY, complete_style=theme.SUCCESS),
         DownloadColumn(),
         TransferSpeedColumn(),
         TimeRemainingColumn(),
         console=console,
         transient=True,
     ) as progress:
-        task = progress.add_task(f"  Downloading {addin['name']}...", total=None)
+        dl_task = progress.add_task(f"  Downloading {addin['name']}...", total=None)
 
         def on_progress(downloaded, total):
-            progress.update(task, completed=downloaded, total=total or downloaded)
+            progress.update(dl_task, completed=downloaded, total=total or downloaded)
+
+        write_task = None
+        def on_write(filename, written, total):
+            nonlocal write_task
+            if write_task is None:
+                write_task = progress.add_task(f"  Writing {filename}...", total=total)
+            progress.update(write_task, completed=written, total=total, description=f"  Writing {filename}...")
 
         try:
-            dest = install(addin, calc, progress_callback=on_progress)
+            dests = install(addin, calc, progress_callback=on_progress, write_callback=on_write)
         except RuntimeError as e:
             console.print(f"\n  [bold red]Error:[/] {e}\n")
             return
 
-    console.print(f"\n  [bold {theme.SUCCESS}]✓[/] {addin['name']} installed to [dim]{dest}[/]\n")
+    file_list = ", ".join(str(d) for d in dests)
+    console.print(f"  [bold {theme.SUCCESS}]✓[/] {addin['name']} installed to [dim]{file_list}[/]\n")
 
 
 @cli.command("remove")
@@ -335,14 +343,18 @@ def cmd_installed(app):
     table.add_column("ID",       style="bold white", no_wrap=True)
     table.add_column("Name",     style="white")
     table.add_column("Version",  style=theme.S_ACCENT)
-    table.add_column("File",     style=theme.S_DIM)
+    table.add_column("Files",    style=theme.S_DIM)
 
     for aid, entry in installed.items():
+        files = entry.get("files", [{"filename": entry.get("filename", f"{aid}.g3a")}])
+        file_str = files[0]["filename"]
+        if len(files) > 1:
+            file_str += f" +{len(files)-1} more"
         table.add_row(
             aid,
             entry.get("name", ""),
             entry.get("version", ""),
-            entry.get("filename", ""),
+            file_str,
         )
 
     console.print(table)
@@ -411,6 +423,72 @@ def cmd_convert(app, file, output, bits, decode, split, overlap):
 # ---------------------------------------------------------------------------
 # Utilities
 # ---------------------------------------------------------------------------
+
+
+@cli.command("eject")
+@pass_ctx
+def cmd_eject(app):
+    """Safely unmount the calculator before disconnecting."""
+    import platform
+    import subprocess
+    from pcalc.calculator import find_calculator
+
+    calc = find_calculator()
+    if calc is None:
+        console.print(f"\n  [dim]No calculator detected.[/]\n")
+        return
+
+    mount = str(calc.mount_path)
+    system = platform.system()
+
+    console.print(f"\n  Ejecting [bold white]{calc.model}[/] at [dim]{mount}[/]...", end="")
+
+    try:
+        if system == "Linux":
+            # Use udisksctl for proper eject (unmount + power-off, no sudo needed)
+            import re
+            # Get the block device from mount path
+            result = subprocess.run(
+                ["findmnt", "-n", "-o", "SOURCE", mount],
+                capture_output=True, text=True
+            )
+            device = result.stdout.strip()  # e.g. /dev/sdb1
+            parent = re.sub(r'p?\d+$', '', device)  # e.g. /dev/sdb
+
+            subprocess.run(["udisksctl", "unmount", "-b", device], check=True, capture_output=True)
+            subprocess.run(["udisksctl", "power-off", "-b", parent], check=True, capture_output=True)
+        elif system == "Darwin":
+            subprocess.run(["diskutil", "unmount", mount], check=True, capture_output=True)
+            subprocess.run(["diskutil", "eject", mount], capture_output=True)
+        elif system == "Windows":
+            try:
+                import win32api
+                import win32file
+                drive = str(calc.mount_path)[:2]  # e.g. "E:"
+                handle = win32file.CreateFile(
+                    f"\\.\\{drive}",
+                    win32file.GENERIC_READ,
+                    win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE,
+                    None, win32file.OPEN_EXISTING, 0, None
+                )
+                win32api.DeviceIoControl(handle, 0x2D4808, None, 0)  # IOCTL_STORAGE_EJECT_MEDIA
+                handle.close()
+            except ImportError:
+                console.print(f" [bold {theme.WARNING}]manual eject required[/]")
+                console.print(f"  [dim]pywin32 not installed. Eject manually from Windows Explorer[/]")
+                console.print(f"  [dim]or install with: pip install pancalc-tools[windows][/]\n")
+                return
+        else:
+            console.print(f" [bold {theme.WARNING}]not supported[/]")
+            console.print(f"  [dim]Automatic eject is not supported on this OS.")
+            console.print(f"  Please eject the calculator manually before disconnecting.[/]\n")
+            return
+        console.print(f" [bold {theme.SUCCESS}]done[/]")
+        console.print(f"  [dim]Safe to disconnect.[/]\n")
+    except subprocess.CalledProcessError:
+        console.print(f" [bold red]failed[/]")
+        console.print(f"  [bold red]Error:[/] Could not eject automatically.")
+        console.print(f"  [dim]Please eject the calculator manually before disconnecting.[/]\n")
 
 @cli.command("update-registry")
 @pass_ctx

@@ -37,3 +37,6 @@ pcalc = "pcalc.cli:cli"
 
 [tool.setuptools.packages.find]
 include = ["pcalc*"]
+
+[project.optional-dependencies]
+windows = ["pywin32"]
