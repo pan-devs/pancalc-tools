@@ -216,110 +216,135 @@ def cmd_info(app, name):
 
 
 @cli.command("install")
-@click.argument("name")
+@click.argument("names", nargs=-1, required=True)
 @pass_ctx
-def cmd_install(app, name):
-    """Install an add-in to the calculator."""
+def cmd_install(app, names):
+    """Install one or more add-ins to the calculator."""
     from pcalc import registry
     from pcalc.calculator import require_calculator
     from pcalc.installer import install, is_installed
 
-    # Fetch add-in info
-    try:
-        addin = registry.get_addin(name)
-    except RuntimeError as e:
-        _registry_error(e)
+    # Resolve all add-ins, skipping already installed
+    resolved = []
+    for name in names:
+        try:
+            addin = registry.get_addin(name)
+        except RuntimeError as e:
+            _registry_error(e)
+            return
+
+        if addin is None:
+            console.print(f"\n  [bold red]Not found:[/] '{name}'\n")
+            return
+
+        if is_installed(addin["id"]):
+            console.print(f"  [dim]'{addin['name']}' is already installed, skipping.[/]")
+            continue
+
+        resolved.append(addin)
+
+    if not resolved:
+        console.print()
         return
 
-    if addin is None:
-        console.print(f"\n  [bold red]Not found:[/] '{name}'\n")
-        return
-
-    # Already installed?
-    if is_installed(addin["id"]):
-        console.print(f"\n  [dim]{addin['name']} is already installed.[/]\n")
-        return
-
-    # Confirm
-    console.print(f"\n  [bold white]{addin['name']}[/] [dim]v{addin.get('version','')} by {addin.get('author','')}[/]")
-    if not _confirm(app, "Install this add-in?"):
+    # Show summary and confirm once
+    console.print()
+    for addin in resolved:
+        console.print(f"  [bold white]{addin['name']}[/] [dim]v{addin.get('version','')} by {addin.get('author','')}[/]")
+    if not _confirm(app, f"Install {'this add-in' if len(resolved) == 1 else f'these {len(resolved)} add-ins'}?"):
         console.print(f"  [dim]Cancelled.[/]\n")
         return
 
-    # Detect calculator
+    # Detect calculator once
     try:
         calc = require_calculator()
     except RuntimeError as e:
         console.print(f"\n  [bold red]Error:[/] {e}\n")
         return
 
-    # Download + install with progress bars
-    with Progress(
-        "[progress.description]{task.description}",
-        BarColumn(bar_width=30, style=theme.PRIMARY, complete_style=theme.SUCCESS),
-        DownloadColumn(),
-        TransferSpeedColumn(),
-        TimeRemainingColumn(),
-        console=console,
-        transient=True,
-    ) as progress:
-        dl_task = progress.add_task(f"  Downloading {addin['name']}...", total=None)
+    # Install each add-in sequentially
+    for addin in resolved:
+        with Progress(
+            "[progress.description]{task.description}",
+            BarColumn(bar_width=30, style=theme.PRIMARY, complete_style=theme.SUCCESS),
+            DownloadColumn(),
+            TransferSpeedColumn(),
+            TimeRemainingColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            dl_task = progress.add_task(f"  [{addin['name']}] Downloading...", total=None)
 
-        def on_progress(downloaded, total):
-            progress.update(dl_task, completed=downloaded, total=total or downloaded)
+            def on_progress(downloaded, total):
+                progress.update(dl_task, completed=downloaded, total=total or downloaded)
 
-        write_task = None
-        def on_write(filename, written, total):
-            nonlocal write_task
-            if write_task is None:
-                write_task = progress.add_task(f"  Writing {filename}...", total=total)
-            progress.update(write_task, completed=written, total=total, description=f"  Writing {filename}...")
+            write_task = None
+            def on_write(filename, written, total):
+                nonlocal write_task
+                if write_task is None:
+                    write_task = progress.add_task(f"  [{addin['name']}] Writing {filename}...", total=total)
+                progress.update(write_task, completed=written, total=total, description=f"  [{addin['name']}] Writing {filename}...")
 
-        try:
-            dests = install(addin, calc, progress_callback=on_progress, write_callback=on_write)
-        except RuntimeError as e:
-            console.print(f"\n  [bold red]Error:[/] {e}\n")
-            return
+            try:
+                dests = install(addin, calc, progress_callback=on_progress, write_callback=on_write)
+            except RuntimeError as e:
+                console.print(f"\n  [bold red]Error installing {addin['name']}:[/] {e}\n")
+                continue
 
-    file_list = ", ".join(str(d) for d in dests)
-    console.print(f"  [bold {theme.SUCCESS}]✓[/] {addin['name']} installed to [dim]{file_list}[/]\n")
+        file_list = ", ".join(str(d) for d in dests)
+        console.print(f"  [bold {theme.SUCCESS}]✓[/] {addin['name']} installed to [dim]{file_list}[/]\n")
 
 
 @cli.command("remove")
-@click.argument("name")
+@click.argument("names", nargs=-1, required=True)
 @pass_ctx
-def cmd_remove(app, name):
-    """Remove an add-in from the calculator."""
+def cmd_remove(app, names):
+    """Remove one or more add-ins from the calculator."""
     from pcalc.calculator import require_calculator
-    from pcalc.installer import remove, is_installed, get_installed
+    from pcalc.installer import remove, get_installed
 
     installed = get_installed()
 
-    # Resolve by ID or name
-    addin_id = None
-    for aid, entry in installed.items():
-        if aid.lower() == name.lower() or entry.get("name", "").lower() == name.lower():
-            addin_id = aid
-            break
+    # Resolve all by ID or name
+    resolved = []
+    for name in names:
+        addin_id = None
+        for aid, entry in installed.items():
+            if aid.lower() == name.lower() or entry.get("name", "").lower() == name.lower():
+                addin_id = aid
+                entry_data = entry
+                break
 
-    if addin_id is None:
-        console.print(f"\n  [bold red]Not installed:[/] '{name}'\n")
-        return
+        if addin_id is None:
+            console.print(f"\n  [bold red]Not installed:[/] '{name}'\n")
+            return
 
-    entry = installed[addin_id]
-    console.print(f"\n  [bold white]{entry['name']}[/] [dim]v{entry.get('version','')}[/]")
-    if not _confirm(app, "Remove this add-in from the calculator?"):
+        resolved.append((addin_id, entry_data))
+
+    # Show summary and confirm once
+    console.print()
+    for _, entry in resolved:
+        console.print(f"  [bold white]{entry['name']}[/] [dim]v{entry.get('version','')}[/]")
+    if not _confirm(app, f"Remove {'this add-in' if len(resolved) == 1 else f'these {len(resolved)} add-ins'} from the calculator?"):
         console.print(f"  [dim]Cancelled.[/]\n")
         return
 
+    # Detect calculator once
     try:
         calc = require_calculator()
-        remove(addin_id, calc)
     except RuntimeError as e:
         console.print(f"\n  [bold red]Error:[/] {e}\n")
         return
 
-    console.print(f"\n  [bold {theme.SUCCESS}]✓[/] {entry['name']} removed.\n")
+    # Remove each
+    for addin_id, entry in resolved:
+        try:
+            remove(addin_id, calc)
+        except RuntimeError as e:
+            console.print(f"  [bold red]Error removing {entry['name']}:[/] {e}\n")
+            continue
+
+        console.print(f"  [bold {theme.SUCCESS}]✓[/] {entry['name']} removed.\n")
 
 
 @cli.command("installed")
