@@ -75,6 +75,7 @@ def cli(ctx, yes, quiet, plain):
         _installed = get_installed()
         if _calc:
             try:
+                from pcalc import registry
                 _addins = registry.get_registry()
                 _entries = walk_calc(_calc, _addins)
                 _dcount = count_calc_files(_entries)
@@ -147,6 +148,19 @@ def _addin_table(addins: list[dict], title: str = "") -> Table:
 def _registry_error(e: Exception) -> None:
     console.print(f"\n  [bold red]Error:[/] {e}")
     console.print(f"  [dim]Check your internet connection and try again.[/]\n")
+
+
+def _fail(msg: str, code: int = 1):
+    """Print message and exit non-zero (for && chaining)."""
+    console.print(f"\n  [bold red]Error:[/] {msg}\n")
+    raise SystemExit(code)
+
+
+def _no_calc():
+    """Exit when no calculator is detected."""
+    console.print(f"\n  [dim]No calculator detected.[/]")
+    console.print(f"  [dim]Connect via USB and enable mass storage mode (F1).[/]\n")
+    raise SystemExit(1)
 
 
 def _confirm(app: AppContext, message: str) -> bool:
@@ -302,11 +316,10 @@ def cmd_install(app, names, overwrite):
             addin = registry.get_addin(name)
         except RuntimeError as e:
             _registry_error(e)
-            return
+            raise SystemExit(1)
 
         if addin is None:
-            console.print(f"\n  [bold red]Not found:[/] '{name}'\n")
-            return
+            _fail(f"Add-in '{name}' not found.")
 
         if is_installed(addin["id"]):
             console.print(f"  [dim]'{addin['name']}' is already tracked as installed, skipping.[/]")
@@ -316,7 +329,7 @@ def cmd_install(app, names, overwrite):
 
     if not resolved:
         console.print()
-        return
+        raise SystemExit(1)
 
     # Show summary and confirm once
     console.print()
@@ -324,14 +337,13 @@ def cmd_install(app, names, overwrite):
         console.print(f"  [bold white]{addin['name']}[/] [dim]v{addin.get('version','')} by {addin.get('author','')}[/]")
     if not _confirm(app, f"Install {'this add-in' if len(resolved) == 1 else f'these {len(resolved)} add-ins'}?"):
         console.print(f"  [dim]Cancelled.[/]\n")
-        return
+        raise SystemExit(1)
 
     # Detect calculator once
     try:
         calc = require_calculator()
     except RuntimeError as e:
-        console.print(f"\n  [bold red]Error:[/] {e}\n")
-        return
+        _fail(str(e))
 
     # Install each add-in sequentially
     for addin in resolved:
@@ -588,17 +600,14 @@ def _show_calc_info(app, storage):
 
     calc = find_calculator()
     if calc is None:
-        console.print(f"\n  [dim]No calculator detected.[/]")
-        console.print(f"  [dim]Connect via USB and enable mass storage mode (F1).[/]\n")
-        return
+        _no_calc()
 
     console.print()
     console.print(f"  [bold white]{calc.model}[/]  [bold {theme.SUCCESS}]connected[/]")
     console.print(f"  [dim]Mount:[/] {calc.mount_path}")
 
-    if storage:
-        used_pct = (calc.storage_used / calc.storage_total * 100) if calc.storage_total else 0
-        console.print(f"  [dim]Storage:[/] {calc.storage_used_mb:.1f} MB used / {calc.storage_total_mb:.1f} MB total ({used_pct:.0f}%)")
+    used_pct = (calc.storage_used / calc.storage_total * 100) if calc.storage_total else 0
+    console.print(f"  [dim]Storage:[/] {calc.storage_used_mb:.1f} MB used / {calc.storage_total_mb:.1f} MB total ({used_pct:.0f}%)")
 
     try:
         addins = registry.get_registry()
@@ -782,14 +791,12 @@ def cmd_convpush(app):
 
     calc = find_calculator()
     if calc is None:
-        console.print(f"\n  [dim]No calculator detected.[/]\n")
-        return
+        _no_calc()
 
     mount = calc.mount_path
 
     if not os.access(mount, os.W_OK):
-        console.print(f"\n  [red]Write access denied to {mount}[/]\n")
-        return
+        _fail(f"Write access denied to {mount}")
 
     g3p_files = sorted((CONVERTED_DIR / "g3p").glob("*.g3p")) if (CONVERTED_DIR / "g3p").exists() else []
     txt_files = sorted((CONVERTED_DIR / "txt").glob("*.txt")) if (CONVERTED_DIR / "txt").exists() else []
@@ -797,7 +804,7 @@ def cmd_convpush(app):
     if not g3p_files and not txt_files:
         console.print(f"\n  [dim]No converted files found in {CONVERTED_DIR}[/]\n")
         console.print(f"  [dim]Run [bold]pcalc convert[/] first.[/]\n")
-        return
+        raise SystemExit(1)
 
     # Calculate total size needed
     total_bytes = sum(f.stat().st_size for f in g3p_files) + sum(f.stat().st_size for f in txt_files)
@@ -810,7 +817,7 @@ def cmd_convpush(app):
             continue_copy = click.confirm("  Continue anyway?", default=False)
             if not continue_copy:
                 console.print(f"  [dim]Aborted.[/]\n")
-                return
+                raise SystemExit(1)
 
     g3p_dest_dir = mount / "pthings" / "g3p"
     txt_dest_dir = mount / "pthings" / "txt"
@@ -818,8 +825,7 @@ def cmd_convpush(app):
         g3p_dest_dir.mkdir(parents=True, exist_ok=True)
         txt_dest_dir.mkdir(parents=True, exist_ok=True)
     except OSError as e:
-        console.print(f"\n  [bold red]Failed to create pthings directories:[/] {e}\n")
-        return
+        _fail(f"Failed to create pthings directories: {e}")
 
     from rich.progress import Progress, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
 
