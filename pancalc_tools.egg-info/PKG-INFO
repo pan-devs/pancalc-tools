@@ -1,0 +1,30 @@
+Metadata-Version: 2.4
+Name: pancalc-tools
+Version: 0.1.0
+Summary: Package manager and developer toolkit for Casio Prizm calculators
+Author-email: Pan Devs <pan.devs@proton.me>
+License: MIT
+Keywords: casio,prizm,fx-cg50,calculator,package-manager
+Classifier: Development Status :: 3 - Alpha
+Classifier: Environment :: Console
+Classifier: Intended Audience :: End Users/Desktop
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: click>=8.1
+Requires-Dist: rich>=13.0
+Requires-Dist: questionary>=2.0
+Requires-Dist: requests>=2.31
+Requires-Dist: Pillow>=10.0
+Requires-Dist: pymupdf>=1.23
+Requires-Dist: platformdirs>=4.0
+Dynamic: license-file
+
+# pancalc-tools
+Pan devs official CLI for add-ins and utilities of prizm calculators.

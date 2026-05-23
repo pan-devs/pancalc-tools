@@ -1,0 +1,177 @@
+"""
+pcalc/calculator.py — Detect a connected Casio Prizm calculator via USB mass storage.
+Works on Linux, macOS and Windows by scanning mounted drives for Casio-specific folders.
+"""
+
+import os
+import platform
+import shutil
+from pathlib import Path
+from dataclasses import dataclass
+
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+# Folders that exist on the root of a Casio Prizm storage
+CASIO_MARKERS = ["@MainMem", "@Backup", "@SAVE_F"]
+
+# Known model names by marker files/folders (best-effort)
+MODEL_HINTS = {
+    "fx-CG50":  ["@MainMem"],
+    "fx-CG100": ["@MainMem"],
+}
+
+
+# ---------------------------------------------------------------------------
+# Data
+# ---------------------------------------------------------------------------
+
+@dataclass
+class Calculator:
+    model: str          # e.g. "fx-CG50" (best-effort)
+    mount_path: Path    # e.g. Path("/media/user/CASIO")
+    storage_total: int  # bytes
+    storage_free:  int  # bytes
+
+    @property
+    def storage_used(self) -> int:
+        return self.storage_total - self.storage_free
+
+    @property
+    def storage_total_mb(self) -> float:
+        return self.storage_total / (1024 * 1024)
+
+    @property
+    def storage_free_mb(self) -> float:
+        return self.storage_free / (1024 * 1024)
+
+    @property
+    def storage_used_mb(self) -> float:
+        return self.storage_used / (1024 * 1024)
+
+
+# ---------------------------------------------------------------------------
+# Platform-specific mount point discovery
+# ---------------------------------------------------------------------------
+
+def _candidate_paths_linux() -> list[Path]:
+    """Return candidate mount points on Linux."""
+    candidates = []
+
+    # /media/<user>/* and /run/media/<user>/*
+    for base in [Path("/media"), Path("/run/media")]:
+        if base.exists():
+            for user_dir in base.iterdir():
+                if user_dir.is_dir():
+                    candidates.extend(user_dir.iterdir())
+
+    # /mnt/*
+    mnt = Path("/mnt")
+    if mnt.exists():
+        candidates.extend(p for p in mnt.iterdir() if p.is_dir())
+
+    return candidates
+
+
+def _candidate_paths_macos() -> list[Path]:
+    """Return candidate mount points on macOS."""
+    volumes = Path("/Volumes")
+    if not volumes.exists():
+        return []
+    return [p for p in volumes.iterdir() if p.is_dir()]
+
+
+def _candidate_paths_windows() -> list[Path]:
+    """Return candidate drive letters on Windows."""
+    candidates = []
+    # Scan all drive letters A-Z
+    for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        drive = Path(f"{letter}:\\")
+        if drive.exists():
+            candidates.append(drive)
+    return candidates
+
+
+def _get_candidates() -> list[Path]:
+    system = platform.system()
+    if system == "Linux":
+        return _candidate_paths_linux()
+    elif system == "Darwin":
+        return _candidate_paths_macos()
+    elif system == "Windows":
+        return _candidate_paths_windows()
+    return []
+
+
+# ---------------------------------------------------------------------------
+# Detection logic
+# ---------------------------------------------------------------------------
+
+def _is_casio(path: Path) -> bool:
+    """Return True if the given path looks like a Casio Prizm storage."""
+    try:
+        entries = [e.name for e in path.iterdir()]
+    except (PermissionError, OSError):
+        return False
+    return any(marker in entries for marker in CASIO_MARKERS)
+
+
+def _detect_model(path: Path) -> str:
+    """Best-effort model detection based on folder structure."""
+    try:
+        entries = [e.name for e in path.iterdir()]
+    except (PermissionError, OSError):
+        return "Casio Prizm"
+
+    # fx-CG100 has a @MainMem folder AND typically more storage
+    usage = shutil.disk_usage(path)
+    total_mb = usage.total / (1024 * 1024)
+
+    # fx-CG50 ~ 16 MB internal, fx-CG100 ~ 32 MB
+    if total_mb > 24:
+        return "fx-CG100"
+    return "fx-CG50"
+
+
+def find_calculator() -> Calculator | None:
+    """
+    Scan mounted drives for a connected Casio Prizm calculator.
+
+    Returns:
+        A Calculator instance if found, None otherwise.
+    """
+    for path in _get_candidates():
+        if _is_casio(path):
+            try:
+                usage = shutil.disk_usage(path)
+            except OSError:
+                continue
+            model = _detect_model(path)
+            return Calculator(
+                model=model,
+                mount_path=path,
+                storage_total=usage.total,
+                storage_free=usage.free,
+            )
+    return None
+
+
+def require_calculator() -> Calculator:
+    """
+    Like find_calculator(), but raises if no calculator is found.
+
+    Returns:
+        A Calculator instance.
+
+    Raises:
+        RuntimeError: If no calculator is connected.
+    """
+    calc = find_calculator()
+    if calc is None:
+        raise RuntimeError(
+            "No calculator detected. Connect your fx-CG50 via USB and press F1 "
+            "to enable USB mass storage mode, then try again."
+        )
+    return calc

@@ -1,8 +1,11 @@
-# Documentación técnica — pancalc-fconv.py
+# Documentación técnica — formato .g3p (Casio fx-CG)
+
+> **Nota:** La implementación de referencia está en [`pcalc/converter.py`](../pcalc/converter.py).
+> El script `pancalc-fconv.py` en `research/` es la versión standalone original.
 
 ## Estructura del archivo .g3p (variante CP)
 
-El formato `.g3p` es un contenedor Casio para imágenes en calculadoras fx-CG. Este script genera la variante **CP** (Casio Provided, `CP0100`), compatible con fx-CG10/20/50 y Graph 90+E.
+El formato `.g3p` es un contenedor Casio para imágenes en calculadoras fx-CG. El conversor genera la variante **CP** (Casio Provided, `CP0100`), compatible con fx-CG10/20/50 y Graph 90+E.
 
 ### Layout general
 
