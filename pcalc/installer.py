@@ -9,6 +9,7 @@ import io
 import json
 import shutil
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 
 import requests
@@ -23,6 +24,128 @@ from pcalc.calculator import Calculator
 
 INSTALLED_FILE = Path(user_cache_dir("pancalc")) / "installed.json"
 CHUNK_SIZE     = 8192  # bytes per download chunk
+
+
+# ---------------------------------------------------------------------------
+# Device scanner
+# ---------------------------------------------------------------------------
+
+@dataclass
+class DeviceFile:
+    filename: str
+    path: Path
+    size: int
+    addin: dict | None = None
+
+
+@dataclass
+class CalcEntry:
+    name: str
+    rel_path: str
+    path: Path
+    size: int
+    is_dir: bool
+    addin: dict | None = None
+    children: list['CalcEntry'] | None = None
+
+
+def _match_addin_by_filename(filename: str, addins: list[dict]) -> dict | None:
+    """Return the add-in that this filename belongs to, or None."""
+    fname_lower = filename.lower()
+    for addin in addins:
+        files_list = addin.get("files", None)
+        if files_list:
+            for f in files_list:
+                if f.get("filename", "").lower() == fname_lower:
+                    return addin
+        else:
+            legacy = addin.get("zip_file") or Path(addin.get("download_url", "")).name
+            if legacy.lower() == fname_lower:
+                return addin
+    return None
+
+
+def scan_device(calc: Calculator, addins: list[dict] | None = None) -> list[DeviceFile]:
+    """Scan the calculator filesystem and return all files, matched against known add-ins."""
+    if addins is None:
+        from pcalc import registry as _reg
+        try:
+            addins = _reg.get_registry()
+        except RuntimeError:
+            addins = []
+
+    results: list[DeviceFile] = []
+    try:
+        for entry in calc.mount_path.iterdir():
+            if entry.is_file():
+                df = DeviceFile(
+                    filename=entry.name,
+                    path=entry,
+                    size=entry.stat().st_size,
+                    addin=_match_addin_by_filename(entry.name, addins),
+                )
+                results.append(df)
+    except OSError:
+        pass
+
+    results.sort(key=lambda x: (0 if x.addin else 1, x.filename.lower()))
+    return results
+
+
+def walk_calc(calc: Calculator, addins: list[dict] | None = None,
+              max_depth: int = 8) -> list[CalcEntry]:
+    """Recursively walk the calculator mount and return a tree of CalcEntry."""
+    if addins is None:
+        from pcalc import registry as _reg
+        try:
+            addins = _reg.get_registry()
+        except RuntimeError:
+            addins = []
+
+    def _walk(dir_path: Path, rel_base: str, depth: int) -> list[CalcEntry]:
+        if depth > max_depth:
+            return []
+        entries: list[CalcEntry] = []
+        try:
+            for entry in sorted(dir_path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+                rel = f"{rel_base}/{entry.name}" if rel_base else entry.name
+                if entry.is_dir():
+                    children = _walk(entry, rel, depth + 1)
+                    entries.append(CalcEntry(
+                        name=entry.name, rel_path=rel, path=entry,
+                        size=0, is_dir=True, addin=None, children=children,
+                    ))
+                elif entry.is_file():
+                    entries.append(CalcEntry(
+                        name=entry.name, rel_path=rel, path=entry,
+                        size=entry.stat().st_size, is_dir=False,
+                        addin=_match_addin_by_filename(entry.name, addins),
+                    ))
+        except (PermissionError, OSError):
+            pass
+        return entries
+
+    return _walk(calc.mount_path, "", 0)
+
+
+def iter_calc_files(entries: list[CalcEntry]):
+    """Yield all non-directory CalcEntry from a tree."""
+    for e in entries:
+        if e.is_dir and e.children:
+            yield from iter_calc_files(e.children)
+        elif not e.is_dir:
+            yield e
+
+
+def count_calc_files(entries: list[CalcEntry]) -> int:
+    """Count total files (non-directory) in a CalcEntry tree."""
+    total = 0
+    for e in entries:
+        if e.is_dir and e.children:
+            total += count_calc_files(e.children)
+        elif not e.is_dir:
+            total += 1
+    return total
 
 
 # ---------------------------------------------------------------------------
@@ -66,10 +189,15 @@ def is_installed(addin_id: str) -> bool:
 # Download helpers
 # ---------------------------------------------------------------------------
 
-def _download_bytes(url: str, progress_callback=None) -> bytes:
+def _download_bytes(url: str, progress_callback=None, cb_label: str = "") -> bytes:
     """
     Download a file from a URL and return its raw bytes.
-    Optionally calls progress_callback(downloaded, total) per chunk.
+    Optionally calls progress_callback(downloaded, total, label) per chunk.
+
+    Args:
+        url: Download URL.
+        progress_callback: Optional callable(current, total, label).
+        cb_label: Label passed to callback so the caller knows which file.
 
     Raises:
         RuntimeError: On network or HTTP errors.
@@ -93,7 +221,7 @@ def _download_bytes(url: str, progress_callback=None) -> bytes:
             chunks.append(chunk)
             downloaded += len(chunk)
             if progress_callback:
-                progress_callback(downloaded, total)
+                progress_callback(downloaded, total, cb_label)
 
     return b"".join(chunks)
 
@@ -195,7 +323,8 @@ def _write_with_progress(dest: Path, data: bytes, filename: str, write_callback=
         raise RuntimeError(f"Failed to write '{filename}' to calculator: {e}")
 
 
-def install(addin: dict, calc: Calculator, progress_callback=None, write_callback=None) -> list[Path]:
+def install(addin: dict, calc: Calculator, progress_callback=None, write_callback=None,
+            skip_files: set[str] | None = None) -> list[Path]:
     """
     Download and install one or more add-in files to the connected calculator.
 
@@ -204,6 +333,7 @@ def install(addin: dict, calc: Calculator, progress_callback=None, write_callbac
         calc: Connected Calculator instance.
         progress_callback: Optional callable(downloaded, total) for download progress.
         write_callback: Optional callable(filename, written, total) for write progress.
+        skip_files: Optional set of filenames to skip (e.g. when user chose not to overwrite).
 
     Returns:
         List of Paths to the installed files on the calculator.
@@ -224,8 +354,12 @@ def install(addin: dict, calc: Calculator, progress_callback=None, write_callbac
         zip_file = file_info.get("zip_file", f"{addin_id}.g3a")
         filename = _resolve_file_name(file_info, addin_id)
 
+        # Skip files the user chose not to overwrite
+        if skip_files and filename in skip_files:
+            continue
+
         # Download
-        raw = _download_bytes(dl_url, progress_callback=progress_callback)
+        raw = _download_bytes(dl_url, progress_callback=progress_callback, cb_label=filename)
 
         # Extract from zip if needed
         if dl_type == "zip":
@@ -246,16 +380,17 @@ def install(addin: dict, calc: Calculator, progress_callback=None, write_callbac
         installed_paths.append(dest)
         file_records.append({"filename": filename, "sha256": _sha256(g3a_bytes)})
 
-    # Record as installed
-    installed = _load_installed()
-    installed[addin_id] = {
-        "id":         addin_id,
-        "name":       name,
-        "version":    addin.get("version", "unknown"),
-        "files":      file_records,
-        "mount_path": str(calc.mount_path),
-    }
-    _save_installed(installed)
+    # Record as installed (only if at least one file was written)
+    if file_records:
+        installed = _load_installed()
+        installed[addin_id] = {
+            "id":         addin_id,
+            "name":       name,
+            "version":    addin.get("version", "unknown"),
+            "files":      file_records,
+            "mount_path": str(calc.mount_path),
+        }
+        _save_installed(installed)
 
     return installed_paths
 
@@ -330,7 +465,12 @@ def verify(addin_id: str, calc: Calculator) -> bool:
                 f"File '{f['filename']}' not found on calculator. "
                 f"It may have been deleted manually."
             )
-        actual = _sha256(path.read_bytes())
+        try:
+            actual = _sha256(path.read_bytes())
+        except OSError as e:
+            raise RuntimeError(
+                f"Failed to read '{f['filename']}' from calculator: {e}"
+            )
         if actual != f.get("sha256", ""):
             return False
     return True

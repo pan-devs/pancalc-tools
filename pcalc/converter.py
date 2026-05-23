@@ -3,7 +3,7 @@ pcalc/converter.py — Image conversion to/from Casio .g3p format.
 Supports fx-CG10/20/50 and Graph 90+E.
 """
 
-import struct, zlib, os, sys
+import struct, zlib, os, sys, re, unicodedata
 from PIL import Image, ImageOps
 
 WIDTH  = 384
@@ -131,12 +131,10 @@ def _nearest_color(pixel):
     return best_idx
 
 
-def convert_image(input_path, output_path, bit_depth=16, split="auto", overlap=16):
-    img = Image.open(input_path)
-    img = ImageOps.exif_transpose(img) or img
-    if img.mode != 'RGB':
-        img = img.convert('RGB')
-
+def _process_image_to_g3p(img: Image.Image, output_path: str, bit_depth: int = 16,
+                           split: str = "auto", overlap: int = 16,
+                           input_name: str = "") -> None:
+    """Encode a PIL Image to .g3p file(s), handling split and letterbox."""
     src_w, src_h = img.size
     scale_w = WIDTH / src_w
     fit_h = int(src_h * scale_w)
@@ -166,7 +164,8 @@ def convert_image(input_path, output_path, bit_depth=16, split="auto", overlap=1
             with open(strip_name, 'wb') as f:
                 f.write(g3p_bytes)
 
-            print(f"OK: {os.path.basename(input_path)} -> {os.path.basename(strip_name)}")
+            label = input_name or os.path.basename(output_path)
+            print(f"OK: {label} -> {os.path.basename(strip_name)}")
             print(f"    Strip {i+1}/{n_strips}, {len(g3p_bytes)} bytes, {bit_depth}-bit, {WIDTH}x{HEIGHT}")
     else:
         scale = min(WIDTH / src_w, HEIGHT / src_h)
@@ -185,8 +184,42 @@ def convert_image(input_path, output_path, bit_depth=16, split="auto", overlap=1
         with open(output_path, 'wb') as f:
             f.write(g3p_bytes)
 
-        print(f"OK: {input_path} -> {output_path}")
+        label = input_name or output_path
+        print(f"OK: {label} -> {output_path}")
         print(f"    {len(g3p_bytes)} bytes, {bit_depth}-bit, {WIDTH}x{HEIGHT}")
+
+
+def convert_image(input_path, output_path, bit_depth=16, split="auto", overlap=16):
+    img = Image.open(input_path)
+    img = ImageOps.exif_transpose(img) or img
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    _process_image_to_g3p(img, output_path, bit_depth, split, overlap,
+                          os.path.basename(input_path))
+
+
+RENDER_SCALE = 2.5
+
+
+def convert_document_g3p(input_path, output_path, bit_depth=16, overlap=16):
+    """Render each page of a PDF/DOCX to 384px-wide images and convert to .g3p strips."""
+    import fitz
+
+    doc = fitz.open(input_path)
+    base_name = os.path.splitext(os.path.basename(input_path))[0]
+    out_base  = os.path.splitext(output_path)[0]
+
+    for i, page in enumerate(doc):
+        zoom = WIDTH * RENDER_SCALE / page.rect.width
+        mat = fitz.Matrix(zoom, zoom)
+        pix = page.get_pixmap(matrix=mat, colorspace=fitz.csRGB)
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+
+        page_path = f"{out_base}_{i+1:03d}.g3p"
+        label = f"{base_name} (p.{i+1})"
+        _process_image_to_g3p(img, page_path, bit_depth, "on", overlap, label)
+
+    doc.close()
 
 
 def decode_image(input_path, output_path):
@@ -254,3 +287,57 @@ def decode_image(input_path, output_path):
     img.save(output_path)
     print(f"OK: {input_path} -> {output_path}")
     print(f"    {bit_depth}-bit, {WIDTH}x{HEIGHT}")
+
+
+_ASCII_MAP = str.maketrans({
+    'ß': 'ss', 'ẞ': 'SS',
+    'œ': 'oe', 'Œ': 'OE',
+    'æ': 'ae', 'Æ': 'AE',
+    'ð': 'd',  'Ð': 'D',
+    'þ': 'th', 'Þ': 'TH',
+})
+
+
+def _clean_text(text: str) -> str:
+    """Strip accents and non-ASCII chars for calculator compatibility."""
+    # Handle special multi-char mappings first
+    text = text.translate(_ASCII_MAP)
+    # NFD decomposition: é → e + combining acute
+    text = unicodedata.normalize('NFD', text)
+    # Remove combining diacritical marks (accents, cedillas, etc.)
+    text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+    # Strip remaining non-ASCII (should only be unusual chars now)
+    text = ''.join(c if ord(c) < 128 else ' ' for c in text)
+    # Collapse whitespace
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
+def convert_text(input_path: str, output_path: str):
+    """Extract text from a PDF or DOCX file and save as plain text."""
+    import fitz  # pymupdf
+
+    doc = fitz.open(input_path)
+    total_chars = 0
+    lines: list[str] = []
+    for page in doc:
+        text = page.get_text().strip()
+        if text:
+            cleaned = _clean_text(text)
+            if cleaned:
+                lines.append(cleaned)
+                total_chars += len(cleaned)
+    doc.close()
+
+    if total_chars < 10 * len(lines) if lines else 1:
+        print(f"Note: very little text extracted — this may be a scanned PDF (no selectable text).",
+              file=sys.stderr)
+
+    result = "\n\n".join(lines)
+    with open(output_path, "w", encoding="ascii") as f:
+        f.write(result)
+        f.write("\n")
+
+    print(f"OK: {input_path} -> {output_path}")
+    print(f"    {len(result)} chars, {len(lines)} non-empty pages")

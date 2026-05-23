@@ -1,0 +1,415 @@
+Defensa contra las enfermedades 
+El sistema inmunitario es el sistema de defensa del organismo encargado de proteger al 
+cuerpo frente a agentes externos que pueden causar dano. Esta formado por distintas 
+estructuras como celulas (leucocitos o globulos blancos), moleculas como los 
+anticuerpos y organos linfoides como el timo, el bazo y los ganglios linfaticos. 
+Su funcion principal es reconocer lo propio del organismo y distinguirlo de lo extrano, 
+como virus, bacterias o toxinas, para poder eliminar aquello que representa una 
+amenaza. Tambien interviene en la eliminacion de celulas danadas, envejecidas o 
+anormales, como las tumorales. 
+Este sistema basa su actuacion en el reconocimiento de los patogenos a traves de 
+moleculas especificas llamadas antigenos, que permiten identificar lo ajeno y activar 
+una respuesta inmunitaria dirigida. 
+Los patogenos son microorganismos capaces de provocar enfermedades, y su entrada en 
+el organismo, junto con su tipo y el estado del sistema inmunitario, condiciona la 
+respuesta que se genera.
+
+Enfermedades 
+Las enfermedades pueden ser de tres tipos: 
+Enfermedades geneticas: Se originan por alteraciones en el ADN y pueden ser 
+heredadas de los progenitores. Un ejemplo es la fibrosis quistica. 
+Enfermedades ambientales: Estan provocadas por factores del entorno o del 
+estilo de vida, el tabaco, la alimentacion o la contaminacion. No son 
+transmisibles entre personas. 
+Enfermedades infecciosas: Son causadas por la accion de patogenos como 
+virus, bacterias u otros microorganismos. Ejemplos de este tipo son la gripe o el 
+sida. Las enfermedades infecciosas pueden estar causadas por multitud de 
+patogenos: 
+Virus: Agentes infecciosos acelulares que no se consideran seres vivos, 
+ya que necesitan un huesped para replicarse. A pesar de ello, se 
+consideran patogenos porque causan enfermedades. Ej: Covid-19, VIH o 
+ebola. 
+Parasitos: Organismos que viven a expensas de un huesped, al que 
+perjudican. Muchos son visibles a simple vista. Ej: tenias o lombrices 
+intestinales. 
+Hongos: Organismos eucariotas que pueden causar infecciones, 
+especialmente en personas inmunodeprimidas, o infecciones 
+superficiales. Ej: pie de atleta o candidiasis. 
+Protozoos: Organismos eucariotas unicelulares, generalmente parasitos, 
+que se transmiten por agua, alimentos o vectores como los mosquitos. Ej: 
+malaria o toxoplasmosis. 
+Bacterias: Organismos unicelulares procariotas. Algunas especies pueden 
+causar enfermedades al invadir tejidos o producir toxinas. Ej: 
+tuberculosis o gonorrea 
+Priones: Proteinas infecciosas con comportamiento anomalo (cambian su 
+forma y funcion). Provocan una reaccion en cadena al inducir cambios en 
+otras proteinas. Ej: enfermedad de Creutzfeldt-Jakob. 
+El estudio de las enfermedades infecciosas ha permitido comprender mejor su 
+transmision y desarrollar medidas de prevencion. En este campo destacan figuras 
+como Ignaz Semmelweis, quien descubrio la importancia de la desinfeccion en 
+los partos, reduciendo asi los casos de fiebre puerperal. Tambien John Snow, que 
+logro explicar el colera al relacionarlo con el consumo de aguas contaminadas, 
+mediante un enfoque epidemiologico. 
+Cuando un patogeno entra en el organismo, este se enfrenta a dos grandes lineas 
+de defensa: las barreras externas, que impiden su entrada al cuerpo, y las 
+barreras internas, encargado de detectar y eliminar los agentes infecciosos que 
+consiguen atravesar las defensas externas.
+
+Barreras externas 
+La piel 
+El sistema tegumentario, principalmente la piel, actua como la primera barrera 
+de defensa del cuerpo frente a la entrada de patogenos. La piel constituye una 
+primera linea de proteccion que impide o dificulta la entrada de 
+microorganismos al organismo mediante distintas barreras de defensa: 
+Barrera fisica: La capa externa de la piel esta formada por celulas 
+muertas ricas en queratina, lo que crea una estructura resistente que 
+dificulta la entrada de microorganismos. 
+Barrera quimica: Las glandulas sebaceas y sudoriparas producen 
+sustancias como el sebo y el sudor, que generan un entorno poco 
+favorable para el desarrollo de patogenos. 
+Barrera biologica: La flora bacteriana esta formada por 
+microorganismos comensales no perjudiciales que compiten con los 
+patogenos invasores, dificultando su colonizacion. 
+La piel es el segundo organo mas grande del cuerpo y constituye una importante 
+barrera de defensa frente a las enfermedades. Sus distintas capas y estructuras 
+colaboran en la proteccion del organismo contra la entrada de patogenos: 
+Epidermis: Primera linea de defensa, formada por 20-30 capas de 
+celulas queratinizadas, que actua como barrera fisica frente a los 
+microorganismos. 
+Dermis: Capa mas gruesa situada bajo la epidermis, que contiene 
+glandulas, terminaciones nerviosas y capilares sanguineos, participando 
+en funciones de proteccion y regulacion. 
+Estructuras anexas: Como el pelo, las unas y las glandulas sebaceas y 
+sudoriparas, junto con terminaciones nerviosas sensitivas y capilares 
+sanguineos, que contribuyen a la proteccion y al funcionamiento general 
+del organismo. 
+ 
+Las mucosas 
+Las mucosas recubren organos y cavidades en contacto con el exterior, como la 
+cavidad oral, nasal o los bronquios. Estan formadas por una capa fina y suave de 
+celulas epiteliales unidas hermeticamente, lo que dificulta la entrada de 
+patogenos al organismo.
+
+Heridas en la barrera externa 
+Cuando la barrera externa del organismo, especialmente la piel, sufre una lesion 
+o herida, se pierde parte de la proteccion frente a la entrada de microorganismos. 
+Para evitar una hemorragia y reducir el riesgo de infeccion, el organismo activa 
+rapidamente mecanismos de reparacion y defensa, entre los que destaca la 
+coagulacion sanguinea. 
+La coagulacion sanguinea es un mecanismo de defensa del organismo que se 
+activa tras una lesion en un vaso sanguineo. Consiste en la formacion de un 
+coagulo, una masa semisolida que detiene la perdida de sangre, sella la herida y 
+ayuda a impedir la entrada de patogenos. 
+Este proceso se desarrolla mediante la cascada de coagulacion, en la que se 
+distinguen varias fases. 
+Rotura del vaso sanguineo: Cuando se produce un corte en la piel, los 
+vasos sanguineos se rompen y se origina una hemorragia. 
+Formacion del tampon plaquetario: Las plaquetas, pequenos 
+fragmentos celulares presentes en la sangre, se adhieren rapidamente a la 
+zona danada formando un tapon temporal. Ademas, liberan factores de 
+coagulacion que activan la cascada de coagulacion. 
+Formacion del coagulo: La cascada de coagulacion produce trombina, 
+una enzima que transforma el fibrinogeno soluble en fibrina insoluble. La 
+fibrina forma una malla que atrapa mas plaquetas y globulos rojos, dando 
+lugar al coagulo. 
+Reparacion de la herida: El coagulo sella la herida, evita la perdida de 
+sangre y ayuda a impedir la entrada de patogenos. Con el tiempo, el 
+coagulo se seca y forma una costra protectora. Una vez reparado el 
+tejido, el coagulo acaba disolviendose. 
+Todo este proceso esta estrictamente regulado, ya que si la coagulacion ocurre 
+dentro de vasos sanguineos sanos puede provocar trombosis.
+
+Barrea interna 
+El sistema inmunitario es el conjunto de mecanismos de defensa encargados de proteger 
+al organismo frente a enfermedades infecciosas y agentes patogenos. Constituye la 
+principal barrera interna del cuerpo y esta formado por dos grandes componentes: 
+Sistema inmunitario innato: actua de forma rapida e inespecifica, 
+respondiendo de manera similar frente a distintos patogenos y manteniendose 
+practicamente igual a lo largo de la vida. Incluye barreras primarias, como la piel 
+y las mucosas, que impiden la entrada de microorganismos, y barreras 
+secundarias, como la inflamacion y la fagocitosis, que actuan cuando los 
+patogenos consiguen entrar en el organismo. 
+Fagocitos 
+Los fagocitos son globulos blancos del sistema inmunitario innato que 
+actuan de forma rapida frente a infecciones. Cuando un microorganismo 
+atraviesa la piel o las mucosas y entra en el organismo, los fagocitos lo 
+detectan, salen de los capilares sanguineos y se dirigen hacia el foco de 
+infeccion. 
+Una vez alli, los fagocitos rodean y engullen a los patogenos mediante un 
+proceso llamado fagocitosis, y los destruyen utilizando enzimas 
+digestivas. En heridas infectadas, la acumulacion de fagocitos y restos 
+celulares contribuye a la formacion de pus.
+
+Sistema inmunitario adaptativo: responde de manera especifica frente a cada 
+patogeno y solo se activa tras el primer contacto con el antigeno. Su principal 
+caracteristica es la capacidad de generar memoria inmunologica, lo que permite 
+que en futuras infecciones la respuesta sea mas rapida y eficaz. Esta formado por 
+los linfocitos T, responsables de la inmunidad celular, y los linfocitos B 
+Linfocitos 
+Los linfocitos son un tipo de globulo blanco especializado en la respuesta 
+inmunitaria adaptativa. Su funcion principal es reconocer antigenos 
+(moleculas de la superficie de los patogenos que actuan como marcas 
+de reconocimiento) de forma especifica y generar una respuesta dirigida 
+contra ellos. Cada linfocito es especifico para un unico antigeno. Existen 
+dos tipos principales de linfocitos: 
+Linfocitos T auxiliares: Son los encargados de coordinar la 
+respuesta inmunitaria. Ayudan a activar otros linfocitos, 
+especialmente a los linfocitos B, para que estos puedan producir 
+anticuerpos de forma eficiente. 
+Linfocitos B: Son responsables de la inmunidad humoral. Su 
+funcion es producir anticuerpos, que son proteinas especificas 
+capaces de unirse a los antigenos para neutralizarlos o marcar a 
+los patogenos para su eliminacion. 
+El sistema inmunitario adaptativo distingue entre celulas propias y no 
+propias mediante diferencias moleculares en la superficie celular. Cuando 
+este reconocimiento falla, el sistema puede atacar al propio organismo, 
+provocando enfermedades autoinmunes, como la diabetes tipo 1.
+
+Proceso de activacion y clonacion de linfocitos 
+El proceso de activacion del sistema inmunitario adaptativo 
+comienza cuando un macrofago fagocita un patogeno y expone 
+fragmentos de sus antigenos en su membrana. De este modo, el 
+macrofago actua como celula presentadora de antigenos (CPA), 
+mostrando partes del patogeno al sistema inmunitario. 
+Los linfocitos T cooperadores (TH) poseen receptores especificos 
+en su membrana. Cada linfocito T tiene un receptor diferente, por 
+lo que solo algunos son capaces de reconocer el antigeno 
+presentado por el macrofago. Cuando un linfocito T cooperador 
+reconoce ese antigeno, se une a el y se activa. 
+Una vez activado, el linfocito T cooperador se encarga de ayudar 
+a la activacion de los linfocitos B especificos para ese mismo 
+antigeno. Para ello, reconoce y se une a los linfocitos B adecuados 
+y libera citocinas, que son moleculas senalizadoras que estimulan 
+su activacion, asegurando que solo se activen los linfocitos B 
+correctos. 
+Cuando un linfocito B reconoce su antigeno correspondiente y 
+recibe la senal de activacion de los linfocitos T cooperadores, se 
+activa y se multiplica rapidamente mediante mitosis, dando lugar 
+a un clon de celulas identicas capaces de actuar frente al mismo 
+patogeno. 
+Finalmente, estas celulas se diferencian en dos tipos: 
+Celulas plasmaticas: Se especializan en la produccion de 
+grandes cantidades de anticuerpos especificos, que son 
+liberados al torrente sanguineo para neutralizar y eliminar 
+el patogeno. Estos anticuerpos son proteinas que se unen 
+de forma especifica a los antigenos mediante 
+complementariedad de forma y propiedades quimicas, 
+similar a la relacion enzima-sustrato, formando complejos 
+antigeno-anticuerpo que ayudan a su eliminacion. Para 
+ello, presentan un desarrollo muy marcado del reticulo 
+endoplasmatico rugoso (RER), necesario para la sintesis 
+de proteinas, y desaparecen una vez que el antigeno ha 
+sido eliminado. 
+Celulas B de memoria: No producen anticuerpos de 
+forma inmediata, pero permanecen en el organismo 
+durante largos periodos de tiempo, incluso toda la vida. Su 
+funcion es permitir una respuesta mucho mas rapida y 
+eficaz si el mismo patogeno vuelve a infectar al 
+organismo, iniciando de forma inmediata la respuesta 
+inmunitaria especifica.
+
+Inmunidad 
+La inmunidad es la capacidad del organismo para defenderse y eliminar enfermedades 
+infecciosas causadas por patogenos. Esta defensa se lleva a cabo mediante la accion de 
+los linfocitos 
+La eficacia de esta respuesta depende de la generacion de memoria inmunologica, 
+formada por la presencia de celulas B y T de memoria. Tras el primer contacto con un 
+patogeno, el sistema inmunitario es capaz de reconocerlo en futuras infecciones y 
+activar de forma inmediata la respuesta especifica. Esto hace que la inmunidad a largo 
+plazo dependa principalmente de estas celulas de memoria, responsables de una 
+respuesta mas rapida y eficaz. 
+La inmunidad puede generarse de forma natural tras el contacto con un patogeno, pero 
+tambien puede inducirse artificialmente mediante intervenciones medicas que preparan 
+al sistema inmunitario antes de la infeccion. 
+Vacunas e inmunizacion 
+La inmunizacion consiste en la utilizacion de vacunas para generar una 
+inmunidad especifica, activa y duradera sin provocar la enfermedad. Las 
+vacunas contienen antigenos de patogenos, principalmente virus o bacterias, o 
+material genetico (ADN o ARN) que permite al sistema inmunitario 
+reconocerlos y desarrollar una respuesta defensiva. 
+Se administran por diferentes vias, como la intramuscular, subcutanea o, en 
+algunos casos, por via oral. 
+Tipo de vacuna 
+ Que contiene? 
+Ejemplos 
+Viva atenuada 
+Microorganismos vivos 
+debilitados que conservan 
+cierta capacidad de 
+replicacion 
+ 
+Sarampion, paperas 
+Muerta/inactiva 
+Microorganismos 
+inactivados mediante 
+calor o agentes quimicos 
+ 
+Rabia, gripe 
+Subunidades 
+Fragmentos purificados 
+del patogeno (proteinas o 
+polisacaridos) 
+ 
+Hepatitis B, VPH 
+Vacunas de 
+ADN/ARN 
+Material genetico (ADN o 
+ARNm) que permite a las 
+celulas producir el 
+antigeno 
+ 
+Covid-19 (Pfizer)
+
+Inmunidad de rebano y prevencion de epidemias 
+La inmunidad de rebano se alcanza cuando una proporcion suficiente de la 
+poblacion es inmune a un patogeno, ya sea por infeccion previa o por 
+vacunacion. Esto dificulta la transmision del agente infeccioso, ya que este se 
+encuentra con muchas personas inmunes y no puede propagarse con facilidad, lo 
+que provoca la disminucion e incluso desaparicion de los brotes. 
+No es necesario que toda la poblacion sea inmune para que este efecto funcione, 
+y ademas protege indirectamente a personas vulnerables que no pueden 
+vacunarse. 
+El porcentaje de poblacion necesario para alcanzarla depende del numero basico 
+de reproduccion (R ), que indica cuantas personas contagia, de media, un 
+individuo infectado en una poblacion totalmente susceptible. 
+La relacion se expresa mediante la formula: 
+Inmunidad de rebano (%) = (1 
+1 
+Ro) 100 
+Por ejemplo, en el sarampion, con un R aproximado de 15, se necesita alrededor 
+de un 93% de la poblacion inmune para alcanzar la inmunidad de rebano.
+
+Infeccion de linfocitos con VIH y SIDA 
+El VIH (virus de la inmunodeficiencia humana) es un retrovirus cuyo material 
+genetico esta formado por ARN. Tras entrar en una celula huesped, utiliza la 
+enzima transcriptasa inversa para convertir su ARN en ADN, que posteriormente 
+se integra en el genoma de la celula infectada. De este modo, el virus puede 
+utilizar la maquinaria celular para producir nuevas copias virales. 
+El VIH infecta principalmente a los linfocitos T auxiliares, que son esenciales en 
+la activacion del sistema inmunitario. Su destruccion progresiva provoca una 
+perdida de la capacidad del organismo para coordinar la respuesta inmunitaria y 
+producir anticuerpos de forma eficaz frente a cualquier patogeno. 
+En las primeras fases de la infeccion, el sistema inmunitario genera anticuerpos 
+contra el VIH, lo que hace que la persona sea seropositiva. En esta etapa puede 
+no haber sintomas, y la velocidad de destruccion de los linfocitos T varia entre 
+individuos. Con el tiempo, la disminucion de estas celulas debilita 
+progresivamente el sistema inmunitario. 
+Cuando el sistema inmunitario esta gravemente danado, aparecen infecciones 
+oportunistas, es decir, infecciones que normalmente no afectarian a personas 
+sanas. Cuando estas infecciones se presentan de forma conjunta, se habla de 
+SIDA (sindrome de inmunodeficiencia adquirida). 
+El VIH se transmite unicamente a traves del contacto con determinados fluidos 
+corporales infectados, como sangre, semen, secreciones vaginales, leche materna 
+o secreciones rectales, y solo cuando estos entran en contacto con el interior del 
+organismo. Las principales vias de transmision son las relaciones sexuales sin 
+proteccion, el uso compartido de agujas, las transfusiones de sangre contaminada 
+y la transmision de madre a hijo durante el parto o la lactancia. 
+El virus no sobrevive mucho tiempo fuera del cuerpo humano, por lo que la 
+transmision requiere contacto directo con estos fluidos. 
+En cuanto al tratamiento, los medicamentos antirretrovirales inhiben enzimas 
+clave del virus, como la transcriptasa inversa, o impiden su replicacion dentro de 
+la celula. Estos tratamientos no eliminan el virus, pero permiten ralentizar su 
+progresion y evitar o retrasar la aparicion del SIDA
+
+La zoonosis 
+Enfermedades infecciosas que, en condiciones naturales, pueden transmitirse de 
+animales a humanos. 
+Aunque muchos patogenos son especificos de especie, algunos pueden infectar 
+varios tipos de huespedes. 
+Zoonosis 
+Patogeno 
+Animal 
+transmisor 
+Modo de 
+infeccion en 
+humanos 
+Tuberculosis 
+Mycobacterium 
+bovis 
+Ganado 
+Inhalacion de 
+goticulas 
+respiratorias 
+expulsadas al 
+toser o consumo 
+de leche no 
+pasteurizada 
+Rabia 
+Lyssavirus 
+Mamiferos 
+Mordedura o 
+rasguno de un 
+animal infectado, 
+o contacto de la 
+saliva con heridas 
+o mucosas 
+Encefalitis 
+japonesa 
+Virus de 
+encefalitis 
+japonesa (JEV) 
+Cerdos o aves 
+Picadura de un 
+mosquito 
+previamente 
+infectado tras 
+picar a un animal 
+portador 
+ 
+ 
+El contacto estrecho entre humanos y animales, especialmente en zonas rurales, 
+constituye un factor de riesgo importante para la transmision de enfermedades 
+zoonoticas. Ademas, la alteracion de los habitats naturales debido a la expansion 
+humana incrementa este riesgo, ya que acerca la fauna silvestre a zonas urbanas 
+y facilita el salto de patogenos entre especies. 
+Un ejemplo es la COVID-19, cuyo origen se relaciona probablemente con 
+murcielagos, con posible transmision a traves de otra especie antes de llegar a 
+los humanos. Aunque actualmente su propagacion es principalmente entre 
+personas, se considera una enfermedad de origen zoonotico.
+
+Antibioticos 
+Los antibioticos son sustancias quimicas que inhiben el crecimiento o destruyen 
+microorganismos, especialmente bacterias. Actuan sobre celulas procariotas, sin afectar 
+a las celulas eucariotas como las humanas, por lo que se utilizan para eliminar bacterias 
+sin danar el organismo. 
+Muchos antibioticos provienen de hongos saprofitos, que los producen como 
+mecanismo de competencia frente a las bacterias por los recursos. Un ejemplo es la 
+penicilina, obtenida a partir de hongos del genero Penicillium. 
+Los antibioticos pueden actuar bloqueando diferentes procesos bacterianos, como la 
+replicacion del ADN, la transcripcion y traduccion (sintesis de proteinas), el 
+funcionamiento de los ribosomas o la formacion de la pared celular. 
+Sin embargo, los antibioticos no son eficaces frente a los virus, ya que estos no tienen 
+estructura celular y solo se reproducen dentro de celulas huesped. Por ello, los 
+antibioticos no pueden atacarlos sin danar tambien a la celula infectada. 
+El uso de antibioticos en infecciones viricas es ineficaz y, ademas, favorece la aparicion 
+de resistencias bacterianas, haciendo que algunos antibioticos pierdan eficacia con el 
+tiempo. 
+Resistencia a los antibioticos 
+La resistencia a los antibioticos aparece cuando algunas bacterias sobreviven al 
+tratamiento y dejan de ser eliminadas por el antibiotico. El principal problema es 
+la resistencia multiple, en la que las bacterias son resistentes a varios antibioticos 
+a la vez, como ocurre en el SARM o en la tuberculosis multirresistente, haciendo 
+que los tratamientos sean cada vez menos eficaces. 
+Este fenomeno se explica por seleccion natural: los antibioticos eliminan a las 
+bacterias sensibles, pero las resistentes sobreviven, se reproducen y transmiten 
+esa resistencia a la siguiente generacion. 
+La resistencia puede evitarse o reducirse mediante un uso responsable de los 
+antibioticos, utilizandolos solo cuando son necesarios, completando siempre el 
+tratamiento, manteniendo buenas medidas de higiene y evitando su uso excesivo 
+en animales.
+
+Evaluacion de datos 
+Es una estimacion basada en la interpretacion critica de las pruebas, que sopesa los 
+puntos fuertes y debiles de los datos. 
+ 
+Porcentaje: expresar una cantidad como porcentaje 
+de otra: 
+Ej/ Si 2 de cada 10 personas se infectaron: (2/10) 100=20% 
+ 
+Cambio porcentual: Mide el aumento o disminucion 
+con el tiempo: 
+ Ej/ Si los casos suben de 1000 a 1500: ((1500 1000) /1000) 100=50% 
+ 
+Diferencia porcentual: Compara 2 numeros como % 
+del primero (A): 
+Ej/ Pais A tuvo 100 muertes, pais B tuvo 80: ((100 80) /100) 100=20%
