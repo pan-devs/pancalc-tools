@@ -182,8 +182,10 @@ def cmd_info(app, name):
     console.print()
     title = Text()
     title.append(f"  {addin.get('name', '')} ", style="bold white")
-    title.append(f"v{addin.get('version', '')}", style=theme.S_ACCENT)
-    title.append(f"  by {addin.get('author', '')}", style=theme.S_DIM)
+    version_str = addin.get('version', '')
+    if version_str and version_str != "latest":
+        title.append(f"v{version_str}  ", style=theme.S_ACCENT)
+    title.append(f"by {addin.get('author', '')}", style=theme.S_DIM)
     console.print(title)
     console.print(f"  [dim]{'─' * 44}[/]")
 
