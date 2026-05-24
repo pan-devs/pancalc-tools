@@ -792,8 +792,8 @@ def cmd_calc(app, storage):
 # Developer tools
 # ---------------------------------------------------------------------------
 
-CONVERT_DIR   = Path(__file__).parent.parent / "convert"
-CONVERTED_DIR = Path(__file__).parent.parent / "converted"
+CONVERT_DIR   = Path.cwd() / "convert"
+CONVERTED_DIR = Path.cwd() / "converted"
 
 _IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff"}
 _DOC_EXT   = {".pdf", ".docx"}

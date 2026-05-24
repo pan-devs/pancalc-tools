@@ -573,7 +573,7 @@ class MainScreen(Screen):
     # ── Convert helpers (shared by Convert & ConvPush) ────────────
 
     def _convert_base(self) -> Path:
-        return Path.home() / "Git/pan-devs/pancalc-tools"
+        return Path.cwd()
 
     def _scan_convert_files(self) -> list[Path]:
         base = self._convert_base()
@@ -645,6 +645,8 @@ class MainScreen(Screen):
         base = self._convert_base()
         (base / "convert/images").mkdir(parents=True, exist_ok=True)
         (base / "convert/documents").mkdir(parents=True, exist_ok=True)
+        (base / "converted/g3p").mkdir(parents=True, exist_ok=True)
+        (base / "converted/txt").mkdir(parents=True, exist_ok=True)
 
     def _refresh_convert_view(self) -> None:
         if self._view == "convert":

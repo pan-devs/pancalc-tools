@@ -77,6 +77,19 @@ pip install pancalc-tools
 > ```bash
 > pip3 install pancalc-tools
 > ```
+
+> **⚠️  Error "externally-managed-environment"?**  Linux moderno bloquea `pip install`
+> fuera de un entorno virtual. Soluciones:
+> - **Opción A (recomendada):** `pip install --user pancalc-tools`
+> - **Opción B (entorno virtual):**
+>   ```bash
+>   python3 -m venv .venv
+>   source .venv/bin/activate
+>   pip install pancalc-tools
+>   ```
+>   A partir de ahí usa `source .venv/bin/activate` antes de ejecutar `pcalc`.
+>
+> Windows y macOS **no** tienen esta restricción.
 </details>
 
 <details>
