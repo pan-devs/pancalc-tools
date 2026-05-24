@@ -36,7 +36,7 @@ class AsciiBarColumn(ProgressColumn):
             result.append("░" * (self.bar_width - filled), style=theme.PRIMARY)
         return result
 
-VERSION = "0.1.7"
+VERSION = "0.1.8"
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +209,7 @@ def _eject(calc) -> None:
                 import win32api
                 import win32file
                 drive = str(calc.mount_path)[:2]
-            handle = win32file.CreateFile(
+                handle = win32file.CreateFile(
                 f"\\\\.\\{drive}",
                 win32file.GENERIC_READ,
                 win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE,
