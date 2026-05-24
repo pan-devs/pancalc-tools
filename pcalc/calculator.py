@@ -219,10 +219,10 @@ def find_calculator() -> Calculator | None:
     if platform.system() == "Linux":
         _ensure_udisksctl()
         mount_path = _auto_mount_casio()
-    if mount_path:
-        calc = _calc_from_path(mount_path)
-        if calc:
-            return calc
+        if mount_path:
+            calc = _calc_from_path(mount_path)
+            if calc:
+                return calc
 
     return None
 

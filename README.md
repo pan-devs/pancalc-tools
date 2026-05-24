@@ -173,6 +173,12 @@ pcalc
 
 The interactive menu will open.
 
+> **⚠️  If `pcalc` is not recognized:** add Python's `Scripts` directory to your
+> `PATH` (usually `%APPDATA%\Python\Python314\Scripts`), or use the fallback:
+> ```bash
+> python -m pcalc
+> ```
+
 > 💡 **Tips:**
 > - Use your mouse/trackpad and click to interact.
 > - Find games at https://github.com/wavonzip/bdesretro/tree/main (with .nes).
