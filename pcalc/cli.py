@@ -209,12 +209,15 @@ def _eject(calc) -> None:
                 import win32api
                 import win32file
                 drive = str(calc.mount_path)[:2]
-                handle = win32file.CreateFile(
-                    f"\\.\\{drive}",
-                    win32file.GENERIC_READ,
-                    win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE,
-                    None, win32file.OPEN_EXISTING, 0, None
-                )
+            handle = win32file.CreateFile(
+                f"\\\\.\\{drive}",
+                win32file.GENERIC_READ,
+                win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE,
+                None,
+                win32file.OPEN_EXISTING,
+                0,
+                None
+            )
                 win32api.DeviceIoControl(handle, 0x2D4808, None, 0)
                 handle.close()
             except ImportError:
