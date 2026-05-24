@@ -8,6 +8,7 @@ pancalc_tools.egg-info/entry_points.txt
 pancalc_tools.egg-info/requires.txt
 pancalc_tools.egg-info/top_level.txt
 pcalc/__init__.py
+pcalc/__main__.py
 pcalc/banner.py
 pcalc/calculator.py
 pcalc/cli.py

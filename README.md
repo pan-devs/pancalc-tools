@@ -55,6 +55,9 @@ If you see `Python 3.10` or higher, you're ready. If not, install Python:
 2. **Important:** when installing, check the box **"Add Python to PATH"** at the bottom of the installer.
 3. Open the **Command Prompt** (search "cmd" in the Start menu).
 4. Type `python --version` to confirm it's installed.
+5. **For PDF/DOCX conversion:** Install the Microsoft Visual C++ Redistributable:
+   - Download and install from: https://aka.ms/vs/17/release/vc_redist.x64.exe
+   - (If using 32-bit Python, install the x86 version instead: https://aka.ms/vs/17/release/vc_redist.x86.exe)
 
 ### 2. Install PanCalc Tools
 
@@ -77,33 +80,7 @@ pip install pancalc-tools[windows]
 > pip install --user pancalc-tools
 > ```
 
-### 3. Connect your calculator
-
-#### 🐧 Linux
-
-1. Turn on your Casio calculator.
-2. Press **F1** (USB mass storage mode).
-3. Connect it with a USB cable.
-4. The program will detect it automatically. If not, it will ask for your
-   password to install `udisksctl` (needed for auto-mount).
-
-#### 🍎 macOS
-
-1. Turn on your Casio calculator.
-2. Press **F1** (USB mass storage mode).
-3. Connect it with a USB cable.
-4. It should appear as a drive on your desktop and in **Finder**.
-   The program will find it automatically.
-
-#### 🪟 Windows
-
-1. Turn on your Casio calculator.
-2. Press **F1** (USB mass storage mode).
-3. Connect it with a USB cable.
-4. It should appear as a new drive in **File Explorer** (e.g. `D:\` or `E:\`).
-   The program will find it automatically.
-
-### 4. Launch the program
+### 3. Launch the program
 
 #### 🐧 Linux
 
@@ -141,6 +118,34 @@ The interactive menu will open.
 > python -m pcalc
 > ```
 
+### 4. Connect your calculator
+
+#### 🐧 Linux
+
+1. Turn on your Casio calculator.
+2. Press **F1** (USB mass storage mode).
+3. Connect it with a USB cable.
+4. The program will detect it automatically. If not, it will ask for your
+   password to install `udisksctl` (needed for auto-mount).
+
+#### 🍎 macOS
+
+1. Turn on your Casio calculator.
+2. Press **F1** (USB mass storage mode).
+3. Connect it with a USB cable.
+4. It should appear as a drive on your desktop and in **Finder**.
+   The program will find it automatically.
+
+#### 🪟 Windows
+
+1. Turn on your Casio calculator.
+2. Press **F1** (USB mass storage mode).
+3. Connect it with a USB cable.
+4. It should appear as a new drive in **File Explorer** (e.g. `D:\` or `E:\`).
+    The program will find it automatically.
+
+> After launching pcalc and connecting your calculator, navigate to the **Catch** option in the pcalc interface to browse your calculator's filesystem.
+
 > 💡 **Tips:**
 > - Use your mouse/trackpad and click to interact.
 > - Find games at https://github.com/wavonzip/bdesretro/tree/main (with .nes).
@@ -155,21 +160,25 @@ The interactive menu will open.
 ## Features
 
 - **📦 Add-in management** — Install, remove, and verify add-ins from the
-  [pan-devs/pancalc-registry](https://github.com/pan-devs/pancalc-registry)
-  with automatic SHA256 + PGP signature verification.
+   [pan-devs/pancalc-registry](https://github.com/pan-devs/pancalc-registry)
+   with automatic SHA256 + PGP signature verification.
 - **🖼️ File conversion** — Convert images (PNG, JPG, BMP, GIF, TIFF, WebP) and
-  documents (PDF, DOCX) to Casio `.g3p` photo format or plain text.
+   documents (PDF, DOCX) to Casio `.g3p` photo format or plain text.
 - **📤 Push to calculator** — Copy converted files to the calculator's `pthings/`
-  directory (sorted into `fotos/` and `textos/` subdirectories).
+   directory (sorted into `fotos/` for .g3p images and `textos/` for .txt files).
 - **🔍 Calculator browsing** — Browse the full calculator filesystem, identify
-  known add-ins, and inspect storage usage.
+   known add-ins, and inspect storage usage.
 - **🔐 Cryptographic verification** — SHA256 checksums on every download and
-  PGP signature verification against the official Pan Devs key (auto-downloaded,
-  no manual setup required).
+   PGP signature verification against the official Pan Devs key (auto-downloaded,
+   no manual setup required).
 - **🖥️ Dual interface** — Full-featured **Terminal UI** (Textual) and a
-  complete **CLI** (click) for scripting.
+   complete **CLI** (click) for scripting.
 - **🔑 PGP key management** — Import, trust, list, and untrust additional keys
-  for advanced users.
+   for advanced users.
+
+> **📝 Filename Limitations:** The Casio calculator cannot read files with spaces or non-English characters (accents, special symbols) in their names. Files are automatically sanitized when pushed (spaces → _, accents removed, etc.).
+> 
+> **📄 TXT File Reading:** To view TXT files on your calculator, you need to install the "Utilities" add-in from the registry first. This add-in provides a file viewer for text documents on your Casio calculator (and also a JPEG viewer).
 
 ## Installation
 

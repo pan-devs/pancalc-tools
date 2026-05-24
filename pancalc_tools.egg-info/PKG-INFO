@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: pancalc-tools
-Version: 0.1.0
+Version: 0.1.81
 Summary: Package manager and developer toolkit for Casio Prizm calculators
 Author-email: Pan Devs <pan.devs@proton.me>
 License: PAN DEVS NON-COMMERCIAL ATTRIBUTION LICENSE v1.0
@@ -86,98 +86,35 @@ If you see `Python 3.10` or higher, you're ready. If not, install Python:
 
 1. Go to [python.org](https://www.python.org/downloads/) and download the latest
    **Python 3** installer.
-2. **Important:** when installing, say "y" to everything when the terminal opens (do not freak out, it is save), specially the **"Add Python to PATH"**.
+2. **Important:** when installing, check the box **"Add Python to PATH"** at the bottom of the installer.
 3. Open the **Command Prompt** (search "cmd" in the Start menu).
 4. Type `python --version` to confirm it's installed.
+5. **For PDF/DOCX conversion:** Install the Microsoft Visual C++ Redistributable:
+   - Download and install from: https://aka.ms/vs/17/release/vc_redist.x64.exe
+   - (If using 32-bit Python, install the x86 version instead: https://aka.ms/vs/17/release/vc_redist.x86.exe)
 
 ### 2. Install PanCalc Tools
-
-> **Nota:** El paquete aún no está en PyPI. Se instala directamente desde GitHub.
-
-#### 🐧 Linux
 
 Open a **terminal** and run:
 
 ```bash
-cd ~
-git clone https://github.com/pan-devs/pancalc-tools.git
-cd pancalc-tools
-pip install -e .
+pip install pancalc-tools
 ```
 
-> If you get a "pip not found" error, use `pip3` instead:
-> ```bash
-> pip3 install -e .
-> ```
+> If `pip` is not found, try `pip3` on Linux/macOS.
 
-> **⚠️  Error "externally-managed-environment"?**  Linux moderno bloquea `pip install`
-> fuera de un entorno virtual. Soluciones:
-> - **Opción A (recomendada):** `pip install --user -e .`
-> - **Opción B (entorno virtual):**
->   ```bash
->   python3 -m venv .venv
->   source .venv/bin/activate
->   pip install -e .
->   ```
->   A partir de ahí usa `source .venv/bin/activate` antes de ejecutar `pcalc` y
->   `cd ~/pancalc-tools` para estar en el directorio del proyecto.
->
-> Windows y macOS **no** tienen esta restricción.
-
-#### 🍎 macOS
-
-Open the **Terminal** app (Cmd+Space, type "Terminal") and run:
+On **Windows**, also install `pywin32` for automatic calculator detection and eject:
 
 ```bash
-cd ~
-git clone https://github.com/pan-devs/pancalc-tools.git
-cd pancalc-tools
-pip3 install -e .
+pip install pancalc-tools[windows]
 ```
 
-#### 🪟 Windows
+> **Linux users:** if you get an `externally-managed-environment` error, use:
+> ```bash
+> pip install --user pancalc-tools
+> ```
 
-1. Descarga el ZIP desde
-   [github.com/pan-devs/pancalc-tools](https://github.com/pan-devs/pancalc-tools)
-   y extraelo en una carpeta (ej. `C:\pancalc-tools`).
-
-2. Abre el **Command Prompt** (Inicio → "cmd") y escribe:
-
-```cmd
-cd C:\pancalc-tools
-pip install -e .
-```
-
-> Si `pip` no se reconoce, instalaste Python sin marcar **"Add Python to PATH"**.
-> Re-ejecuta el instalador de Python y marca esa casilla.
-
-### 3. Connect your calculator
-
-#### 🐧 Linux
-
-1. Turn on your Casio calculator.
-2. Press **F1** (USB mass storage mode).
-3. Connect it with a USB cable.
-4. The program will detect it automatically. If not, it will ask for your
-   password to install `udisksctl` (needed for auto-mount).
-
-#### 🍎 macOS
-
-1. Turn on your Casio calculator.
-2. Press **F1** (USB mass storage mode).
-3. Connect it with a USB cable.
-4. It should appear as a drive on your desktop and in **Finder**.
-   The program will find it automatically.
-
-#### 🪟 Windows
-
-1. Turn on your Casio calculator.
-2. Press **F1** (USB mass storage mode).
-3. Connect it with a USB cable.
-4. It should appear as a new drive in **File Explorer** (e.g. `D:\` or `E:\`).
-   The program will find it automatically.
-
-### 4. Launch the program
+### 3. Launch the program
 
 #### 🐧 Linux
 
@@ -209,10 +146,44 @@ pcalc
 
 The interactive menu will open.
 
+> **⚠️  If `pcalc` is not recognized:** add Python's `Scripts` directory to your
+> `PATH` (usually `%APPDATA%\Python\Python314\Scripts`), or use the fallback:
+> ```bash
+> python -m pcalc
+> ```
+
+### 4. Connect your calculator
+
+#### 🐧 Linux
+
+1. Turn on your Casio calculator.
+2. Press **F1** (USB mass storage mode).
+3. Connect it with a USB cable.
+4. The program will detect it automatically. If not, it will ask for your
+   password to install `udisksctl` (needed for auto-mount).
+
+#### 🍎 macOS
+
+1. Turn on your Casio calculator.
+2. Press **F1** (USB mass storage mode).
+3. Connect it with a USB cable.
+4. It should appear as a drive on your desktop and in **Finder**.
+   The program will find it automatically.
+
+#### 🪟 Windows
+
+1. Turn on your Casio calculator.
+2. Press **F1** (USB mass storage mode).
+3. Connect it with a USB cable.
+4. It should appear as a new drive in **File Explorer** (e.g. `D:\` or `E:\`).
+    The program will find it automatically.
+
+> After launching pcalc and connecting your calculator, navigate to the **Catch** option in the pcalc interface to browse your calculator's filesystem.
+
 > 💡 **Tips:**
 > - Use your mouse/trackpad and click to interact.
 > - Find games at https://github.com/wavonzip/bdesretro/tree/main (with .nes).
-> - To understand the code or doubts, ask this chatbot https://deepwiki.com/pan-devs/pancalc-tools
+> - Questions? Ask at https://deepwiki.com/pan-devs/pancalc-tools
 > - Press **Ctrl+S** to open the command palette.
 > - Press **Esc** to return to the home screen.
 > - Use **↑** and **↓** to move between items.
@@ -223,21 +194,25 @@ The interactive menu will open.
 ## Features
 
 - **📦 Add-in management** — Install, remove, and verify add-ins from the
-  [pan-devs/pancalc-registry](https://github.com/pan-devs/pancalc-registry)
-  with automatic SHA256 + PGP signature verification.
+   [pan-devs/pancalc-registry](https://github.com/pan-devs/pancalc-registry)
+   with automatic SHA256 + PGP signature verification.
 - **🖼️ File conversion** — Convert images (PNG, JPG, BMP, GIF, TIFF, WebP) and
-  documents (PDF, DOCX) to Casio `.g3p` photo format or plain text.
+   documents (PDF, DOCX) to Casio `.g3p` photo format or plain text.
 - **📤 Push to calculator** — Copy converted files to the calculator's `pthings/`
-  directory (sorted into `fotos/` and `textos/` subdirectories).
+   directory (sorted into `fotos/` for .g3p images and `textos/` for .txt files).
 - **🔍 Calculator browsing** — Browse the full calculator filesystem, identify
-  known add-ins, and inspect storage usage.
+   known add-ins, and inspect storage usage.
 - **🔐 Cryptographic verification** — SHA256 checksums on every download and
-  PGP signature verification against the official Pan Devs key (auto-downloaded,
-  no manual setup required).
+   PGP signature verification against the official Pan Devs key (auto-downloaded,
+   no manual setup required).
 - **🖥️ Dual interface** — Full-featured **Terminal UI** (Textual) and a
-  complete **CLI** (click) for scripting.
+   complete **CLI** (click) for scripting.
 - **🔑 PGP key management** — Import, trust, list, and untrust additional keys
-  for advanced users.
+   for advanced users.
+
+> **📝 Filename Limitations:** The Casio calculator cannot read files with spaces or non-English characters (accents, special symbols) in their names. Files are automatically sanitized when pushed (spaces → _, accents removed, etc.).
+> 
+> **📄 TXT File Reading:** To view TXT files on your calculator, you need to install the "Utilities" add-in from the registry first. This add-in provides a file viewer for text documents on your Casio calculator (and also a JPEG viewer).
 
 ## Installation
 
@@ -246,13 +221,22 @@ The interactive menu will open.
 - **Python 3.10+**
 - A **Casio Prizm** calculator connected via USB in **mass storage mode** (F1).
 
-### From PyPI (coming soon)
+### From PyPI
 
 ```bash
 pip install pancalc-tools
 ```
 
-Until then, see [Quick Start](#-quick-start-for-everyone) for installation from GitHub.
+On **Windows**, also install `pywin32` for automatic drive detection and eject:
+
+```bash
+pip install pancalc-tools[windows]
+```
+
+> **Note:** PGP signature verification requires `gpg` (GnuPG).
+> The program will attempt to install it automatically on first use
+> (via winget on Windows, brew on macOS, or apt/pacman/dnf on Linux).
+> See https://gpg4win.org for manual Windows installation.
 
 ### From source
 
@@ -275,12 +259,6 @@ pip install -e .
 | `python-gnupg` | PGP signature verification |
 | `questionary` | Interactive prompts |
 | `platformdirs` | Cross-platform config paths |
-
-On **Windows**, install `pywin32` for drive detection:
-
-```bash
-pip install pancalc-tools[windows]
-```
 
 ## Quick Start
 

@@ -198,7 +198,7 @@ def convert_image(input_path, output_path, bit_depth=16, split="auto", overlap=1
                           os.path.basename(input_path))
 
 
-RENDER_SCALE = 3.2
+RENDER_SCALE = 12.5
 
 
 def convert_document_g3p(input_path, output_path, bit_depth=16, overlap=16):

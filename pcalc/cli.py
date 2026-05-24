@@ -36,7 +36,7 @@ class AsciiBarColumn(ProgressColumn):
             result.append("░" * (self.bar_width - filled), style=theme.PRIMARY)
         return result
 
-VERSION = "0.1.81"
+VERSION = "0.1.9"
 
 
 # ---------------------------------------------------------------------------
@@ -210,21 +210,36 @@ def _eject(calc) -> None:
                 import win32file
                 drive = str(calc.mount_path)[:2]
                 handle = win32file.CreateFile(
-                f"\\\\.\\{drive}",
-                win32file.GENERIC_READ,
-                win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE,
-                None,
-                win32file.OPEN_EXISTING,
-                0,
-                None
-            )
+                    f"\\\\.\\{drive}",
+                    win32file.GENERIC_READ,
+                    win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE,
+                    None,
+                    win32file.OPEN_EXISTING,
+                    0,
+                    None
+                )
                 win32file.DeviceIoControl(handle, 0x2D4808, None, 0)
                 handle.close()
+                console.print(f" [bold {theme.SUCCESS}]calculator ejected correctly![/]")  # Success case
             except ImportError:
                 console.print(f" [bold {theme.WARNING}]manual eject required[/]")
                 console.print(f"  [dim]pywin32 not installed. Eject manually from Windows Explorer[/]")
                 console.print(f"  [dim]or install with: pip install pancalc-tools[windows][/]\n")
                 return
+            except Exception as e:
+                # Handle pywintypes.error specifically for error 433 (device already removed)
+                # Since pywintypes might not be available on non-Windows systems, we catch Exception
+                # and check if it's a Windows error with winerror 433
+                if hasattr(e, 'winerror') and e.winerror == 433:  # ERROR_INVALID_HANDLE - device already removed
+                    console.print(f" [bold {theme.SUCCESS}]calculator ejected correctly![/]")  # Friendly message
+                else:
+                    console.print(f" [bold {theme.ERROR}]ejection failed: {e}[/]")
+                    console.print(f" [bold {theme.WARNING}]manual eject required[/]")
+                # Still try to close handle
+                try:
+                    handle.close()
+                except:
+                    pass  # Ignore close errors
         else:
             console.print(f" [bold {theme.WARNING}]not supported[/]")
             console.print(f"  [dim]Automatic eject is not supported on this OS.")
