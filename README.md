@@ -186,9 +186,10 @@ pcalc
 The interactive menu will open.
 </details>
 
-> 💡 **Navigation tips:**
-> - Use your mouse/trackpad and click to interact
-> - Find games at https://github.com/wavonzip/bdesretro/tree/main (with .nes)
+> 💡 **Tips:**
+> - Use your mouse/trackpad and click to interact.
+> - Find games at https://github.com/wavonzip/bdesretro/tree/main (with .nes).
+> - To understand the code or doubts, ask this chatbot https://deepwiki.com/pan-devs/pancalc-tools
 > - Press **Ctrl+S** to open the command palette.
 > - Press **Esc** to return to the home screen.
 > - Use **↑** and **↓** to move between items.
