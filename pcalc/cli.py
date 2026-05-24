@@ -70,6 +70,8 @@ def cli(ctx, yes, quiet, plain):
     ctx.obj.plain = plain
 
     if ctx.invoked_subcommand is None:
+        from pcalc.crypto import _ensure_gpg
+        _ensure_gpg()  # Ensure GPG is available before launching TUI
         from pcalc.banner import print_banner
         from pcalc.calculator import find_calculator
         from pcalc.installer import get_installed, walk_calc, count_calc_files, iter_calc_files
