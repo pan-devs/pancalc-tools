@@ -52,68 +52,30 @@ If you see `Python 3.10` or higher, you're ready. If not, install Python:
 
 1. Go to [python.org](https://www.python.org/downloads/) and download the latest
    **Python 3** installer.
-2. **Important:** when installing, say "y" to everything when the terminal opens (do not freak out, it is save), specially the **"Add Python to PATH"**.
+2. **Important:** when installing, check the box **"Add Python to PATH"** at the bottom of the installer.
 3. Open the **Command Prompt** (search "cmd" in the Start menu).
 4. Type `python --version` to confirm it's installed.
 
 ### 2. Install PanCalc Tools
 
-#### 🐧 Linux
-
 Open a **terminal** and run:
 
 ```bash
-cd ~
-git clone https://github.com/pan-devs/pancalc-tools.git
-cd pancalc-tools
-pip install -e .
+pip install pancalc-tools
 ```
 
-> If you get a "pip not found" error, use `pip3` instead:
-> ```bash
-> pip3 install -e .
-> ```
+> If `pip` is not found, try `pip3` on Linux/macOS.
 
-> **⚠️  Error "externally-managed-environment"?**  Linux moderno bloquea `pip install`
-> fuera de un entorno virtual. Soluciones:
-> - **Opción A (recomendada):** `pip install --user -e .`
-> - **Opción B (entorno virtual):**
->   ```bash
->   python3 -m venv .venv
->   source .venv/bin/activate
->   pip install -e .
->   ```
->   A partir de ahí usa `source .venv/bin/activate` antes de ejecutar `pcalc` y
->   `cd ~/pancalc-tools` para estar en el directorio del proyecto.
->
-> Windows y macOS **no** tienen esta restricción.
-
-#### 🍎 macOS
-
-Open the **Terminal** app (Cmd+Space, type "Terminal") and run:
+On **Windows**, also install `pywin32` for automatic calculator detection and eject:
 
 ```bash
-cd ~
-git clone https://github.com/pan-devs/pancalc-tools.git
-cd pancalc-tools
-pip3 install -e .
+pip install pancalc-tools[windows]
 ```
 
-#### 🪟 Windows
-
-1. Descarga el ZIP desde
-   [github.com/pan-devs/pancalc-tools](https://github.com/pan-devs/pancalc-tools)
-   y extraelo en una carpeta (ej. `C:\pancalc-tools`).
-
-2. Abre el **Command Prompt** (Inicio → "cmd") y escribe:
-
-```cmd
-cd C:\pancalc-tools
-pip install -e .
-```
-
-> Si `pip` no se reconoce, instalaste Python sin marcar **"Add Python to PATH"**.
-> Re-ejecuta el instalador de Python y marca esa casilla.
+> **Linux users:** if you get an `externally-managed-environment` error, use:
+> ```bash
+> pip install --user pancalc-tools
+> ```
 
 ### 3. Connect your calculator
 
@@ -182,7 +144,7 @@ The interactive menu will open.
 > 💡 **Tips:**
 > - Use your mouse/trackpad and click to interact.
 > - Find games at https://github.com/wavonzip/bdesretro/tree/main (with .nes).
-> - To understand the code or doubts, ask this chatbot https://deepwiki.com/pan-devs/pancalc-tools
+> - Questions? Ask at https://deepwiki.com/pan-devs/pancalc-tools
 > - Press **Ctrl+S** to open the command palette.
 > - Press **Esc** to return to the home screen.
 > - Use **↑** and **↓** to move between items.
@@ -228,12 +190,10 @@ On **Windows**, also install `pywin32` for automatic drive detection and eject:
 pip install pancalc-tools[windows]
 ```
 
-> **Note:** PGP signature verification requires `gpg` (GnuPG) on your system.
-> - **Windows:** Download from https://gpg4win.org
-> - **Linux:** `sudo apt install gpg` (or your package manager's equivalent)
-> - **macOS:** `brew install gpg`
->
-> Without `gpg`, PGP keys and verification are skipped gracefully.
+> **Note:** PGP signature verification requires `gpg` (GnuPG).
+> The program will attempt to install it automatically on first use
+> (via winget on Windows, brew on macOS, or apt/pacman/dnf on Linux).
+> See https://gpg4win.org for manual Windows installation.
 
 ### From source
 
@@ -256,12 +216,6 @@ pip install -e .
 | `python-gnupg` | PGP signature verification |
 | `questionary` | Interactive prompts |
 | `platformdirs` | Cross-platform config paths |
-
-On **Windows**, also install `pywin32` for automatic drive detection and eject:
-
-```bash
-pip install pancalc-tools[windows]
-```
 
 ## Quick Start
 
