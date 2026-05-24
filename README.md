@@ -205,10 +205,9 @@ The interactive menu will open.
 
 ## Installation
 
-### Requirements
+## Installation
 
-- **Python 3.10+**
-- A **Casio Prizm** calculator connected via USB in **mass storage mode** (F1).
+### Requirements
 
 ### From PyPI
 
