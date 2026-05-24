@@ -218,7 +218,7 @@ def _eject(calc) -> None:
                 0,
                 None
             )
-                win32api.DeviceIoControl(handle, 0x2D4808, None, 0)
+                win32file.DeviceIoControl(handle, 0x2D4808, None, 0)
                 handle.close()
             except ImportError:
                 console.print(f" [bold {theme.WARNING}]manual eject required[/]")
