@@ -25,7 +25,10 @@ OFFICIAL_KEY_ID = "1A370E1B68A194A8"  # fingerprint suffix of the Pan Devs key
 
 def _gpg():
     GNUPG_DIR.mkdir(parents=True, exist_ok=True)
-    return gnupg.GPG(gnupghome=str(GNUPG_DIR))
+    try:
+        return gnupg.GPG(gnupghome=str(GNUPG_DIR))
+    except OSError:
+        return None
 
 
 # ── SHA256 ──────────────────────────────────────────────────────────
@@ -46,6 +49,8 @@ def _ensure_official_key() -> str | None:
     """Download & import the official Pan Devs PGP key if not cached yet.
     Returns the key's fingerprint, or None on failure."""
     gpg = _gpg()
+    if gpg is None:
+        return None
 
     # Already imported?
     for k in gpg.list_keys():
@@ -72,6 +77,8 @@ def _ensure_official_key() -> str | None:
 def official_key_info() -> dict | None:
     """Return info about the official Pan Devs key if imported."""
     gpg = _gpg()
+    if gpg is None:
+        return None
     for k in gpg.list_keys():
         fp = k["fingerprint"]
         if fp.endswith(OFFICIAL_KEY_ID):
@@ -118,6 +125,8 @@ def verify_official_signature(data: bytes, signature_asc: str) -> bool:
 def import_key(key_path: str) -> dict:
     """Import a PGP public key file. Returns {'fingerprint': ..., 'keyid': ...}."""
     gpg = _gpg()
+    if gpg is None:
+        raise RuntimeError("GPG is not available. Install Gpg4win from https://gpg4win.org and try again.")
     key_data = Path(key_path).read_text()
     result = gpg.import_keys(key_data)
     if result.count == 0:
@@ -133,6 +142,8 @@ def import_key(key_path: str) -> dict:
 def list_keys() -> list[dict]:
     """List all keys in the pancalc keyring with trust status."""
     gpg = _gpg()
+    if gpg is None:
+        return []
     trusted = _load_trusted()
     result = []
     for k in gpg.list_keys():
@@ -151,6 +162,8 @@ def list_keys() -> list[dict]:
 def trust_key(fingerprint: str) -> bool:
     """Mark a key as trusted for signature verification."""
     gpg = _gpg()
+    if gpg is None:
+        raise RuntimeError("GPG is not available. Install Gpg4win from https://gpg4win.org and try again.")
     trusted = _load_trusted()
     if fingerprint not in trusted:
         keys = gpg.list_keys()
@@ -197,6 +210,8 @@ def verify_signature(data: bytes, signature_asc: str) -> str | None:
     Returns the signer's fingerprint on success, or None if verification fails.
     """
     gpg = _gpg()
+    if gpg is None:
+        return None
     data_tmp = tempfile.NamedTemporaryFile(delete=False)
     data_tmp.write(data)
     data_tmp.close()
