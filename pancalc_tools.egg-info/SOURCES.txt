@@ -1,4 +1,4 @@
-LICENSE
+LICENSE.md
 README.md
 pyproject.toml
 pancalc_tools.egg-info/PKG-INFO
@@ -13,6 +13,7 @@ pcalc/calculator.py
 pcalc/cli.py
 pcalc/config.py
 pcalc/converter.py
+pcalc/crypto.py
 pcalc/installer.py
 pcalc/registry.py
 pcalc/theme.py

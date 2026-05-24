@@ -1,4 +1,3 @@
-import os
 """
 pcalc/installer.py — Install, remove and track add-ins on a connected Casio Prizm.
 Handles direct .g3a downloads and zip archives containing .g3a files.
@@ -7,6 +6,7 @@ Handles direct .g3a downloads and zip archives containing .g3a files.
 import hashlib
 import io
 import json
+import os
 import shutil
 import zipfile
 from dataclasses import dataclass
@@ -16,6 +16,7 @@ import requests
 from platformdirs import user_cache_dir
 
 from pcalc.calculator import Calculator
+from pcalc.crypto import is_trusted_signature, sha256_digest, verify_sha256
 
 
 # ---------------------------------------------------------------------------
@@ -283,11 +284,16 @@ def _get_addin_files(addin: dict) -> list[dict]:
     dl_type  = addin.get("download_type", "direct")
     zip_file = addin.get("zip_file", f"{addin_id}.g3a")
 
-    return [{
+    entry = {
         "download_url": dl_url,
         "download_type": dl_type,
         "zip_file": zip_file,
-    }]
+    }
+    if "sha256" in addin:
+        entry["sha256"] = addin["sha256"]
+    if "signature_url" in addin:
+        entry["signature_url"] = addin["signature_url"]
+    return [entry]
 
 
 def _resolve_file_name(file_info: dict, addin_id: str) -> str:
@@ -360,6 +366,37 @@ def install(addin: dict, calc: Calculator, progress_callback=None, write_callbac
 
         # Download
         raw = _download_bytes(dl_url, progress_callback=progress_callback, cb_label=filename)
+
+        # SHA256 verification (optional — if sha256 is present in registry)
+        if "sha256" in file_info:
+            expected_sha = file_info["sha256"]
+            if not verify_sha256(raw, expected_sha):
+                raise RuntimeError(
+                    f"SHA256 mismatch for {filename}: "
+                    f"expected {expected_sha}, got {sha256_digest(raw)}"
+                )
+
+        # PGP signature verification (optional — if signature_url is present)
+        sig_url = file_info.get("signature_url", dl_url + ".asc")
+        sig_data = None
+        try:
+            sig_data = _download_bytes(sig_url)
+        except RuntimeError:
+            pass
+        if sig_data is not None:
+            sig_text = sig_data.decode("utf-8", errors="replace")
+            if not is_trusted_signature(raw, sig_text):
+                # Try download_url + ".asc" as fallback
+                try:
+                    fallback_sig = _download_bytes(dl_url + ".asc")
+                    sig_text = fallback_sig.decode("utf-8", errors="replace")
+                except RuntimeError:
+                    pass
+                if not is_trusted_signature(raw, sig_text):
+                    raise RuntimeError(
+                        f"PGP signature verification failed for {filename}. "
+                        "Use 'pcalc import-key' and 'pcalc trust-key' to trust the publisher's key."
+                    )
 
         # Extract from zip if needed
         if dl_type == "zip":

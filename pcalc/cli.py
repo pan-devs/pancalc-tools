@@ -91,7 +91,8 @@ def cli(ctx, yes, quiet, plain):
             device_files=_dcount,
             device_unknown=_unk,
         )
-        click.echo(ctx.get_help())
+        from pcalc.tui import PanCalcApp
+        PanCalcApp().run()
     else:
         if not quiet and not plain:
             from pcalc.banner import print_header
@@ -168,6 +169,145 @@ def _confirm(app: AppContext, message: str) -> bool:
     if app.yes:
         return True
     return click.confirm(f"  {message}", default=False)
+
+
+# ---------------------------------------------------------------------------
+# TUI helpers
+# ---------------------------------------------------------------------------
+
+
+def _eject(calc) -> None:
+    """Safely unmount the calculator before disconnecting."""
+    import platform
+    import subprocess
+
+    mount = str(calc.mount_path)
+    system = platform.system()
+
+    console.print(f"\n  Ejecting [bold white]{calc.model}[/] at [dim]{mount}[/]...", end="")
+
+    try:
+        if system == "Linux":
+            import re
+            result = subprocess.run(
+                ["findmnt", "-n", "-o", "SOURCE", mount],
+                capture_output=True, text=True
+            )
+            device = result.stdout.strip()
+            parent = re.sub(r'p?\d+$', '', device)
+            subprocess.run(["udisksctl", "unmount", "-b", device], check=True, capture_output=True)
+            subprocess.run(["udisksctl", "power-off", "-b", parent], check=True, capture_output=True)
+        elif system == "Darwin":
+            subprocess.run(["diskutil", "unmount", mount], check=True, capture_output=True)
+            subprocess.run(["diskutil", "eject", mount], capture_output=True)
+        elif system == "Windows":
+            try:
+                import win32api
+                import win32file
+                drive = str(calc.mount_path)[:2]
+                handle = win32file.CreateFile(
+                    f"\\.\\{drive}",
+                    win32file.GENERIC_READ,
+                    win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE,
+                    None, win32file.OPEN_EXISTING, 0, None
+                )
+                win32api.DeviceIoControl(handle, 0x2D4808, None, 0)
+                handle.close()
+            except ImportError:
+                console.print(f" [bold {theme.WARNING}]manual eject required[/]")
+                console.print(f"  [dim]pywin32 not installed. Eject manually from Windows Explorer[/]")
+                console.print(f"  [dim]or install with: pip install pancalc-tools[windows][/]\n")
+                return
+        else:
+            console.print(f" [bold {theme.WARNING}]not supported[/]")
+            console.print(f"  [dim]Automatic eject is not supported on this OS.")
+            console.print(f"  Please eject the calculator manually before disconnecting.[/]\n")
+            return
+        console.print(f" [bold {theme.SUCCESS}]done[/]")
+        console.print(f"  [dim]Safe to disconnect.[/]\n")
+    except subprocess.CalledProcessError:
+        console.print(f" [bold red]failed[/]")
+        console.print(f"  [bold red]Error:[/] Could not eject automatically.")
+        console.print(f"  [dim]Please eject the calculator manually before disconnecting.[/]\n")
+
+
+def _cmd_install_tui(names: list[str], force: bool = False) -> None:
+    """Install add-ins from the TUI (simplified, no progress bars).
+
+    Args:
+        names: Add-in names/IDs to install.
+        force: If True, skip the 'is_installed' check.
+    """
+    from pcalc import registry
+    from pcalc.calculator import require_calculator
+    from pcalc.installer import install, is_installed
+
+    for name in names:
+        try:
+            addin = registry.get_addin(name)
+        except RuntimeError as e:
+            console.print(f"\n  [bold red]Error:[/] {e}\n")
+            continue
+        if addin is None:
+            console.print(f"\n  [bold red]Error:[/] Add-in '{name}' not found.\n")
+            continue
+        if not force and is_installed(addin["id"]):
+            console.print(f"  [dim]'{addin['name']}' is already installed, skipping.[/]")
+            continue
+        try:
+            calc = require_calculator()
+        except RuntimeError as e:
+            console.print(f"\n  [bold red]Error:[/] {e}\n")
+            return
+        try:
+            install(addin, calc)
+            console.print(f"  [bold {theme.SUCCESS}]✓[/] {addin['name']} installed.\n")
+        except RuntimeError as e:
+            console.print(f"\n  [bold red]Error installing {addin['name']}:[/] {e}\n")
+
+
+def _cmd_remove_tui(names: list[str]) -> None:
+    """Remove add-ins from the TUI (simplified).
+
+    Handles both installed.json-tracked add-ins and device-scanned add-ins.
+    """
+    from pcalc.calculator import require_calculator
+    from pcalc.installer import remove, get_installed, walk_calc
+
+    # Try installed.json first, then fall back to device scan
+    installed = get_installed()
+    addin_ids = []
+    for name in names:
+        found = False
+        for aid, entry in installed.items():
+            if aid.lower() == name.lower() or entry.get("name", "").lower() == name.lower():
+                addin_ids.append((aid, entry.get("name", aid)))
+                found = True
+                break
+        if not found:
+            from pcalc import registry
+            try:
+                calc = require_calculator()
+                addins = registry.get_registry()
+                entries = [e for e in walk_calc(calc, addins) if e.addin and e.addin.get("id") == name]
+                if entries:
+                    addin_ids.append((name, entries[0].addin.get("name", name)))
+                    found = True
+            except RuntimeError:
+                pass
+            if not found:
+                addin_ids.append((name, name))
+    try:
+        calc = require_calculator()
+    except RuntimeError as e:
+        console.print(f"\n  [bold red]Error:[/] {e}\n")
+        return
+    for aid, display_name in addin_ids:
+        try:
+            remove(aid, calc)
+            console.print(f"  [bold {theme.SUCCESS}]✓[/] {display_name} removed.\n")
+        except RuntimeError as e:
+            console.print(f"\n  [bold red]Error removing {display_name}:[/] {e}\n")
 
 
 # ---------------------------------------------------------------------------
@@ -890,8 +1030,6 @@ def cmd_convpush(app):
 @pass_ctx
 def cmd_eject(app):
     """Safely unmount the calculator before disconnecting."""
-    import platform
-    import subprocess
     from pcalc.calculator import find_calculator
 
     calc = find_calculator()
@@ -899,57 +1037,7 @@ def cmd_eject(app):
         console.print(f"\n  [dim]No calculator detected.[/]\n")
         return
 
-    mount = str(calc.mount_path)
-    system = platform.system()
-
-    console.print(f"\n  Ejecting [bold white]{calc.model}[/] at [dim]{mount}[/]...", end="")
-
-    try:
-        if system == "Linux":
-            # Use udisksctl for proper eject (unmount + power-off, no sudo needed)
-            import re
-            # Get the block device from mount path
-            result = subprocess.run(
-                ["findmnt", "-n", "-o", "SOURCE", mount],
-                capture_output=True, text=True
-            )
-            device = result.stdout.strip()  # e.g. /dev/sdb1
-            parent = re.sub(r'p?\d+$', '', device)  # e.g. /dev/sdb
-
-            subprocess.run(["udisksctl", "unmount", "-b", device], check=True, capture_output=True)
-            subprocess.run(["udisksctl", "power-off", "-b", parent], check=True, capture_output=True)
-        elif system == "Darwin":
-            subprocess.run(["diskutil", "unmount", mount], check=True, capture_output=True)
-            subprocess.run(["diskutil", "eject", mount], capture_output=True)
-        elif system == "Windows":
-            try:
-                import win32api
-                import win32file
-                drive = str(calc.mount_path)[:2]  # e.g. "E:"
-                handle = win32file.CreateFile(
-                    f"\\.\\{drive}",
-                    win32file.GENERIC_READ,
-                    win32file.FILE_SHARE_READ | win32file.FILE_SHARE_WRITE,
-                    None, win32file.OPEN_EXISTING, 0, None
-                )
-                win32api.DeviceIoControl(handle, 0x2D4808, None, 0)  # IOCTL_STORAGE_EJECT_MEDIA
-                handle.close()
-            except ImportError:
-                console.print(f" [bold {theme.WARNING}]manual eject required[/]")
-                console.print(f"  [dim]pywin32 not installed. Eject manually from Windows Explorer[/]")
-                console.print(f"  [dim]or install with: pip install pancalc-tools[windows][/]\n")
-                return
-        else:
-            console.print(f" [bold {theme.WARNING}]not supported[/]")
-            console.print(f"  [dim]Automatic eject is not supported on this OS.")
-            console.print(f"  Please eject the calculator manually before disconnecting.[/]\n")
-            return
-        console.print(f" [bold {theme.SUCCESS}]done[/]")
-        console.print(f"  [dim]Safe to disconnect.[/]\n")
-    except subprocess.CalledProcessError:
-        console.print(f" [bold red]failed[/]")
-        console.print(f"  [bold red]Error:[/] Could not eject automatically.")
-        console.print(f"  [dim]Please eject the calculator manually before disconnecting.[/]\n")
+    _eject(calc)
 
 @cli.command("update-registry")
 @pass_ctx
@@ -965,3 +1053,132 @@ def cmd_update_registry(app):
     except RuntimeError as e:
         console.print(f" [bold red]failed[/]")
         _registry_error(e)
+
+
+# ---------------------------------------------------------------------------
+# Cryptographic / verification
+# ---------------------------------------------------------------------------
+
+
+@cli.command("verify")
+@click.argument("names", nargs=-1)
+@pass_ctx
+def cmd_verify(app, names):
+    """Verify installed add-ins against their recorded SHA256 checksums.
+
+    If no add-in names are given, verifies ALL installed add-ins.
+    """
+    from pcalc.installer import get_installed, verify as verify_installed
+    from pcalc.calculator import find_calculator
+
+    calc = find_calculator()
+    if not calc:
+        _no_calc()
+
+    installed = get_installed()
+    if not installed:
+        console.print(f"  [dim]No add-ins are installed. Nothing to verify.[/]\n")
+        return
+
+    if not names:
+        names = list(installed.keys())
+    else:
+        missing = [n for n in names if n not in installed]
+        if missing:
+            _fail(f"Add-in(s) not installed: {', '.join(missing)}")
+
+    all_ok = True
+    for name in names:
+        entry = installed[name]
+        label = entry.get("name", name)
+        console.print(f"\n  Verifying [bold]{label}[/] ...", end="")
+        try:
+            result = verify_installed(name, calc)
+            if result:
+                console.print(f" [bold {theme.SUCCESS}]OK[/]")
+            else:
+                console.print(f" [bold red]FAILED[/]")
+                all_ok = False
+        except RuntimeError as e:
+            console.print(f" [bold red]FAILED[/]")
+            console.print(f"    [red]{e}[/]")
+            all_ok = False
+
+    if not all_ok:
+        raise SystemExit(1)
+    console.print()
+
+
+@cli.command("import-key")
+@click.argument("key_file", type=click.Path(exists=True))
+@pass_ctx
+def cmd_import_key(app, key_file):
+    """Import a PGP public key for signature verification."""
+    from pcalc.crypto import import_key
+
+    console.print(f"\n  Importing key from [dim]{key_file}[/] ...", end="")
+    try:
+        result = import_key(key_file)
+        fp = result["fingerprint"]
+        console.print(f" [bold {theme.SUCCESS}]done[/]")
+        console.print(f"  Fingerprint: [bold]{fp}[/]")
+        console.print(f"  Key ID:      [bold]{result['keyid']}[/]")
+        console.print(f"\n  [dim]Use 'pcalc trust-key {fp}' to trust this key for signature verification.[/]\n")
+    except RuntimeError as e:
+        console.print(f" [bold red]failed[/]")
+        _fail(str(e))
+
+
+@cli.command("list-keys")
+@pass_ctx
+def cmd_list_keys(app):
+    """List imported PGP keys and their trust status."""
+    from pcalc.crypto import list_keys
+
+    keys = list_keys()
+    if not keys:
+        console.print(f"\n  [dim]No PGP keys imported. Use 'pcalc import-key <file>' to add one.[/]\n")
+        return
+
+    from rich.table import Table
+    table = Table(
+        show_header=True, header_style=theme.S_PRIMARY, border_style=theme.PRIMARY,
+        show_lines=False, pad_edge=True,
+    )
+    table.add_column("Key ID", style="bold white", no_wrap=True)
+    table.add_column("Fingerprint", style=theme.S_DIM)
+    table.add_column("UID", style="white")
+    table.add_column("Trusted", style=theme.S_ACCENT)
+
+    for k in keys:
+        trusted = "[bold green]yes[/]" if k["trusted"] else "[dim]no[/]"
+        uids = k.get("uids", ["(none)"])
+        table.add_row(k["keyid"], k["fingerprint"][:32] + "...", uids[0], trusted)
+    console.print("\n", table, "\n")
+
+
+@cli.command("trust-key")
+@click.argument("fingerprint")
+@pass_ctx
+def cmd_trust_key(app, fingerprint):
+    """Mark a PGP key as trusted for signature verification."""
+    from pcalc.crypto import trust_key
+
+    console.print(f"\n  Trusting key [dim]{fingerprint}[/] ...", end="")
+    try:
+        trust_key(fingerprint)
+        console.print(f" [bold {theme.SUCCESS}]done[/]\n")
+    except RuntimeError as e:
+        console.print(f" [bold red]failed[/]")
+        _fail(str(e))
+
+
+@cli.command("untrust-key")
+@click.argument("fingerprint")
+@pass_ctx
+def cmd_untrust_key(app, fingerprint):
+    """Remove trust from a previously trusted PGP key."""
+    from pcalc.crypto import untrust_key
+
+    untrust_key(fingerprint)
+    console.print(f"\n  Key [dim]{fingerprint}[/] is no longer trusted.\n")
