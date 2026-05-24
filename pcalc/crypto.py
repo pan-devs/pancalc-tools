@@ -9,6 +9,9 @@ import hashlib
 import io
 import json
 import os
+import platform
+import shutil
+import subprocess
 import tempfile
 import urllib.request
 from pathlib import Path
@@ -23,8 +26,95 @@ OFFICIAL_KEY_URL = "https://raw.githubusercontent.com/pan-devs/pancalc-registry/
 OFFICIAL_KEY_ID = "1A370E1B68A194A8"  # fingerprint suffix of the Pan Devs key
 
 
+_GPG_CHECKED = False
+
+
+def _detect_pkg_manager() -> str | None:
+    """Detect the system package manager install command."""
+    if platform.system() != "Linux":
+        return None
+    if shutil.which("apt") or os.path.exists("/etc/debian_version"):
+        return "apt install -y"
+    if shutil.which("pacman"):
+        return "pacman -S --noconfirm"
+    if shutil.which("dnf"):
+        return "dnf install -y"
+    if shutil.which("yum"):
+        return "yum install -y"
+    if shutil.which("zypper"):
+        return "zypper install -y"
+    return None
+
+
+def _ensure_gpg() -> bool:
+    """
+    Check if gpg is available. If not, prompt the user to install it
+    and attempt auto-install on Windows/macOS/Linux.
+    """
+    if shutil.which("gpg"):
+        return True
+
+    print()
+    print("  ⚠  GPG (GnuPG) not found")
+    print("  ────────────────────────")
+    print("  PGP signature verification requires the gpg command.")
+    print("  Without it, PGP keys and verification are skipped.")
+    print()
+
+    system = platform.system()
+    if system == "Windows":
+        if shutil.which("winget"):
+            print("  Attempting to install via winget...")
+            try:
+                subprocess.run(
+                    ["winget", "install", "GnuPG.GnuPG", "--silent", "--accept-package-agreements"],
+                    check=True,
+                )
+                print()
+                return shutil.which("gpg") is not None
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                pass
+        print("  Install Gpg4win manually from https://gpg4win.org")
+        print()
+
+    elif system == "Darwin":
+        if shutil.which("brew"):
+            print("  Attempting to install via Homebrew...")
+            try:
+                subprocess.run(["brew", "install", "gnupg"], check=True)
+                print()
+                return shutil.which("gpg") is not None
+            except subprocess.CalledProcessError:
+                pass
+        print("  Install GPG manually:  brew install gnupg")
+        print()
+
+    else:  # Linux
+        pm = _detect_pkg_manager()
+        if pm:
+            cmd = f"sudo {pm} gnupg"
+            print(f"  Attempting to install: {cmd}")
+            print("  (you may be prompted for your sudo password)")
+            print()
+            try:
+                subprocess.run(cmd.split(), check=True)
+                print()
+                return shutil.which("gpg") is not None
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                pass
+        print("  Install GPG manually via your package manager.")
+        print("  Example:  sudo apt install gnupg")
+        print()
+
+    return False
+
+
 def _gpg():
     GNUPG_DIR.mkdir(parents=True, exist_ok=True)
+    global _GPG_CHECKED
+    if not _GPG_CHECKED:
+        _GPG_CHECKED = True
+        _ensure_gpg()
     try:
         return gnupg.GPG(gnupghome=str(GNUPG_DIR))
     except OSError:

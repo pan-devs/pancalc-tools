@@ -211,15 +211,29 @@ The interactive menu will open.
 
 ## Installation
 
-## Installation
-
 ### Requirements
+
+- **Python 3.10+**
+- A **Casio Prizm** calculator connected via USB in **mass storage mode** (F1).
 
 ### From PyPI
 
 ```bash
 pip install pancalc-tools
 ```
+
+On **Windows**, also install `pywin32` for automatic drive detection and eject:
+
+```bash
+pip install pancalc-tools[windows]
+```
+
+> **Note:** PGP signature verification requires `gpg` (GnuPG) on your system.
+> - **Windows:** Download from https://gpg4win.org
+> - **Linux:** `sudo apt install gpg` (or your package manager's equivalent)
+> - **macOS:** `brew install gpg`
+>
+> Without `gpg`, PGP keys and verification are skipped gracefully.
 
 ### From source
 
@@ -243,7 +257,7 @@ pip install -e .
 | `questionary` | Interactive prompts |
 | `platformdirs` | Cross-platform config paths |
 
-On **Windows**, install `pywin32` for drive detection:
+On **Windows**, also install `pywin32` for automatic drive detection and eject:
 
 ```bash
 pip install pancalc-tools[windows]
