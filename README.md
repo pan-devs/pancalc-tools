@@ -5,6 +5,183 @@ Package manager, file converter, and developer toolkit for **Casio Prizm** calcu
 
 Part of the [Pan Devs](https://github.com/pan-devs) project.
 
+---
+
+## 📖 Quick Start (for everyone)
+
+> **PanCalc Tools** lets you install programs (add-ins) on your Casio calculator,
+> convert photos and documents so you can view them on the calculator screen,
+> and much more.
+
+### 1. Install Python
+
+PanCalc Tools needs **Python 3.10 or newer**.
+
+<details>
+<summary><b>🐧 Linux</b></summary>
+
+Open a **terminal** (search for "Terminal" in your apps) and type:
+
+```bash
+python3 --version
+```
+
+If you see `Python 3.10` or higher, you're ready. If not, install Python:
+
+- **Ubuntu / Debian / Mint:**
+  ```bash
+  sudo apt install python3 python3-pip
+  ```
+- **Arch / Manjaro:**
+  ```bash
+  sudo pacman -S python python-pip
+  ```
+- **Fedora:**
+  ```bash
+  sudo dnf install python3 python3-pip
+  ```
+</details>
+
+<details>
+<summary><b>🍎 macOS</b></summary>
+
+1. Go to [python.org](https://www.python.org/downloads/) and download the latest
+   **Python 3** installer.
+2. Open the downloaded file and follow the steps.
+3. Open the **Terminal** app (search with Cmd+Space).
+4. Type `python3 --version` to confirm it's installed.
+</details>
+
+<details>
+<summary><b>🪟 Windows</b></summary>
+
+1. Go to [python.org](https://www.python.org/downloads/) and download the latest
+   **Python 3** installer.
+2. **Important:** when installing, check the box **"Add Python to PATH"** at the bottom.
+3. Open the **Command Prompt** (search "cmd" in the Start menu).
+4. Type `python --version` to confirm it's installed.
+</details>
+
+### 2. Install PanCalc Tools
+
+<details>
+<summary><b>🐧 Linux</b></summary>
+
+Open a **terminal** and run:
+
+```bash
+pip install pancalc-tools
+```
+
+> If you get a "pip not found" error, use `pip3` instead:
+> ```bash
+> pip3 install pancalc-tools
+> ```
+</details>
+
+<details>
+<summary><b>🍎 macOS</b></summary>
+
+Open the **Terminal** app (Cmd+Space, type "Terminal") and run:
+
+```bash
+pip3 install pancalc-tools
+```
+</details>
+
+<details>
+<summary><b>🪟 Windows</b></summary>
+
+Open the **Command Prompt** (Start menu, type "cmd") and run:
+
+```bash
+pip install pancalc-tools
+```
+
+> If you get "pip is not recognized", you forgot to check **"Add Python to PATH"**
+> during Python installation. Re-run the Python installer and make sure that box
+> is checked.
+</details>
+
+### 3. Connect your calculator
+
+<details>
+<summary><b>🐧 Linux</b></summary>
+
+1. Turn on your Casio calculator.
+2. Press **F1** (USB mass storage mode).
+3. Connect it with a USB cable.
+4. The program will detect it automatically. If not, it will ask for your
+   password to install `udisksctl` (needed for auto-mount).
+</details>
+
+<details>
+<summary><b>🍎 macOS</b></summary>
+
+1. Turn on your Casio calculator.
+2. Press **F1** (USB mass storage mode).
+3. Connect it with a USB cable.
+4. It should appear as a drive on your desktop and in **Finder**.
+   The program will find it automatically.
+</details>
+
+<details>
+<summary><b>🪟 Windows</b></summary>
+
+1. Turn on your Casio calculator.
+2. Press **F1** (USB mass storage mode).
+3. Connect it with a USB cable.
+4. It should appear as a new drive in **File Explorer** (e.g. `D:\` or `E:\`).
+   The program will find it automatically.
+</details>
+
+### 4. Launch the program
+
+<details>
+<summary><b>🐧 Linux</b></summary>
+
+In the **terminal**, type:
+
+```bash
+pcalc
+```
+
+The interactive menu will open.
+</details>
+
+<details>
+<summary><b>🍎 macOS</b></summary>
+
+In the **Terminal** app, type:
+
+```bash
+pcalc
+```
+
+The interactive menu will open.
+</details>
+
+<details>
+<summary><b>🪟 Windows</b></summary>
+
+In the **Command Prompt**, type:
+
+```bash
+pcalc
+```
+
+The interactive menu will open.
+</details>
+
+> 💡 **Navigation tips:**
+> - Use your mouse/trackpad and click to interact
+> - Press **Ctrl+S** to open the command palette.
+> - Press **Esc** to return to the home screen.
+> - Use **↑** and **↓** to move between items.
+> - Press **Space** to select/deselect an item.
+
+---
+
 ## Features
 
 - **📦 Add-in management** — Install, remove, and verify add-ins from the
