@@ -1,9 +1,16 @@
 """
 pcalc/crypto.py — SHA256 and PGP signature verification.
+
+PGP: verification is always done against the official Pan Devs key,
+downloaded automatically from the registry. No manual import/trust needed.
 """
 
 import hashlib
+import io
 import json
+import os
+import tempfile
+import urllib.request
 from pathlib import Path
 from platformdirs import user_cache_dir
 
@@ -11,6 +18,9 @@ import gnupg
 
 GNUPG_DIR = Path(user_cache_dir("pancalc")) / "gnupg"
 TRUSTED_FILE = Path(user_cache_dir("pancalc")) / "trusted-keys.json"
+
+OFFICIAL_KEY_URL = "https://raw.githubusercontent.com/pan-devs/pancalc-registry/main/pandevs.asc"
+OFFICIAL_KEY_ID = "1A370E1B68A194A8"  # fingerprint suffix of the Pan Devs key
 
 
 def _gpg():
@@ -29,18 +39,80 @@ def verify_sha256(data: bytes, expected: str) -> bool:
     return sha256_digest(data) == expected.lower()
 
 
-# ── Key management ──────────────────────────────────────────────────
+# ── Official Pan Devs key ──────────────────────────────────────────
 
 
-def _load_trusted() -> dict:
-    if TRUSTED_FILE.exists():
-        return json.loads(TRUSTED_FILE.read_text())
-    return {}
+def _ensure_official_key() -> str | None:
+    """Download & import the official Pan Devs PGP key if not cached yet.
+    Returns the key's fingerprint, or None on failure."""
+    gpg = _gpg()
+
+    # Already imported?
+    for k in gpg.list_keys():
+        fp = k["fingerprint"]
+        if fp.endswith(OFFICIAL_KEY_ID):
+            return fp
+
+    # Download from registry
+    try:
+        with urllib.request.urlopen(OFFICIAL_KEY_URL, timeout=10) as r:
+            key_data = r.read().decode("utf-8")
+    except Exception:
+        return None
+
+    result = gpg.import_keys(key_data)
+    if result.count == 0:
+        return None
+    fp = result.fingerprints[0]
+    # Trust ultimately so python-gnupg reports trust_level
+    gpg.trust_keys(fp, "TRUST_ULTIMATE")
+    return fp
 
 
-def _save_trusted(keys: dict):
-    TRUSTED_FILE.parent.mkdir(parents=True, exist_ok=True)
-    TRUSTED_FILE.write_text(json.dumps(keys, indent=2))
+def official_key_info() -> dict | None:
+    """Return info about the official Pan Devs key if imported."""
+    gpg = _gpg()
+    for k in gpg.list_keys():
+        fp = k["fingerprint"]
+        if fp.endswith(OFFICIAL_KEY_ID):
+            return {
+                "keyid": k["keyid"],
+                "fingerprint": fp,
+                "uids": k["uids"],
+            }
+    return None
+
+
+# ── Signature verification ─────────────────────────────────────────
+
+
+def verify_official_signature(data: bytes, signature_asc: str) -> bool:
+    """Verify a detached PGP signature against the official Pan Devs key.
+
+    The official key is downloaded & cached automatically from the registry.
+    Returns True only if the signature is valid *and* was made by the
+    official key.
+    """
+    official_fp = _ensure_official_key()
+    if official_fp is None:
+        return False
+
+    gpg = _gpg()
+    # verify_file(sig, data_path): first arg is the signature (file-like),
+    # second is the path to the data (for detached sigs).
+    data_tmp = tempfile.NamedTemporaryFile(delete=False)
+    data_tmp.write(data)
+    data_tmp.close()
+    try:
+        verified = gpg.verify_file(io.BytesIO(signature_asc.encode()), data_tmp.name)
+    finally:
+        os.unlink(data_tmp.name)
+    if verified and verified.fingerprint == official_fp:
+        return True
+    return False
+
+
+# ── Legacy key management (advanced users) ─────────────────────────
 
 
 def import_key(key_path: str) -> dict:
@@ -65,11 +137,13 @@ def list_keys() -> list[dict]:
     result = []
     for k in gpg.list_keys():
         fp = k["fingerprint"]
+        is_official = fp.endswith(OFFICIAL_KEY_ID)
         result.append({
             "keyid": k["keyid"],
             "fingerprint": fp,
             "uids": k["uids"],
-            "trusted": fp in trusted and trusted[fp].get("trusted", False),
+            "trusted": is_official or (fp in trusted and trusted[fp].get("trusted", False)),
+            "official": is_official,
         })
     return result
 
@@ -79,7 +153,6 @@ def trust_key(fingerprint: str) -> bool:
     gpg = _gpg()
     trusted = _load_trusted()
     if fingerprint not in trusted:
-        # Try to find in the keyring
         keys = gpg.list_keys()
         found = any(k["fingerprint"] == fingerprint for k in keys)
         if not found:
@@ -104,7 +177,18 @@ def get_trusted_fingerprints() -> list[str]:
     return [fp for fp, info in trusted.items() if info.get("trusted", False)]
 
 
-# ── Signature verification ─────────────────────────────────────────
+def _load_trusted() -> dict:
+    if TRUSTED_FILE.exists():
+        return json.loads(TRUSTED_FILE.read_text())
+    return {}
+
+
+def _save_trusted(keys: dict):
+    TRUSTED_FILE.parent.mkdir(parents=True, exist_ok=True)
+    TRUSTED_FILE.write_text(json.dumps(keys, indent=2))
+
+
+# ── Legacy verify (still used elsewhere?) ──────────────────────────
 
 
 def verify_signature(data: bytes, signature_asc: str) -> str | None:
@@ -113,7 +197,13 @@ def verify_signature(data: bytes, signature_asc: str) -> str | None:
     Returns the signer's fingerprint on success, or None if verification fails.
     """
     gpg = _gpg()
-    verified = gpg.verify_data(signature_asc, data)
+    data_tmp = tempfile.NamedTemporaryFile(delete=False)
+    data_tmp.write(data)
+    data_tmp.close()
+    try:
+        verified = gpg.verify_file(io.BytesIO(signature_asc.encode()), data_tmp.name)
+    finally:
+        os.unlink(data_tmp.name)
     if verified and verified.trust_level is not None:
         return verified.fingerprint
     return None

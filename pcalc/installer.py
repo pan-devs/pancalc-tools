@@ -16,7 +16,7 @@ import requests
 from platformdirs import user_cache_dir
 
 from pcalc.calculator import Calculator
-from pcalc.crypto import is_trusted_signature, sha256_digest, verify_sha256
+from pcalc.crypto import verify_official_signature, sha256_digest, verify_sha256
 
 
 # ---------------------------------------------------------------------------
@@ -376,7 +376,7 @@ def install(addin: dict, calc: Calculator, progress_callback=None, write_callbac
                     f"expected {expected_sha}, got {sha256_digest(raw)}"
                 )
 
-        # PGP signature verification (optional — if signature_url is present)
+        # PGP signature verification (optional — against official Pan Devs key)
         sig_url = file_info.get("signature_url", dl_url + ".asc")
         sig_data = None
         try:
@@ -385,17 +385,17 @@ def install(addin: dict, calc: Calculator, progress_callback=None, write_callbac
             pass
         if sig_data is not None:
             sig_text = sig_data.decode("utf-8", errors="replace")
-            if not is_trusted_signature(raw, sig_text):
-                # Try download_url + ".asc" as fallback
+            if not verify_official_signature(raw, sig_text):
+                # Retry with download_url + ".asc" as fallback
                 try:
                     fallback_sig = _download_bytes(dl_url + ".asc")
                     sig_text = fallback_sig.decode("utf-8", errors="replace")
                 except RuntimeError:
                     pass
-                if not is_trusted_signature(raw, sig_text):
+                if not verify_official_signature(raw, sig_text):
                     raise RuntimeError(
                         f"PGP signature verification failed for {filename}. "
-                        "Use 'pcalc import-key' and 'pcalc trust-key' to trust the publisher's key."
+                        "The file may be corrupted or untrusted."
                     )
 
         # Extract from zip if needed
@@ -508,6 +508,75 @@ def verify(addin_id: str, calc: Calculator) -> bool:
             raise RuntimeError(
                 f"Failed to read '{f['filename']}' from calculator: {e}"
             )
-        if actual != f.get("sha256", ""):
+        if actual != f["sha256"]:
+            return False
+    return True
+
+
+def verify_addin(addin: dict, calc: Calculator) -> bool:
+    """
+    Verify an add-in by scanning the calculator directly, no local cache needed.
+
+    For zip-type addins, downloads the zip and computes the SHA of the extracted file.
+
+    Args:
+        addin: Add-in dictionary from registry.
+        calc: Connected Calculator instance.
+
+    Returns:
+        True if all checksums match, False otherwise.
+
+    Raises:
+        RuntimeError: If files cannot be read or are missing.
+    """
+    aid = addin.get("id", "")
+    addin_id = aid
+    files_to_verify: list[dict] = []
+
+    if "files" in addin:
+        # Multi-file addin (e.g. KhiCAS): each entry has filename + sha256
+        files_to_verify = [
+            {"filename": f["filename"], "sha256": f["sha256"]}
+            for f in addin["files"] if "sha256" in f
+        ]
+    else:
+        # Single-file addin — determine filename and expected SHA
+        fname = addin.get("zip_file") or Path(addin.get("download_url", "")).name
+        if addin.get("download_type") == "zip":
+            # Download the zip, extract the g3a, compute its SHA
+            dl_url = addin["download_url"]
+            zip_file = addin.get("zip_file", f"{addin_id}.g3a")
+            try:
+                zip_bytes = _download_bytes(dl_url)
+            except RuntimeError as e:
+                raise RuntimeError(f"Failed to download '{aid}' for verification: {e}")
+            # Verify zip SHA if present
+            zip_sha = addin.get("sha256", "")
+            if zip_sha and _sha256(zip_bytes) != zip_sha:
+                raise RuntimeError(f"Downloaded zip for '{aid}' failed SHA256 check.")
+            g3a_bytes = _extract_g3a_from_zip(zip_bytes, zip_file)
+            files_to_verify = [{"filename": fname, "sha256": _sha256(g3a_bytes)}]
+        else:
+            sha = addin.get("sha256", "")
+            if sha:
+                files_to_verify = [{"filename": fname, "sha256": sha}]
+
+    if not files_to_verify:
+        raise RuntimeError(f"No SHA256 checksums available to verify '{aid}'.")
+
+    for f in files_to_verify:
+        path = calc.mount_path / f["filename"]
+        if not path.exists():
+            raise RuntimeError(
+                f"File '{f['filename']}' not found on calculator "
+                f"for add-in '{aid}'."
+            )
+        try:
+            actual = _sha256(path.read_bytes())
+        except OSError as e:
+            raise RuntimeError(
+                f"Failed to read '{f['filename']}' from calculator: {e}"
+            )
+        if f["sha256"] and actual != f["sha256"]:
             return False
     return True

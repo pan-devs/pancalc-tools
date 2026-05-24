@@ -3,6 +3,8 @@ pcalc/tui.py — Textual TUI for PanCalc Tools.
 """
 
 import os
+import re
+import unicodedata
 from pathlib import Path
 
 from textual.app import App, ComposeResult
@@ -34,6 +36,20 @@ class OperationDone(Message):
     def __init__(self, text: str = "") -> None:
         super().__init__()
         self.text = text
+
+
+class PushDone(Message):
+    """Posted after push completes, with list of pushed files."""
+    def __init__(self, files: list[Path]) -> None:
+        super().__init__()
+        self.files = files
+
+
+class ConvertDone(Message):
+    """Posted after conversion completes, with list of converted originals."""
+    def __init__(self, files: list[Path]) -> None:
+        super().__init__()
+        self.files = files
 
 
 # ── ToggleRow — clickable item with checkbox ───────────────────────
@@ -81,7 +97,24 @@ class InstallRow(ToggleRow):
 
 class RemoveRow(ToggleRow):
     def __init__(self, index: int, display_name: str, filename: str,
-                 checked: bool = False, disabled: bool = False) -> None:
+                 checked: bool = False, disabled: bool = False,
+                 kind: str = "addin", path: Path | None = None) -> None:
+        self._display_name = display_name
+        self._filename = filename
+        self._kind = kind  # "addin" or "file"
+        self._path = path  # full calc path (for "file" kind)
+        super().__init__(index, "", checked, disabled)
+
+    @property
+    def _label(self) -> str:
+        tag = {"addin": "bold cyan", "file": "bold magenta"}
+        style = tag.get(self._kind, "dim")
+        return f"[{style}]{'📦' if self._kind == 'addin' else '📄'}[/] [bold]{self._display_name}[/]  [dim]{self._filename}[/]"
+
+
+class VerifyRow(ToggleRow):
+    def __init__(self, index: int, display_name: str, filename: str,
+                 checked: bool = True, disabled: bool = False) -> None:
         self._display_name = display_name
         self._filename = filename
         super().__init__(index, "", checked, disabled)
@@ -89,6 +122,27 @@ class RemoveRow(ToggleRow):
     @property
     def _label(self) -> str:
         return f"[bold]{self._display_name}[/]  [dim]{self._filename}[/]"
+
+
+class ConvertRow(ToggleRow):
+    def __init__(self, index: int, fpath: Path, checked: bool = True) -> None:
+        self._fpath = fpath
+        ext = fpath.suffix.lower()
+        if ext in (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif", ".webp"):
+            self._ftype = "IMG"
+        elif ext in (".g3p",):
+            self._ftype = "G3P"
+        elif ext in (".txt",):
+            self._ftype = "TXT"
+        else:
+            self._ftype = "DOC"
+        super().__init__(index, "", checked)
+
+    @property
+    def _label(self) -> str:
+        tag_map = {"IMG": "bold green", "G3P": "bold cyan", "TXT": "bold magenta", "DOC": "bold yellow"}
+        style = tag_map.get(self._ftype, "dim")
+        return f"[{style}]{self._ftype}[/]  {self._fpath.name}"
 
 
 # ── Main Screen (sidebar + content panel) ──────────────────────────
@@ -100,15 +154,17 @@ class MainScreen(Screen):
         yield Horizontal(
             Vertical(
                 Label("PanCalc Tools", classes="sidebar-title"),
+                Label("", id="calc-status", classes="sidebar-status"),
                 Button("🏠  Home",             id="home",      variant="primary"),
                 Button("📂  Catch",            id="catch"),
                 Button("📥  Install",          id="install"),
                 Button("🗑️  Remove",           id="remove"),
                 Button("🔄  Convert",          id="convert"),
-                Button("📤  Conv & Push",      id="convpush"),
+                Button("📤  Push",             id="convpush"),
                 Button("✅  Verify",           id="verify"),
                 Button("📋  Registry",         id="list-reg"),
                 Button("🔑  PGP Keys",         id="list-keys"),
+                Button("🔄  Update Registry",  id="update-reg"),
                 Button("⏏️   Eject",            id="eject"),
                 Button("🚪  Quit",             id="quit"),
                 Label(KEY_HINT, classes="sidebar-hint"),
@@ -119,20 +175,57 @@ class MainScreen(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        self._output = None   # current RichLog for status/output
-        self._view = None     # current view name
+        self._output = None
+        self._view = None
         self._worker_running = False
+        self._update_calc_status()
         self._show_home()
+
+    @staticmethod
+    def _sanitize(name: str) -> str:
+        """Strip accents, remove special chars, spaces → _."""
+        # Strip accents (é→e, ñ→n, etc.)
+        plain = unicodedata.normalize('NFD', name).encode('ascii', 'ignore').decode('ascii')
+        # Spaces → _
+        plain = plain.replace(' ', '_')
+        # Remove anything that isn't alphanumeric, _, -, or .
+        plain = re.sub(r'[^\w.\-]', '', plain)
+        return plain
+
+    def _confirm(self, message: str, callback, yes_label: str = "Yes") -> None:
+        """Show a confirmation dialog. callback(bool) is called with result."""
+        self.app.push_screen(ConfirmDialog(message, yes_label=yes_label), callback)
+
+    def _update_calc_status(self) -> None:
+        from pcalc.calculator import find_calculator
+        try:
+            status = self.query_one("#calc-status", Label)
+            calc = find_calculator()
+            if calc:
+                status.update(f"[bold green]✅ {calc.model}[/]")
+            else:
+                status.update("[red]❌ No calculator[/]")
+        except Exception:
+            pass
 
     # ── Content helpers ────────────────────────────────────────────
 
     def _set_content(self, *widgets) -> None:
         panel = self.query_one("#content-panel")
+        # Remember sidebar scroll to restore after swap
+        sidebar = self.query_one(".sidebar")
+        try:
+            scroll_y = sidebar.scroll_y
+        except Exception:
+            scroll_y = 0
         panel.remove_children()
         for w in widgets:
             panel.mount(w)
-        if widgets:
-            widgets[0].focus()
+        # Restore sidebar scroll position
+        try:
+            sidebar.scroll_to(y=scroll_y, animate=False)
+        except Exception:
+            pass
 
     def _log(self, text: str) -> None:
         """Write a line to the status output, creating one if needed."""
@@ -153,21 +246,68 @@ class MainScreen(Screen):
         if event.text:
             self._log(event.text)
 
+    def on_convert_done(self, event: ConvertDone) -> None:
+        files = event.files
+        if not files:
+            return
+        self._confirm(
+            f"Delete {len(files)} original file(s) from convert/?",
+            lambda ok: self._delete_convert_originals(files) if ok else None,
+        )
+
+    def _delete_convert_originals(self, files: list[Path]) -> None:
+        for f in files:
+            try:
+                f.unlink()
+                self.post_message(LogMessage(f"  🗑️  [bold]{f.name}[/] deleted from convert/"))
+            except Exception as e:
+                self.post_message(LogMessage(f"  ❌ [bold]{f.name}[/]: [red]{e}[/]"))
+        self._refresh_convert_view()
+
+    def on_push_done(self, event: PushDone) -> None:
+        files = event.files
+        if not files:
+            return
+        self._confirm(
+            f"Delete {len(files)} original(s) from converted/?",
+            lambda ok: self._delete_pushed_originals(files) if ok else None,
+        )
+
+    def _delete_pushed_originals(self, files: list[Path]) -> None:
+        for f in files:
+            try:
+                f.unlink()
+                self.post_message(LogMessage(f"  🗑️  [bold]{f.name}[/] deleted from converted/"))
+            except Exception as e:
+                self.post_message(LogMessage(f"  ❌ [bold]{f.name}[/]: [red]{e}[/]"))
+
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.state == WorkerState.ERROR:
             self._worker_running = False
             self._log(f"  [bold red]Worker failed[/]")
 
+    # ── Update Registry ────────────────────────────────────────────
+
+    def _update_registry_impl(self) -> None:
+        from pcalc import registry
+        try:
+            addins = registry.get_registry(force=True)
+            self.post_message(LogMessage(f"  [bold green]Registry updated[/] — {len(addins)} add-ins loaded"))
+        except RuntimeError as e:
+            self.post_message(LogMessage(f"  [red]Failed to update registry: {e}[/]"))
+        self.post_message(OperationDone())
+
     # ── Home ───────────────────────────────────────────────────────
 
     def _show_home(self) -> None:
+        self._update_calc_status()
         from pcalc.calculator import find_calculator
         from pcalc.banner import PANDEVS_ASCII
 
         self._output = None
         self._view = "home"
-        self._output = RichLog(highlight=True, markup=True, classes="banner-box")
-        self._output.write(f"[bold {theme.S_PRIMARY}]{PANDEVS_ASCII.strip()}[/]")
+        out = RichLog(highlight=True, markup=True)
+        out.write(f"[bold {theme.S_PRIMARY}]{PANDEVS_ASCII.strip()}[/]")
 
         calc = find_calculator()
         if calc:
@@ -181,16 +321,37 @@ class MainScreen(Screen):
                 unk = dcount - known
             except RuntimeError:
                 dcount = known = unk = 0
-            self._output.write(f"\n[bold]{calc.model}[/]  [dim]{calc.mount_path}[/]")
-            self._output.write(f"  {known} add-ins found  ·  {dcount} files ({unk} unknown)")
+            out.write(f"\n[bold]{calc.model}[/]  [dim]{calc.mount_path}[/]")
+            out.write(f"  {known} add-ins found  ·  {dcount} files ({unk} unknown)")
         else:
-            self._output.write(f"\n[dim]no calculator detected — connect via USB (F1)[/]")
+            out.write(f"\n[dim]no calculator detected — connect via USB (F1)[/]")
 
-        self._set_content(self._output)
+        out.write("")
+        out.write("[bold underline]About[/]")
+        out.write("  PanCalc Tools — package manager & converter for Casio Prizm calculators.")
+        out.write("  Part of the [bold]Pan Devs[/bold] project: open-source software for graphing")
+        out.write("  calculators.  [dim]https://github.com/pan-devs[/]")
+        out.write("")
+        out.write("[bold underline]Commands[/]")
+        out.write("  [bold]Catch[/]      — browse calculator filesystem")
+        out.write("  [bold]Install[/]   — install add-ins from the registry")
+        out.write("  [bold]Remove[/]    — uninstall add-ins or delete pthings files")
+        out.write("  [bold]Convert[/]   — convert images/docs to G3P/TXT")
+        out.write("  [bold]Push[/]      — copy converted files to calculator (pthings/)")
+        out.write("  [bold]Verify[/]    — check SHA256 of installed add-ins")
+        out.write("  [bold]Registry[/]  — browse available add-ins")
+        out.write("  [bold]PGP Keys[/]  — manage cryptographic keys")
+        out.write("  [bold]Eject[/]     — safely unmount calculator")
+        out.write("")
+        out.write("[dim]Ctrl+S  — command palette · Esc — home · ↑↓ — navigate · Space — toggle[/]")
+
+        self._output = out
+        self._set_content(out)
 
     # ── Catch ──────────────────────────────────────────────────────
 
     def _show_catch(self) -> None:
+        self._update_calc_status()
         from pcalc.calculator import find_calculator
         from pcalc.installer import walk_calc, count_calc_files, iter_calc_files
 
@@ -245,6 +406,7 @@ class MainScreen(Screen):
     # ── Install ────────────────────────────────────────────────────
 
     def _show_install(self) -> None:
+        self._update_calc_status()
         from pcalc import registry
         from pcalc.calculator import find_calculator
         from pcalc.installer import scan_device
@@ -277,9 +439,14 @@ class MainScreen(Screen):
         self._install_list = list_container
 
         self._output = None
-        btn = Button("📥  Install Checked", id="install-do", variant="primary")
+        btn = Button("📥  Install Checked", variant="primary")
         btn.styles.margin = (1, 1, 0, 1)
-        self._set_content(list_container, btn)
+        self._install_do_btn = btn
+        out = RichLog(highlight=True, markup=True)
+        self._output = out
+        if not calc:
+            out.write("  [red]No calculator detected — install will fail until connected[/]")
+        self._set_content(list_container, btn, out)
 
     def _install_impl(self) -> None:
         selected = [r for r in self._install_rows if r._checked and not r._disabled]
@@ -311,43 +478,61 @@ class MainScreen(Screen):
     # ── Remove ─────────────────────────────────────────────────────
 
     def _show_remove(self) -> None:
+        self._update_calc_status()
         from pcalc.calculator import find_calculator
         from pcalc.installer import walk_calc
         from pcalc import registry
 
         self._view = "remove"
 
-        entries: list = []
+        rows: list[RemoveRow] = []
         calc = find_calculator()
         if calc:
             try:
-                entries = [e for e in walk_calc(calc, registry.get_registry()) if e.addin]
+                addin_entries = [e for e in walk_calc(calc, registry.get_registry()) if e.addin]
+                for i, e in enumerate(addin_entries):
+                    name = e.addin.get("name", e.addin.get("id", "?"))
+                    rows.append(RemoveRow(i, name, e.name, kind="addin"))
             except RuntimeError:
                 pass
-
-        rows: list[RemoveRow] = []
-        for i, e in enumerate(entries):
-            name = e.addin.get("name", e.addin.get("id", "?"))
-            rows.append(RemoveRow(i, name, e.name))
+            # Also scan pthings subdirectories for user files
+            for sub in ("fotos", "textos"):
+                d = calc.mount_path / "pthings" / sub
+                if d.exists():
+                    for f in sorted(d.iterdir()):
+                        if f.is_file():
+                            rows.append(RemoveRow(len(rows), f.name, str(f.relative_to(calc.mount_path)), kind="file", path=f))
+            # Also scan pthings/ root for any loose files
+            pthings_root = calc.mount_path / "pthings"
+            if pthings_root.exists():
+                for f in sorted(pthings_root.iterdir()):
+                    if f.is_file():
+                        rows.append(RemoveRow(len(rows), f.name, str(f.relative_to(calc.mount_path)), kind="file", path=f))
 
         self._install_rows = rows
-        children = rows if rows else [Label("  [dim]No add-ins found on calculator[/]")]
+        children = rows if rows else [Label("  [dim]No items found on calculator[/]")]
         list_container = ScrollableContainer(*children, classes="select-list")
         self._install_list = list_container
 
         self._output = None
-        btn = Button("🗑️  Remove Checked", id="remove-do", variant="error")
+        btn = Button("🗑️  Remove Checked", variant="error")
         btn.styles.margin = (1, 1, 0, 1)
-        self._set_content(list_container, btn)
+        self._remove_do_btn = btn
+        out = RichLog(highlight=True, markup=True)
+        self._output = out
+        if not calc:
+            out.write("  [red]No calculator detected — connect via USB (F1)[/]")
+        self._set_content(list_container, btn, out)
 
     def _remove_impl(self) -> None:
         selected = [r for r in self._install_rows if r._checked and not r._disabled]
         if not selected:
-            self.post_message(LogMessage("  [dim]No add-ins selected for removal.[/]"))
+            self.post_message(LogMessage("  [dim]No items selected for removal.[/]"))
             return
 
         from pcalc.calculator import require_calculator
-        from pcalc.installer import remove
+        from pcalc import registry
+        from pcalc.installer import remove, walk_calc
 
         try:
             calc = require_calculator()
@@ -356,202 +541,392 @@ class MainScreen(Screen):
             return
 
         for row in selected:
-            name = row._display_name
-            from pcalc import registry
-            from pcalc.installer import walk_calc
-            try:
-                entries = [e for e in walk_calc(calc, registry.get_registry()) if e.addin]
-            except RuntimeError:
-                entries = []
-            match = next((e for e in entries if e.addin.get("name", e.addin.get("id", "")) == name), None)
-            if not match:
-                self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]not found on device[/]"))
-                continue
-
-            self.post_message(LogMessage(f"  Removing [bold]{name}[/]..."))
-            try:
-                remove(match.addin["id"], calc)
-                self.post_message(LogMessage(f"  ✅ [bold]{name}[/] removed"))
-            except RuntimeError as e:
-                self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]{e}[/]"))
+            if row._kind == "addin":
+                name = row._display_name
+                try:
+                    entries = [e for e in walk_calc(calc, registry.get_registry()) if e.addin]
+                except RuntimeError:
+                    entries = []
+                match = next((e for e in entries if e.addin.get("name", e.addin.get("id", "")) == name), None)
+                if not match:
+                    self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]not found on device[/]"))
+                    continue
+                self.post_message(LogMessage(f"  Removing [bold]{name}[/]..."))
+                try:
+                    remove(match.addin["id"], calc)
+                    self.post_message(LogMessage(f"  ✅ [bold]{name}[/] removed"))
+                except RuntimeError as e:
+                    self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]{e}[/]"))
+            else:
+                path = row._path
+                if path and path.exists():
+                    try:
+                        path.unlink()
+                        self.post_message(LogMessage(f"  🗑️  [bold]{row._display_name}[/] removed from {row._filename}"))
+                    except OSError as e:
+                        self.post_message(LogMessage(f"  ❌ [bold]{row._display_name}[/]: [red]{e}[/]"))
+                else:
+                    self.post_message(LogMessage(f"  ⏭️  [dim]{row._display_name} — already gone[/]"))
 
         self.post_message(OperationDone())
+
+    # ── Convert helpers (shared by Convert & ConvPush) ────────────
+
+    def _convert_base(self) -> Path:
+        return Path.home() / "Git/pan-devs/pancalc-tools"
+
+    def _scan_convert_files(self) -> list[Path]:
+        base = self._convert_base()
+        files: list[Path] = []
+        for sub in ("images", "documents"):
+            d = base / "convert" / sub
+            if d.exists():
+                for f in sorted(d.iterdir()):
+                    if f.is_file():
+                        files.append(f)
+        return files
+
+    def _build_convert_list(self) -> list["ConvertRow"]:
+        rows: list[ConvertRow] = []
+        for f in self._scan_convert_files():
+            rows.append(ConvertRow(len(rows), f))
+        return rows
+
+    def _pick_files(self) -> int:
+        paths: list[str] = []
+        try:
+            import subprocess
+            r = subprocess.run(
+                ["zenity", "--file-selection", "--multiple", "--title=Select files to convert"],
+                capture_output=True, timeout=30
+            )
+            if r.returncode == 0:
+                paths = r.stdout.decode().strip().split("|")
+        except Exception:
+            pass
+        if not paths:
+            try:
+                import tkinter as tk
+                from tkinter import filedialog
+                root = tk.Tk()
+                root.withdraw()
+                root.lift()
+                paths = list(filedialog.askopenfilenames(title="Select files to convert"))
+                root.destroy()
+            except Exception:
+                self.post_message(LogMessage("  [red]No file dialog available (install zenity or tkinter)[/]"))
+                return 0
+        if not paths:
+            return 0
+
+        base = self._convert_base()
+        img_dir = base / "convert/images"
+        doc_dir = base / "convert/documents"
+        img_dir.mkdir(parents=True, exist_ok=True)
+        doc_dir.mkdir(parents=True, exist_ok=True)
+        img_exts = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif", ".webp"}
+        doc_exts = {".pdf", ".docx", ".doc", ".txt"}
+        import shutil
+        count = 0
+        for p in paths:
+            src = Path(p.strip())
+            if not src.is_file():
+                continue
+            ext = src.suffix.lower()
+            if ext in img_exts:
+                shutil.copy2(str(src), str(img_dir / src.name))
+                count += 1
+            elif ext in doc_exts:
+                shutil.copy2(str(src), str(doc_dir / src.name))
+                count += 1
+        return count
+
+    def _ensure_convert_dirs(self) -> None:
+        base = self._convert_base()
+        (base / "convert/images").mkdir(parents=True, exist_ok=True)
+        (base / "convert/documents").mkdir(parents=True, exist_ok=True)
+
+    def _refresh_convert_view(self) -> None:
+        if self._view == "convert":
+            self._show_convert()
+        elif self._view == "convpush":
+            self._show_convpush()
+
+    def on_file_dropped(self, event) -> None:
+        pass
 
     # ── Convert ────────────────────────────────────────────────────
 
     def _show_convert(self) -> None:
-        self._output = None
+        self._update_calc_status()
         self._view = "convert"
-        self._conv_img_g3p = Button("🖼️  Image → G3P")
-        self._conv_img_txt = Button("📄  Image → TXT")
-        self._conv_doc     = Button("📑  PDF/DOCX")
-        row = Horizontal(
-            self._conv_img_g3p,
-            self._conv_img_txt,
-            self._conv_doc,
-            classes="button-row-inline",
-        )
+        rows = self._build_convert_list()
+        self._convert_rows = rows
+        list_container = ScrollableContainer(*rows, classes="select-list") if rows else Label("  [dim]No files in convert/[/]")
+
+        select_btn = Button("📁  Select Files")
+        self._conv_select_btn = select_btn
+        refresh_btn = Button("🔄  Refresh")
+        self._conv_refresh_btn = refresh_btn
+        top_row = Horizontal(select_btn, refresh_btn, classes="button-row-inline")
+
+        g3p_btn   = Button("→ G3P")
+        txt_btn   = Button("Docs → TXT")
+        both_btn  = Button("Docs → Both")
+        del_btn   = Button("🗑️  Delete Selected", variant="error")
+        self._conv_g3p_btn = g3p_btn
+        self._conv_txt_btn = txt_btn
+        self._conv_both_btn = both_btn
+        self._conv_del_btn = del_btn
+        action_row = Horizontal(g3p_btn, txt_btn, both_btn, del_btn, classes="button-row-inline")
+
         out = RichLog(highlight=True, markup=True)
         self._output = out
-        self._set_content(out, row)
+        self._set_content(top_row, list_container, action_row, out)
+
+    def _run_convert(self, mode: str) -> None:
+        if not self._worker_running:
+            self._worker_running = True
+            self.run_worker(lambda: self._convert_impl(mode), thread=True, exclusive=True)
 
     def _convert_impl(self, mode: str) -> None:
+        selected = [r for r in self._convert_rows if r._checked]
+        if not selected:
+            self.post_message(LogMessage("  [dim]No files selected[/]"))
+            return
+
         from pcalc.converter import convert_image, convert_text, convert_document_g3p
+        base = self._convert_base()
+        import tempfile
+        ok = 0
+        converted_files: list[Path] = []
 
-        base = Path.home() / "Git/pan-devs/pancalc-tools"
-        converted_dir = base / "converted"
-
-        if mode in ("img-g3p", "img-txt"):
-            src = base / "convert/images"
-            if not src.exists():
-                self.post_message(LogMessage("  [red]convert/images/ not found[/]"))
-                return
-            files = sorted(src.iterdir())
-            pat = "g3p" if mode == "img-g3p" else "txt"
-            dest_dir = converted_dir / pat
-            dest_dir.mkdir(parents=True, exist_ok=True)
-            for f in files:
-                if not f.is_file():
-                    continue
+        for row in selected:
+            f = row._fpath
+            # Sanitize: strip accents, special chars, spaces→_
+            safe_stem = self._sanitize(f.stem)
+            if safe_stem != f.stem:
+                new_name = f.with_stem(safe_stem)
                 try:
-                    dest = dest_dir / f"{f.stem}.{pat}"
-                    if mode == "img-g3p":
-                        convert_image(str(f), str(dest), bit_depth=8)
+                    f.rename(new_name)
+                    f = new_name
+                    row._fpath = f
+                    self.post_message(LogMessage(f"  [yellow]Sanitized[/] → [bold]{f.name}[/]"))
+                except OSError as e:
+                    self.post_message(LogMessage(f"  [red]Failed to rename {f.name}: {e}[/]"))
+                    continue
+            self.post_message(LogMessage(f"  Processing [bold]{f.name}[/]..."))
+
+            try:
+                if mode == "g3p":
+                    dest_dir = base / "converted/g3p"
+                    dest_dir.mkdir(parents=True, exist_ok=True)
+                    if row._ftype == "IMG":
+                        convert_image(str(f), str(dest_dir / (f.stem + ".g3p")), bit_depth=16)
                     else:
-                        convert_text(str(f), str(dest))
-                    self.post_message(LogMessage(f"  ✅ [bold]{f.name}[/]"))
-                except Exception as e:
-                    self.post_message(LogMessage(f"  ❌ [bold]{f.name}[/]: [red]{e}[/]"))
-        else:
-            src = base / "convert/documents"
-            if not src.exists():
-                self.post_message(LogMessage("  [red]convert/documents/ not found[/]"))
-                return
-            for f in sorted(src.iterdir()):
-                if not f.is_file():
-                    continue
-                try:
-                    out_base = str((converted_dir / "g3p" / f.stem).with_suffix(""))
-                    convert_document_g3p(str(f), out_base)
-                    self.post_message(LogMessage(f"  ✅ [bold]{f.name}[/]"))
-                except Exception as e:
-                    self.post_message(LogMessage(f"  ❌ [bold]{f.name}[/]: [red]{e}[/]"))
+                        convert_document_g3p(str(f), str(dest_dir / f.stem))
+                    self.post_message(LogMessage(f"  ✅ [bold]{f.name}[/] converted to G3P"))
 
+                elif mode == "txt":
+                    if row._ftype != "DOC":
+                        self.post_message(LogMessage(f"  ⏭️  [dim]{f.name} — not a document[/]"))
+                        continue
+                    dest_dir = base / "converted/txt"
+                    dest_dir.mkdir(parents=True, exist_ok=True)
+                    convert_text(str(f), str(dest_dir / (f.stem + ".txt")))
+                    self.post_message(LogMessage(f"  ✅ [bold]{f.name}[/] converted to TXT"))
+
+                elif mode == "both":
+                    if row._ftype != "DOC":
+                        self.post_message(LogMessage(f"  ⏭️  [dim]{f.name} — not a document[/]"))
+                        continue
+                    g3p_dir = base / "converted/g3p"
+                    txt_dir = base / "converted/txt"
+                    g3p_dir.mkdir(parents=True, exist_ok=True)
+                    txt_dir.mkdir(parents=True, exist_ok=True)
+                    convert_document_g3p(str(f), str(g3p_dir / f.stem))
+                    convert_text(str(f), str(txt_dir / (f.stem + ".txt")))
+                    self.post_message(LogMessage(f"  ✅ [bold]{f.name}[/] → G3P + TXT"))
+
+                ok += 1
+                converted_files.append(f)
+            except Exception as e:
+                self.post_message(LogMessage(f"  ❌ [bold]{f.name}[/]: [red]{e}[/]"))
+
+        self._ensure_convert_dirs()
+        if ok:
+            self.post_message(LogMessage(f"\n  [bold green]{ok} file(s) converted[/]"))
+            self.post_message(ConvertDone(converted_files))
         self.post_message(OperationDone())
 
-    # ── ConvPush ───────────────────────────────────────────────────
+    def _delete_selected_convert(self) -> None:
+        selected = [r for r in self._convert_rows if r._checked]
+        if not selected:
+            self.post_message(LogMessage("  [dim]No files selected[/]"))
+            return
+        for row in selected:
+            f = row._fpath
+            try:
+                f.unlink()
+                self.post_message(LogMessage(f"  🗑️  [bold]{f.name}[/] deleted"))
+            except Exception as e:
+                self.post_message(LogMessage(f"  ❌ [bold]{f.name}[/]: [red]{e}[/]"))
+        self._ensure_convert_dirs()
+        self._refresh_convert_view()
+
+    # ── Push ───────────────────────────────────────────────────────
+
+    def _scan_push_files(self) -> list[Path]:
+        base = self._convert_base()
+        files: list[Path] = []
+        for sub in ("g3p", "txt"):
+            d = base / "converted" / sub
+            if d.exists():
+                for f in sorted(d.iterdir()):
+                    if f.is_file():
+                        files.append(f)
+        return files
+
+    def _build_push_list(self) -> list["ConvertRow"]:
+        rows: list[ConvertRow] = []
+        for f in self._scan_push_files():
+            # Tag based on extension for display
+            rows.append(ConvertRow(len(rows), f))
+        return rows
 
     def _show_convpush(self) -> None:
-        self._output = None
+        self._update_calc_status()
         self._view = "convpush"
-        self._convpush_img = Button("🖼️  Images → G3P & Push", variant="primary")
-        self._convpush_doc = Button("📄  Docs → G3P & Push")
-        row = Horizontal(
-            self._convpush_img,
-            self._convpush_doc,
-            classes="button-row-inline",
-        )
+        rows = self._build_push_list()
+        self._convert_rows = rows
+
+        if not rows:
+            list_container = Label("  [dim]No converted files in converted/[/]  [dim]Use Convert first[/]")
+        else:
+            list_container = ScrollableContainer(*rows, classes="select-list")
+
+        refresh_btn = Button("🔄  Refresh")
+        self._conv_refresh_btn = refresh_btn
+        del_btn = Button("🗑️  Delete Selected", variant="error")
+        self._conv_del_btn = del_btn
+        push_btn = Button("Push Selected to Calculator", variant="primary")
+        self._convpush_do_btn = push_btn
+        btn_row = Horizontal(refresh_btn, del_btn, push_btn, classes="button-row-inline")
         out = RichLog(highlight=True, markup=True)
         self._output = out
-        self._set_content(out, row)
+        self._set_content(btn_row, list_container, out)
 
-    def _convpush_impl(self, mode: str) -> None:
+    def _convpush_impl(self) -> None:
+        self._convert_rows = getattr(self, '_convert_rows', [])
+        selected = [r for r in self._convert_rows if r._checked]
+        if not selected:
+            self.post_message(LogMessage("  [dim]No files selected[/]"))
+            return
+
         from pcalc.calculator import find_calculator
-        from pcalc.converter import convert_image, convert_document_g3p
-
         calc = find_calculator()
         if not calc:
             self.post_message(LogMessage("  [red]No calculator detected[/]"))
             return
 
-        base = Path.home() / "Git/pan-devs/pancalc-tools"
-        pthings = calc.mount_path / "pthings"
         try:
-            pthings.mkdir(parents=True, exist_ok=True)
+            fotos = calc.mount_path / "pthings/fotos"
+            textos = calc.mount_path / "pthings/textos"
+            fotos.mkdir(parents=True, exist_ok=True)
+            textos.mkdir(parents=True, exist_ok=True)
         except OSError as e:
-            self.post_message(LogMessage(f"  [red]Failed to create pthings/: {e}[/]"))
+            self.post_message(LogMessage(f"  [red]Failed to create pthings/ directories: {e}[/]"))
             return
 
-        if mode == "convpush-images":
-            src = base / "convert/images"
-            if not src.exists():
-                self.post_message(LogMessage("  [red]convert/images/ not found[/]"))
-                return
-            import tempfile
-            for f in sorted(src.iterdir()):
-                if not f.is_file():
-                    continue
-                self.post_message(LogMessage(f"  Converting [bold]{f.name}[/]..."))
-                try:
-                    fd, tmp = tempfile.mkstemp(suffix=".g3p")
-                    os.close(fd)
-                    convert_image(str(f), tmp, bit_depth=8)
-                    (pthings / (f.stem + ".g3p")).write_bytes(Path(tmp).read_bytes())
-                    os.unlink(tmp)
-                    self.post_message(LogMessage(f"  ✅ [bold]{f.name}[/]"))
-                except Exception as e:
-                    self.post_message(LogMessage(f"  ❌ [bold]{f.name}[/]: [red]{e}[/]"))
-        else:
-            src = base / "convert/documents"
-            if not src.exists():
-                self.post_message(LogMessage("  [red]convert/documents/ not found[/]"))
-                return
-            import tempfile
-            for f in sorted(src.iterdir()):
-                if not f.is_file():
-                    continue
-                self.post_message(LogMessage(f"  Converting [bold]{f.name}[/]..."))
-                try:
-                    td = tempfile.mkdtemp()
-                    out_base = os.path.join(td, f.stem)
-                    convert_document_g3p(str(f), out_base)
-                    for pf in sorted(Path(td).iterdir()):
-                        pf.rename(pthings / pf.name)
-                    os.rmdir(td)
-                    self.post_message(LogMessage(f"  ✅ [bold]{f.name}[/]"))
-                except Exception as e:
-                    self.post_message(LogMessage(f"  ❌ [bold]{f.name}[/]: [red]{e}[/]"))
+        ok = 0
+        pushed_files: list[Path] = []
+        for row in selected:
+            f = row._fpath
+            dest_name = self._sanitize(f.name)
+            self.post_message(LogMessage(f"  Pushing [bold]{dest_name}[/]..."))
+            try:
+                dest = (fotos if f.suffix.lower() == ".g3p" else textos) / dest_name
+                dest.write_bytes(f.read_bytes())
+                self.post_message(LogMessage(f"  ✅ [bold]{dest_name}[/] pushed to {'fotos/' if f.suffix.lower() == '.g3p' else 'textos/'}"))
+                ok += 1
+                pushed_files.append(f)
+            except Exception as e:
+                self.post_message(LogMessage(f"  ❌ [bold]{dest_name}[/]: [red]{e}[/]"))
 
+        if ok:
+            self.post_message(LogMessage(f"\n  [bold green]{ok} file(s) pushed[/]"))
+            self.post_message(PushDone(pushed_files))
         self.post_message(OperationDone())
 
     # ── Verify ─────────────────────────────────────────────────────
 
     def _show_verify(self) -> None:
-        self._output = None
+        self._update_calc_status()
+        from pcalc.calculator import find_calculator
+        from pcalc.installer import walk_calc, iter_calc_files
+        from pcalc import registry
+
         self._view = "verify"
-        self._verify_btn = Button("🔄  Run Verification", variant="primary")
-        self._verify_btn.styles.margin = (1, 2)
-        out = RichLog(highlight=True, markup=True)
-        self._output = out
-        self._set_content(out, self._verify_btn)
+        rows: list[VerifyRow] = []
+        calc = find_calculator()
+        if calc:
+            try:
+                addins = registry.get_registry()
+                entries = walk_calc(calc, addins)
+                for f in iter_calc_files(entries):
+                    if f.addin:
+                        name = f.addin.get("name", f.addin.get("id", "?"))
+                        rows.append(VerifyRow(len(rows), name, f.name))
+            except RuntimeError:
+                pass
+
+        if not rows:
+            self._set_content(RichLog(highlight=True, markup=True))
+            self._output = self.query_one(RichLog)
+            self._output.write("  [dim]No add-ins found on calculator[/]")
+            return
+
+        self._verify_rows = rows
+        list_container = ScrollableContainer(*rows, classes="select-list")
+        btn = Button("✅  Verify Checked", variant="primary")
+        btn.styles.margin = (1, 1, 0, 1)
+        self._verify_do_btn = btn
+        self._output = None
+        self._set_content(list_container, btn)
 
     def _verify_impl(self) -> None:
-        from pcalc.installer import verify
         from pcalc.calculator import find_calculator
-        from pcalc import registry as reg
-        from pcalc.installer import walk_calc, iter_calc_files
+        from pcalc.installer import verify_addin
+
+        selected = [r for r in self._verify_rows if r._checked]
+        if not selected:
+            self.post_message(LogMessage("  [dim]No add-ins selected for verification.[/]"))
+            return
 
         calc = find_calculator()
         if not calc:
             self.post_message(LogMessage("  [red]No calculator detected[/]"))
             return
 
-        try:
-            addins = reg.get_registry()
-            entries = walk_calc(calc, addins)
-            on_device = [f for f in iter_calc_files(entries) if f.addin]
-        except RuntimeError:
-            on_device = []
-
-        if not on_device:
-            self.post_message(LogMessage("  [dim]No add-ins found on calculator[/]"))
-            return
-
         all_ok = True
-        for f in on_device:
-            name = f.addin.get("name", f.addin.get("id", "?"))
+        for row in selected:
+            name = row._display_name
+            # Match by name amongst all add-in entries on device
+            from pcalc import registry
+            from pcalc.installer import walk_calc, iter_calc_files
             try:
-                ok = verify(f.addin["id"], calc) if f.addin else False
+                addins = registry.get_registry()
+                entries = walk_calc(calc, addins)
+                match = None
+                for f in iter_calc_files(entries):
+                    if f.addin and f.addin.get("name", f.addin.get("id", "")) == name:
+                        match = f
+                        break
+                if not match or not match.addin:
+                    self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]not found[/]"))
+                    all_ok = False
+                    continue
+                ok = verify_addin(match.addin, calc)
                 self.post_message(LogMessage(f"  {'✅' if ok else '❌'} [bold]{name}[/] {'— OK' if ok else '— FAILED'}"))
                 if not ok:
                     all_ok = False
@@ -565,6 +940,7 @@ class MainScreen(Screen):
     # ── Registry List ──────────────────────────────────────────────
 
     def _show_registry(self) -> None:
+        self._update_calc_status()
         from pcalc import registry
 
         self._view = "registry"
@@ -572,6 +948,7 @@ class MainScreen(Screen):
             addins = registry.get_registry()
         except RuntimeError:
             addins = []
+        self._registry_addins = addins
 
         items = []
         for a in addins:
@@ -588,27 +965,66 @@ class MainScreen(Screen):
         self._output = None
         lv = ListView(*items)
         lv.styles.height = "1fr"
-        self._set_content(lv)
+        out = RichLog(highlight=True, markup=True)
+        self._output = out
+        out.write("  [dim]Click an add-in for details[/]")
+        self._set_content(lv, out)
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        from pcalc import registry as reg
+        addins = getattr(self, '_registry_addins', [])
+        idx = event.list_view.index
+        if idx is None or idx >= len(addins):
+            return
+        a = addins[idx]
+        lines = [
+            f"  [bold]{a.get('name', '?')}[/]  [dim]{a.get('id', '?')}[/]",
+            f"  Author: {a.get('author', '?')}   Version: {a.get('version', '?')}",
+            f"  Category: {a.get('category', '?')}",
+            f"  Compatible: {', '.join(a.get('compatible', []))}",
+            f"  Description: {a.get('description', '?')}",
+            f"  URL: {a.get('url', '?')}",
+        ]
+        if "size_kb" in a:
+            lines.append(f"  Size: {a['size_kb']:.1f} KiB")
+        if "license" in a:
+            lines.append(f"  License: {a['license']}")
+        self._output = self.query_one(RichLog) if not self._output or not self._output.is_mounted else self._output
+        self._output.clear()
+        for l in lines:
+            self._log(l)
 
     # ── PGP Keys ───────────────────────────────────────────────────
 
     def _show_keys(self) -> None:
-        from pcalc.crypto import list_keys
+        self._update_calc_status()
+        from pcalc.crypto import official_key_info, list_keys
 
         self._output = None
         self._view = "keys"
         out = RichLog(highlight=True, markup=True)
 
-        keys = list_keys()
-        if not keys:
-            out.write("  [dim]No PGP keys imported.[/]")
-            out.write("  Use 'pcalc import-key <file>' in the terminal.")
+        # Official key
+        official = official_key_info()
+        if official:
+            uid = official.get("uids", ["(no UID)"])[0]
+            out.write(f"  [bold green]✅ Official Pan Devs key[/]")
+            out.write(f"    {uid}")
+            out.write(f"    Fingerprint: {official['fingerprint']}")
+            out.write(f"    Key ID: {official['keyid']}")
         else:
-            for k in keys:
+            out.write("  [dim]Official Pan Devs key not loaded.[/]")
+            out.write("  It will be downloaded automatically when needed.")
+
+        # Other keys (advanced users)
+        others = [k for k in list_keys() if not k.get("official")]
+        if others:
+            out.write("")
+            out.write("  [dim]Other imported keys:[/]")
+            for k in others:
                 trust = "✅ trusted" if k["trusted"] else "❌ untrusted"
                 uid = k.get("uids", ["(no UID)"])[0]
                 out.write(f"  [bold]{k['keyid']}[/]  {uid}")
-                out.write(f"    Fingerprint: {k['fingerprint']}")
                 out.write(f"    Status: {trust}")
 
         self._keys_refresh_btn = Button("🔄  Refresh")
@@ -631,6 +1047,11 @@ class MainScreen(Screen):
         if bid == "list-reg":    self._show_registry();   return
         if bid == "list-keys":   self._show_keys();       return
         if bid == "eject":       self._eject();           return
+        if bid == "update-reg":
+            if not self._worker_running:
+                self._worker_running = True
+                self.run_worker(self._update_registry_impl, thread=True, exclusive=True)
+            return
         if bid == "quit":        self.app.exit();         return
 
         # Dynamic content buttons — route by object identity
@@ -639,44 +1060,54 @@ class MainScreen(Screen):
             self._show_catch(); return
         if btn is getattr(self, '_keys_refresh_btn', None):
             self._show_keys(); return
-        if btn is getattr(self, '_verify_btn', None):
+        if btn is getattr(self, '_verify_do_btn', None):
             if not self._worker_running:
                 self._worker_running = True
                 self.run_worker(self._verify_impl, thread=True, exclusive=True)
             return
-        if btn is getattr(self, '_conv_img_g3p', None):
-            if not self._worker_running:
-                self._worker_running = True
-                self.run_worker(lambda: self._convert_impl("img-g3p"), thread=True, exclusive=True)
+        # Convert/ConvPush: select files
+        if btn is getattr(self, '_conv_select_btn', None):
+            count = self._pick_files()
+            if count:
+                self.post_message(LogMessage(f"  [dim]{count} file(s) added[/]"))
+            self._refresh_convert_view()
             return
-        if btn is getattr(self, '_conv_img_txt', None):
-            if not self._worker_running:
-                self._worker_running = True
-                self.run_worker(lambda: self._convert_impl("img-txt"), thread=True, exclusive=True)
+        if btn is getattr(self, '_conv_refresh_btn', None):
+            self._refresh_convert_view()
             return
-        if btn is getattr(self, '_conv_doc', None):
-            if not self._worker_running:
-                self._worker_running = True
-                self.run_worker(lambda: self._convert_impl("doc-conv"), thread=True, exclusive=True)
+        # Convert: action buttons — start conversion, then ask about deleting originals
+        for mode, attr in [("g3p", "_conv_g3p_btn"), ("txt", "_conv_txt_btn"), ("both", "_conv_both_btn")]:
+            if btn is getattr(self, attr, None):
+                if not self._worker_running and hasattr(self, '_convert_rows'):
+                    n = sum(1 for r in self._convert_rows if r._checked)
+                    if n == 0:
+                        self.post_message(LogMessage("  [dim]No files selected[/]"))
+                        return
+                    self._run_convert(mode)
+                return
+        # Delete selected (Convert & Push)
+        if btn is getattr(self, '_conv_del_btn', None):
+            if hasattr(self, '_convert_rows'):
+                n = sum(1 for r in self._convert_rows if r._checked)
+                if n == 0:
+                    self.post_message(LogMessage("  [dim]No files selected[/]"))
+                    return
+                self._confirm(f"Delete {n} file(s)?", lambda ok: self._delete_selected_convert() if ok else None)
             return
-        if btn is getattr(self, '_convpush_img', None):
-            if not self._worker_running:
+        # ConvPush: do it
+        if btn is getattr(self, '_convpush_do_btn', None):
+            if not self._worker_running and hasattr(self, '_convert_rows'):
                 self._worker_running = True
-                self.run_worker(lambda: self._convpush_impl("convpush-images"), thread=True, exclusive=True)
-            return
-        if btn is getattr(self, '_convpush_doc', None):
-            if not self._worker_running:
-                self._worker_running = True
-                self.run_worker(lambda: self._convpush_impl("convpush-docs"), thread=True, exclusive=True)
+                self.run_worker(self._convpush_impl, thread=True, exclusive=True)
             return
 
-        # Install/Remove action buttons
-        if bid == "install-do":
+        # Install/Remove action buttons — route by identity
+        if btn is getattr(self, '_install_do_btn', None):
             if not self._worker_running and hasattr(self, '_install_rows'):
                 self._worker_running = True
                 self.run_worker(self._install_impl, thread=True, exclusive=True)
             return
-        if bid == "remove-do":
+        if btn is getattr(self, '_remove_do_btn', None):
             if not self._worker_running and hasattr(self, '_install_rows'):
                 self._worker_running = True
                 self.run_worker(self._remove_impl, thread=True, exclusive=True)
@@ -722,6 +1153,32 @@ class _EjectDialog(ModalScreen):
         self.dismiss(event.button.id == "eject-yes")
 
 
+# ── Generic Confirm Dialog ─────────────────────────────────────────
+
+
+class ConfirmDialog(ModalScreen):
+    """Generic yes/no confirmation dialog."""
+    def __init__(self, message: str, yes_label: str = "Yes", no_label: str = "No") -> None:
+        super().__init__()
+        self._msg = message
+        self._yes = yes_label
+        self._no = no_label
+
+    def compose(self) -> ComposeResult:
+        yield Vertical(
+            Label(self._msg, classes="title"),
+            Horizontal(
+                Button(self._yes, id="confirm-yes", variant="error"),
+                Button(self._no,  id="confirm-no", variant="primary"),
+                classes="button-row",
+            ),
+            classes="dialog-box",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "confirm-yes")
+
+
 # ── App ────────────────────────────────────────────────────────────
 
 
@@ -737,8 +1194,13 @@ class PanCalcApp(App):
 
     .sidebar-title {
         text-style: bold;
-        padding: 1 0;
+        padding: 1 0 0 0;
         height: 3;
+    }
+
+    .sidebar-status {
+        height: 3;
+        padding: 0 0 1 0;
     }
 
     .sidebar-hint {
@@ -755,6 +1217,7 @@ class PanCalcApp(App):
     #content-panel {
         width: 1fr;
         height: 1fr;
+        min-height: 100%;
         padding: 1 2;
     }
 
@@ -828,7 +1291,7 @@ class PanCalcApp(App):
     """
 
     BINDINGS = [
-        Binding("ctrl+p", "command_palette", "Search"),
+        Binding("ctrl+s", "command_palette", "Search"),
     ]
 
     def on_mount(self) -> None:

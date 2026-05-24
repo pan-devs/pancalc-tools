@@ -3,6 +3,8 @@ pcalc/cli.py — Entry point for PanCalc Tools CLI.
 """
 
 import os
+import re
+import unicodedata
 from pathlib import Path
 import click
 from rich.console import Console
@@ -959,18 +961,23 @@ def cmd_convpush(app):
                 console.print(f"  [dim]Aborted.[/]\n")
                 raise SystemExit(1)
 
-    g3p_dest_dir = mount / "pthings" / "g3p"
-    txt_dest_dir = mount / "pthings" / "txt"
+    def _sanitize(name: str) -> str:
+        plain = unicodedata.normalize('NFD', name).encode('ascii', 'ignore').decode('ascii')
+        plain = plain.replace(' ', '_')
+        return re.sub(r'[^\w.\-]', '', plain)
+
+    g3p_dest_dir = mount / "pthings/fotos"
+    txt_dest_dir = mount / "pthings/textos"
     try:
         g3p_dest_dir.mkdir(parents=True, exist_ok=True)
         txt_dest_dir.mkdir(parents=True, exist_ok=True)
     except OSError as e:
-        _fail(f"Failed to create pthings directories: {e}")
+        _fail(f"Failed to create pthings/ directories: {e}")
 
     from rich.progress import Progress, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
 
-    all_files = [(f, g3p_dest_dir, "pthings/g3p/") for f in g3p_files] + \
-                [(f, txt_dest_dir, "pthings/txt/") for f in txt_files]
+    all_files = [(f, g3p_dest_dir, "pthings/fotos/") for f in g3p_files] + \
+                [(f, txt_dest_dir, "pthings/textos/") for f in txt_files]
 
     copied = 0
     skipped = 0
@@ -986,14 +993,15 @@ def cmd_convpush(app):
         transient=True,
     ) as progress:
         for f, dest_dir, label_prefix in all_files:
-            dest = dest_dir / f.name
+            dest_name = _sanitize(f.name)
+            dest = dest_dir / dest_name
             if dest.exists():
                 skipped += 1
                 continue
 
             total = f.stat().st_size
             task = progress.add_task(
-                f"  Copying {f.name}...", total=total)
+                f"  Copying {dest_name}...", total=total)
 
             try:
                 with open(f, 'rb') as src_f, open(dest, 'wb') as dst_f:
@@ -1005,10 +1013,10 @@ def cmd_convpush(app):
                         dst_f.write(chunk)
                         written += len(chunk)
                         progress.update(task, completed=written)
-                progress.update(task, description=f"  [bold {theme.SUCCESS}]✓[/] {f.name} → {label_prefix}")
+                progress.update(task, description=f"  [bold {theme.SUCCESS}]✓[/] {dest_name} → {label_prefix}")
                 copied += 1
             except OSError as e:
-                progress.update(task, description=f"  [bold red]✗[/] {f.name} → {e}")
+                progress.update(task, description=f"  [bold red]✗[/] {dest_name} → {e}")
                 failed += 1
 
     if copied or failed or skipped:
@@ -1064,36 +1072,54 @@ def cmd_update_registry(app):
 @click.argument("names", nargs=-1)
 @pass_ctx
 def cmd_verify(app, names):
-    """Verify installed add-ins against their recorded SHA256 checksums.
+    """Verify add-ins on the calculator against their registry SHA256.
 
-    If no add-in names are given, verifies ALL installed add-ins.
+    Scans the calculator directly — no local cache needed.
+    If no names are given, verifies ALL add-ins found on the calculator.
     """
-    from pcalc.installer import get_installed, verify as verify_installed
     from pcalc.calculator import find_calculator
+    from pcalc import registry as _registry
+    from pcalc.installer import verify_addin, walk_calc, iter_calc_files
 
     calc = find_calculator()
     if not calc:
         _no_calc()
 
-    installed = get_installed()
-    if not installed:
-        console.print(f"  [dim]No add-ins are installed. Nothing to verify.[/]\n")
-        return
+    try:
+        addins = _registry.get_registry()
+    except RuntimeError as e:
+        _fail(str(e))
+
+    entries = walk_calc(calc, addins)
+    on_device = [f for f in iter_calc_files(entries) if f.addin]
 
     if not names:
-        names = list(installed.keys())
+        # Verify all add-ins found on the calculator
+        targets = on_device
+        if not targets:
+            console.print(f"  [dim]No add-ins found on calculator.[/]\n")
+            return
     else:
-        missing = [n for n in names if n not in installed]
-        if missing:
-            _fail(f"Add-in(s) not installed: {', '.join(missing)}")
+        targets = []
+        for name in names:
+            match = next(
+                (f for f in on_device
+                 if f.addin.get("name", "").lower() == name.lower()
+                 or f.addin.get("id", "").lower() == name.lower()),
+                None
+            )
+            if not match:
+                console.print(f"  [bold red]Not found on calculator:[/] {name}")
+                raise SystemExit(1)
+            targets.append(match)
 
     all_ok = True
-    for name in names:
-        entry = installed[name]
-        label = entry.get("name", name)
+    for f in targets:
+        addin = f.addin
+        label = addin.get("name", addin.get("id", "?"))
         console.print(f"\n  Verifying [bold]{label}[/] ...", end="")
         try:
-            result = verify_installed(name, calc)
+            result = verify_addin(addin, calc)
             if result:
                 console.print(f" [bold {theme.SUCCESS}]OK[/]")
             else:
@@ -1113,7 +1139,10 @@ def cmd_verify(app, names):
 @click.argument("key_file", type=click.Path(exists=True))
 @pass_ctx
 def cmd_import_key(app, key_file):
-    """Import a PGP public key for signature verification."""
+    """Import an additional PGP public key (advanced).
+
+    Note: official signature verification uses the Pan Devs key
+    automatically. Use this only if you need extra keys."""
     from pcalc.crypto import import_key
 
     console.print(f"\n  Importing key from [dim]{key_file}[/] ...", end="")
@@ -1132,28 +1161,33 @@ def cmd_import_key(app, key_file):
 @cli.command("list-keys")
 @pass_ctx
 def cmd_list_keys(app):
-    """List imported PGP keys and their trust status."""
+    """List PGP keys and their trust status."""
     from pcalc.crypto import list_keys
 
     keys = list_keys()
     if not keys:
-        console.print(f"\n  [dim]No PGP keys imported. Use 'pcalc import-key <file>' to add one.[/]\n")
+        console.print(f"\n  [dim]No PGP keys found. The official Pan Devs key will be downloaded automatically on first use.[/]\n")
         return
 
     from rich.table import Table
     table = Table(
-        show_header=True, header_style=theme.S_PRIMARY, border_style=theme.PRIMARY,
+        show_header=True, header_style=theme.S_PRIMARY, border_style=theme.SUCCESS,
         show_lines=False, pad_edge=True,
     )
     table.add_column("Key ID", style="bold white", no_wrap=True)
     table.add_column("Fingerprint", style=theme.S_DIM)
     table.add_column("UID", style="white")
-    table.add_column("Trusted", style=theme.S_ACCENT)
+    table.add_column("Status", style=theme.S_ACCENT)
 
     for k in keys:
-        trusted = "[bold green]yes[/]" if k["trusted"] else "[dim]no[/]"
+        if k.get("official"):
+            status = "[bold green]✅ official[/]"
+        elif k["trusted"]:
+            status = "[bold green]trusted[/]"
+        else:
+            status = "[dim]untrusted[/]"
         uids = k.get("uids", ["(none)"])
-        table.add_row(k["keyid"], k["fingerprint"][:32] + "...", uids[0], trusted)
+        table.add_row(k["keyid"], k["fingerprint"][:32] + "...", uids[0], status)
     console.print("\n", table, "\n")
 
 
