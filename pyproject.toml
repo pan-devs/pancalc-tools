@@ -7,20 +7,22 @@ name = "pancalc-tools"
 version = "0.1.0"
 description = "Package manager and developer toolkit for Casio Prizm calculators"
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "PAN DEVS NON-COMMERCIAL ATTRIBUTION LICENSE v1.0" }
 authors = [{ name = "Pan Devs", email = "pan.devs@proton.me" }]
 requires-python = ">=3.10"
 keywords = ["casio", "prizm", "fx-cg50", "calculator", "package-manager"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
+    "Environment :: X11 Applications",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
+    "License :: Other/Proprietary License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Hardware",
 ]
 dependencies = [
     "click>=8.1",

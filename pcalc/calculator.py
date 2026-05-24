@@ -216,7 +216,9 @@ def find_calculator() -> Calculator | None:
         if calc:
             return calc
 
-    mount_path = _auto_mount_casio()
+    if platform.system() == "Linux":
+        _ensure_udisksctl()
+        mount_path = _auto_mount_casio()
     if mount_path:
         calc = _calc_from_path(mount_path)
         if calc:
@@ -242,3 +244,67 @@ def require_calculator() -> Calculator:
             "to enable USB mass storage mode, then try again."
         )
     return calc
+
+
+# ---------------------------------------------------------------------------
+# System dependency auto-install
+# ---------------------------------------------------------------------------
+
+
+def _detect_pkg_manager() -> str | None:
+    """Detect the system package manager install command."""
+    if platform.system() != "Linux":
+        return None
+    if shutil.which("apt") or os.path.exists("/etc/debian_version"):
+        return "apt install -y"
+    if shutil.which("pacman"):
+        return "pacman -S --noconfirm"
+    if shutil.which("dnf"):
+        return "dnf install -y"
+    if shutil.which("yum"):
+        return "yum install -y"
+    if shutil.which("zypper"):
+        return "zypper install -y"
+    return None
+
+
+def _ensure_udisksctl() -> bool:
+    """
+    Check if udisksctl is available. If not, explain why it's needed
+    and offer to install it.
+    """
+    if shutil.which("udisksctl"):
+        return True
+
+    print()
+    print("  ⚠  udisksctl not found")
+    print("  ──────────────────────")
+    print("  udisksctl is needed to auto-mount the calculator when it is")
+    print("  not already mounted. Without it, connect the calculator before")
+    print("  launching the program or mount it manually.")
+    print()
+
+    pm = _detect_pkg_manager()
+    if not pm:
+        print("  Install udisks2 manually for your distribution.")
+        print("  Example:  sudo apt install udisks2")
+        print()
+        return False
+
+    cmd = f"sudo {pm} udisks2"
+    print(f"  Installing: {cmd}")
+    print("  (you will be prompted for your sudo password)")
+    print()
+    try:
+        subprocess.run(cmd.split(), check=True)
+        print()
+        return shutil.which("udisksctl") is not None
+    except subprocess.CalledProcessError:
+        print("  Failed to install udisks2. Install it manually:")
+        print(f"    {cmd}")
+        print()
+        return False
+    except KeyboardInterrupt:
+        print("  Cancelled.")
+        print()
+        return False
