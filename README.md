@@ -58,8 +58,6 @@ If you see `Python 3.10` or higher, you're ready. If not, install Python:
 
 ### 2. Install PanCalc Tools
 
-> **Nota:** El paquete aún no está en PyPI. Se instala directamente desde GitHub.
-
 #### 🐧 Linux
 
 Open a **terminal** and run:
@@ -212,13 +210,11 @@ The interactive menu will open.
 - **Python 3.10+**
 - A **Casio Prizm** calculator connected via USB in **mass storage mode** (F1).
 
-### From PyPI (coming soon)
+### From PyPI
 
 ```bash
 pip install pancalc-tools
 ```
-
-Until then, see [Quick Start](#-quick-start-for-everyone) for installation from GitHub.
 
 ### From source
 
