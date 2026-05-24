@@ -26,5 +26,8 @@ Thumbs.db
 convert/
 converted/
 
+# Research / reference files
+research/
+
 # Local installed DB
 installed.json
