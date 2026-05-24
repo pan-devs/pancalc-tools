@@ -36,7 +36,7 @@ class AsciiBarColumn(ProgressColumn):
             result.append("░" * (self.bar_width - filled), style=theme.PRIMARY)
         return result
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 
 
 # ---------------------------------------------------------------------------
@@ -560,13 +560,25 @@ def _cmd_remove_impl(app, names):
     addin_names = []
     path_names = []
     for name in names:
-        # Check if it matches an installed addin
         found = False
+        # Try installed.json first
         for aid, entry in installed.items():
             if aid.lower() == name.lower() or entry.get("name", "").lower() == name.lower():
                 addin_names.append((aid, entry))
                 found = True
                 break
+        if not found:
+            # Fallback: try registry match (remove() will verify device existence)
+            from pcalc import registry as _reg
+            try:
+                addins = _reg.get_registry()
+                for a in addins:
+                    if a.get("id", "").lower() == name.lower() or a.get("name", "").lower() == name.lower():
+                        addin_names.append((a["id"], {"name": a.get("name", a["id"])}))
+                        found = True
+                        break
+            except RuntimeError:
+                pass
         if not found:
             path_names.append(name)
 

@@ -436,6 +436,9 @@ def remove(addin_id: str, calc: Calculator) -> None:
     """
     Remove an installed add-in from the calculator and the local database.
 
+    If the add-in is not tracked in installed.json, falls back to scanning
+    the device and matching against the registry (like verify_addin does).
+
     Args:
         addin_id: ID of the add-in to remove.
         calc: Connected Calculator instance.
@@ -444,28 +447,62 @@ def remove(addin_id: str, calc: Calculator) -> None:
         RuntimeError: If the add-in is not installed or file cannot be deleted.
     """
     installed = _load_installed()
-    if addin_id not in installed:
+    if addin_id in installed:
+        entry = installed[addin_id]
+
+        files_to_remove = []
+        if "files" in entry:
+            files_to_remove = [f["filename"] for f in entry["files"]]
+        elif "filename" in entry:
+            files_to_remove = [entry["filename"]]
+
+        for filename in files_to_remove:
+            path = calc.mount_path / filename
+            if path.exists():
+                try:
+                    path.unlink()
+                except OSError as e:
+                    raise RuntimeError(f"Failed to remove '{filename}' from calculator: {e}")
+
+        del installed[addin_id]
+        _save_installed(installed)
+        return
+
+    # Fallback: not in installed.json — scan device and match against registry
+    from pcalc import registry as _reg
+    try:
+        addins = _reg.get_registry()
+    except RuntimeError:
+        addins = []
+
+    addin = None
+    for a in addins:
+        if a.get("id", "").lower() == addin_id.lower():
+            addin = a
+            break
+
+    if not addin:
         raise RuntimeError(f"'{addin_id}' is not installed.")
 
-    entry = installed[addin_id]
-
-    # Resolve files to remove (supports both multi-file and legacy single-file)
     files_to_remove = []
-    if "files" in entry:
-        files_to_remove = [f["filename"] for f in entry["files"]]
-    elif "filename" in entry:
-        files_to_remove = [entry["filename"]]
+    if "files" in addin:
+        files_to_remove = [f["filename"] for f in addin["files"]]
+    else:
+        fname = addin.get("zip_file") or Path(addin.get("download_url", "")).name
+        files_to_remove = [fname]
 
+    deleted_any = False
     for filename in files_to_remove:
         path = calc.mount_path / filename
         if path.exists():
             try:
                 path.unlink()
+                deleted_any = True
             except OSError as e:
                 raise RuntimeError(f"Failed to remove '{filename}' from calculator: {e}")
 
-    del installed[addin_id]
-    _save_installed(installed)
+    if not deleted_any:
+        raise RuntimeError(f"'{addin_id}' is not installed.")
 
 
 def verify(addin_id: str, calc: Calculator) -> bool:
