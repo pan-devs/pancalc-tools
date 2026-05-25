@@ -13,19 +13,70 @@ Part of the [Pan Devs](https://github.com/pan-devs) project.
 > convert photos and documents so you can view them on the calculator screen,
 > and much more.
 
-### 1. Install Python
+---
 
-PanCalc Tools needs **Python 3.10 or newer**.
+### 1. Install dependencies
+
+Before installing PanCalc Tools, you need a few things depending on your OS.
+
+#### 🪟 Windows
+
+**Python 3.10+**
+
+1. Go to [python.org](https://www.python.org/downloads/) and download the latest **Python 3** installer.
+2. **Important:** check the box **"Add Python to PATH"** at the bottom of the installer screen before clicking Install.
+3. Open **Command Prompt** (search "cmd" in the Start menu).
+4. Type `python --version` to confirm.
+
+**Microsoft Visual C++ Redistributable** — needed for PDF/DOCX conversion (pymupdf):
+
+- 64-bit (most users): https://aka.ms/vs/17/release/vc_redist.x64.exe
+- 32-bit Python: https://aka.ms/vs/17/release/vc_redist.x86.exe
+
+Download and install, then restart Command Prompt.
+
+**Gpg4win** — needed for add-in signature verification:
+
+1. Download from [gpg4win.org](https://gpg4win.org)
+2. Run the installer (default options are fine).
+3. Confirm it works: open Command Prompt and type `gpg --version`.
+
+---
+
+#### 🍎 macOS
+
+**Python 3.10+**
+
+1. Go to [python.org](https://www.python.org/downloads/) and download the latest **Python 3** installer.
+2. Open the downloaded file and follow the steps.
+3. Open the **Terminal** app (Cmd+Space → "Terminal").
+4. Type `python3 --version` to confirm.
+
+**Xcode Command Line Tools** — needed for some dependencies (pymupdf):
+
+```bash
+xcode-select --install
+```
+
+> If you see "already installed", you're good.
+
+**GnuPG** — needed for add-in signature verification. Install one of:
+
+- **GPG Suite** (recommended, includes GUI): [gpgtools.org](https://gpgtools.org)
+- **Homebrew** (if you use it): `brew install gnupg`
+
+
+---
 
 #### 🐧 Linux
 
-Open a **terminal** (search for "Terminal" in your apps) and type:
+**Python 3.10+** — open a terminal and check:
 
 ```bash
 python3 --version
 ```
 
-If you see `Python 3.10` or higher, you're ready. If not, install Python:
+If you see `Python 3.10` or higher, you're ready. If not:
 
 - **Ubuntu / Debian / Mint:**
   ```bash
@@ -40,51 +91,47 @@ If you see `Python 3.10` or higher, you're ready. If not, install Python:
   sudo dnf install python3 python3-pip
   ```
 
-#### 🍎 macOS
+**GnuPG** — needed for add-in signature verification. Check if it's installed:
 
-1. Go to [python.org](https://www.python.org/downloads/) and download the latest
-   **Python 3** installer.
-2. Open the downloaded file and follow the steps.
-3. Open the **Terminal** app (search with Cmd+Space).
-4. Type `python3 --version` to confirm it's installed.
+```bash
+gpg --version
+```
 
-#### 🪟 Windows
+If not found:
 
-1. Go to [python.org](https://www.python.org/downloads/) and download the latest
-   **Python 3** installer.
-2. **Important:** when installing, check the box **"Add Python to PATH"** at the bottom of the installer.
-3. Open the **Command Prompt** (search "cmd" in the Start menu).
-4. Type `python --version` to confirm it's installed.
-5. **For PDF/DOCX conversion:** Install the Microsoft Visual C++ Redistributable:
-   - Download and install from: https://aka.ms/vs/17/release/vc_redist.x64.exe
-   - (If using 32-bit Python, install the x86 version instead: https://aka.ms/vs/17/release/vc_redist.x86.exe)
+- **Ubuntu / Debian / Mint:** `sudo apt install gnupg`
+- **Arch / Manjaro:** `sudo pacman -S gnupg`
+- **Fedora:** `sudo dnf install gnupg2`
+
+
+---
 
 ### 2. Install PanCalc Tools
 
-Open a **terminal** and run:
+Open a terminal (search for "cmd" in Windows) and run:
 
 ```bash
-pip install pancalc-tools
+python -m pip install pancalc-tools
 ```
 
-> If `pip` is not found, try `pip3` on Linux/macOS.
+> On Linux/macOS, use `python3 -m pip` if `python` is not found.
 
-On **Windows**, also install `pywin32` for automatic calculator detection and eject:
+**Windows only** — also install `pywin32` for automatic calculator eject:
 
 ```bash
-pip install pancalc-tools[windows]
+python -m pip install "pancalc-tools[windows]"
 ```
 
 > **Linux users:** if you get an `externally-managed-environment` error, use:
 > ```bash
-> pip install --user pancalc-tools
+> python -m pip install --user pancalc-tools
 > ```
+
+---
 
 ### 3. Launch the program
 
-#### 🐧 Linux
-
-In the **terminal**, type:
+Open a terminal (or Command Prompt on Windows) and type:
 
 ```bash
 pcalc
@@ -92,59 +139,47 @@ pcalc
 
 The interactive menu will open.
 
-#### 🍎 macOS
-
-In the **Terminal** app, type:
-
-```bash
-pcalc
-```
-
-The interactive menu will open.
-
-#### 🪟 Windows
-
-In the **Command Prompt**, type:
-
-```bash
-pcalc
-```
-
-The interactive menu will open.
-
-> **⚠️  If `pcalc` is not recognized:** add Python's `Scripts` directory to your
-> `PATH` (usually `%APPDATA%\Python\Python314\Scripts`), or use the fallback:
+> **⚠️ Windows — if `pcalc` is not recognized:**
+> Python's Scripts directory may not be in your PATH.
+> Add `%APPDATA%\Python\Python3xx\Scripts` to your PATH
+> (replace `3xx` with your Python version, e.g. `Python314`),
+> or use the fallback command:
 > ```bash
 > python -m pcalc
 > ```
 
+---
+
 ### 4. Connect your calculator
-
-#### 🐧 Linux
-
-1. Turn on your Casio calculator.
-2. Press **F1** (USB mass storage mode).
-3. Connect it with a USB cable.
-4. The program will detect it automatically. If not, it will ask for your
-   password to install `udisksctl` (needed for auto-mount).
-
-#### 🍎 macOS
-
-1. Turn on your Casio calculator.
-2. Press **F1** (USB mass storage mode).
-3. Connect it with a USB cable.
-4. It should appear as a drive on your desktop and in **Finder**.
-   The program will find it automatically.
 
 #### 🪟 Windows
 
 1. Turn on your Casio calculator.
 2. Press **F1** (USB mass storage mode).
 3. Connect it with a USB cable.
-4. It should appear as a new drive in **File Explorer** (e.g. `D:\` or `E:\`).
-    The program will find it automatically.
+4. It will appear as a new drive in **File Explorer** (e.g. `D:\` or `E:\`).
+   PanCalc Tools will detect it automatically.
 
-> After launching pcalc and connecting your calculator, navigate to the **Catch** option in the pcalc interface to browse your calculator's filesystem.
+#### 🍎 macOS
+
+1. Turn on your Casio calculator.
+2. Press **F1** (USB mass storage mode).
+3. Connect it with a USB cable.
+4. It will appear as a drive in **Finder** and be detected automatically.
+
+#### 🐧 Linux
+
+1. Turn on your Casio calculator.
+2. Press **F1** (USB mass storage mode).
+3. Connect it with a USB cable.
+4. PanCalc Tools will detect it automatically.
+
+> If the calculator is not detected, try running `udisksctl mount -b /dev/sdb1`
+> (replace `sdb1` with the correct device — check with `lsblk`).
+
+
+> After connecting your calculator, navigate to the **Catch** option in the
+> pcalc interface to browse its filesystem.
 
 > 💡 **Tips:**
 > - Use your mouse/trackpad and click to interact.
@@ -190,19 +225,17 @@ The interactive menu will open.
 ### From PyPI
 
 ```bash
-pip install pancalc-tools
+python -m pip install pancalc-tools
 ```
 
 On **Windows**, also install `pywin32` for automatic drive detection and eject:
 
 ```bash
-pip install pancalc-tools[windows]
+python -m pip install pancalc-tools[windows]
 ```
 
-> **Note:** PGP signature verification requires `gpg` (GnuPG).
-> The program will attempt to install it automatically on first use
-> (via winget on Windows, brew on macOS, or apt/pacman/dnf on Linux).
-> See https://gpg4win.org for manual Windows installation.
+> **Note:** PGP signature verification requires `gpg` (GnuPG) installed on your system.
+> See the Quick Start section above for installation instructions per OS.
 
 ### From source
 
