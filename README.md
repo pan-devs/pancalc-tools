@@ -177,9 +177,10 @@ The interactive menu will open.
 > If the calculator is not detected, try running `udisksctl mount -b /dev/sdb1`
 > (replace `sdb1` with the correct device — check with `lsblk`).
 
+---
 
-> After connecting your calculator, navigate to the **Catch** option in the
-> pcalc interface to browse its filesystem.
+After connecting your calculator, navigate to the **Catch** option in the
+pcalc interface to browse its filesystem.
 
 > 💡 **Tips:**
 > - Use your mouse/trackpad and click to interact.
