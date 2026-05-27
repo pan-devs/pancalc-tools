@@ -68,6 +68,7 @@ jobs:
             --hidden-import pcalc.converter --hidden-import pcalc.registry --hidden-import pcalc.crypto `
             --hidden-import pcalc.config --hidden-import pcalc.banner --hidden-import pcalc.theme `
             --hidden-import pcalc.calculator `
+            --icon installer/favicon.ico `
             pcalc/__main__.py
 
       - name: Extract version from tag
