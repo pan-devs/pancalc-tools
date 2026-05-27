@@ -257,6 +257,12 @@ def _extract_g3a_from_zip(zip_bytes: bytes, zip_file: str) -> bytes:
                     target = name
                     break
         if target is None:
+            # Match basename (handle files inside subdirectories like "dir/Geometry.g3a")
+            for name in names:
+                if Path(name).name.lower() == zip_file.lower():
+                    target = name
+                    break
+        if target is None:
             # Last resort: grab the first .g3a in the archive
             for name in names:
                 if name.lower().endswith(".g3a"):
@@ -367,15 +373,6 @@ def install(addin: dict, calc: Calculator, progress_callback=None, write_callbac
         # Download
         raw = _download_bytes(dl_url, progress_callback=progress_callback, cb_label=filename)
 
-        # SHA256 verification (optional — if sha256 is present in registry)
-        if "sha256" in file_info:
-            expected_sha = file_info["sha256"]
-            if not verify_sha256(raw, expected_sha):
-                raise RuntimeError(
-                    f"SHA256 mismatch for {filename}: "
-                    f"expected {expected_sha}, got {sha256_digest(raw)}"
-                )
-
         # PGP signature verification (optional — against official Pan Devs key)
         sig_url = file_info.get("signature_url", dl_url + ".asc")
         sig_data = None
@@ -386,7 +383,6 @@ def install(addin: dict, calc: Calculator, progress_callback=None, write_callbac
         if sig_data is not None:
             sig_text = sig_data.decode("utf-8", errors="replace")
             if not verify_official_signature(raw, sig_text):
-                # Retry with download_url + ".asc" as fallback
                 try:
                     fallback_sig = _download_bytes(dl_url + ".asc")
                     sig_text = fallback_sig.decode("utf-8", errors="replace")
@@ -403,6 +399,16 @@ def install(addin: dict, calc: Calculator, progress_callback=None, write_callbac
             g3a_bytes = _extract_g3a_from_zip(raw, zip_file)
         else:
             g3a_bytes = raw
+
+        # SHA256 verification (optional — if sha256 is present in registry)
+        # Verified against the final .g3a (after extraction, if applicable)
+        if "sha256" in file_info:
+            expected_sha = file_info["sha256"]
+            if not verify_sha256(g3a_bytes, expected_sha):
+                raise RuntimeError(
+                    f"SHA256 mismatch for {filename}: "
+                    f"expected {expected_sha}, got {sha256_digest(g3a_bytes)}"
+                )
 
         # Check write access
         if not os.access(calc.mount_path, os.W_OK):
@@ -580,19 +586,20 @@ def verify_addin(addin: dict, calc: Calculator) -> bool:
         # Single-file addin — determine filename and expected SHA
         fname = addin.get("zip_file") or Path(addin.get("download_url", "")).name
         if addin.get("download_type") == "zip":
-            # Download the zip, extract the g3a, compute its SHA
+            # Download the zip, extract the g3a, verify its SHA
             dl_url = addin["download_url"]
             zip_file = addin.get("zip_file", f"{addin_id}.g3a")
             try:
                 zip_bytes = _download_bytes(dl_url)
             except RuntimeError as e:
                 raise RuntimeError(f"Failed to download '{aid}' for verification: {e}")
-            # Verify zip SHA if present
-            zip_sha = addin.get("sha256", "")
-            if zip_sha and _sha256(zip_bytes) != zip_sha:
-                raise RuntimeError(f"Downloaded zip for '{aid}' failed SHA256 check.")
             g3a_bytes = _extract_g3a_from_zip(zip_bytes, zip_file)
-            files_to_verify = [{"filename": fname, "sha256": _sha256(g3a_bytes)}]
+            g3a_sha = _sha256(g3a_bytes)
+            # Verify extracted .g3a SHA if present in registry
+            sha = addin.get("sha256", "")
+            if sha and g3a_sha != sha:
+                raise RuntimeError(f"Extracted .g3a for '{aid}' failed SHA256 check.")
+            files_to_verify = [{"filename": fname, "sha256": g3a_sha}]
         else:
             sha = addin.get("sha256", "")
             if sha:

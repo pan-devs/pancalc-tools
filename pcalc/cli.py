@@ -36,7 +36,7 @@ class AsciiBarColumn(ProgressColumn):
             result.append("░" * (self.bar_width - filled), style=theme.PRIMARY)
         return result
 
-VERSION = "0.1.9"
+VERSION = "0.1.91"
 
 
 # ---------------------------------------------------------------------------
@@ -824,8 +824,22 @@ def cmd_calc(app, storage):
 # Developer tools
 # ---------------------------------------------------------------------------
 
-CONVERT_DIR   = Path.cwd() / "convert"
-CONVERTED_DIR = Path.cwd() / "converted"
+from pcalc import _data_root, _project_root
+
+_conv_base = _data_root()
+CONVERT_DIR   = _conv_base / "convert"
+CONVERTED_DIR = _conv_base / "converted"
+
+# One-time migration from project-relative paths
+_old_root = _project_root()
+if _old_root and _old_root.resolve() != _conv_base.resolve():
+    for _rel in ("convert/images", "convert/documents", "convert/g3p",
+                 "converted/g3p", "converted/txt", "converted/images"):
+        _old_dir = _old_root / _rel
+        _new_dir = _conv_base / _rel
+        if _old_dir.exists() and not _new_dir.exists():
+            _new_dir.parent.mkdir(parents=True, exist_ok=True)
+            import shutil; shutil.move(str(_old_dir), str(_new_dir))
 
 _IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff"}
 _DOC_EXT   = {".pdf", ".docx"}

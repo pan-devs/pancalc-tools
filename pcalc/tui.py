@@ -16,6 +16,7 @@ from textual.widgets import Button, Footer, Header, Label, ListItem, ListView, R
 from textual.worker import Worker, WorkerState
 
 from pcalc import theme
+from pcalc import _data_root, _project_root
 
 
 KEY_HINT = "  [dim]↑↓ navigate · Space toggle · Enter act · Esc home[/]"
@@ -573,7 +574,7 @@ class MainScreen(Screen):
     # ── Convert helpers (shared by Convert & ConvPush) ────────────
 
     def _convert_base(self) -> Path:
-        return Path.cwd()
+        return _data_root()
 
     def _scan_convert_files(self) -> list[Path]:
         base = self._convert_base()
@@ -643,10 +644,21 @@ class MainScreen(Screen):
 
     def _ensure_convert_dirs(self) -> None:
         base = self._convert_base()
+        # One-time migration from project-relative paths
+        old_root = _project_root()
+        if old_root and old_root.resolve() != base.resolve():
+            for rel in ("convert/images", "convert/documents", "convert/g3p",
+                        "converted/g3p", "converted/txt", "converted/images"):
+                old_dir = old_root / rel
+                new_dir = base / rel
+                if old_dir.exists() and not new_dir.exists():
+                    new_dir.parent.mkdir(parents=True, exist_ok=True)
+                    import shutil; shutil.move(str(old_dir), str(new_dir))
         (base / "convert/images").mkdir(parents=True, exist_ok=True)
         (base / "convert/documents").mkdir(parents=True, exist_ok=True)
         (base / "converted/g3p").mkdir(parents=True, exist_ok=True)
         (base / "converted/txt").mkdir(parents=True, exist_ok=True)
+        (base / "converted/images").mkdir(parents=True, exist_ok=True)
 
     def _refresh_convert_view(self) -> None:
         if self._view == "convert":
@@ -664,7 +676,17 @@ class MainScreen(Screen):
         self._view = "convert"
         rows = self._build_convert_list()
         self._convert_rows = rows
-        list_container = ScrollableContainer(*rows, classes="select-list") if rows else Label("  [dim]No files in convert/[/]")
+        if rows:
+            list_container = ScrollableContainer(*rows, classes="select-list")
+        else:
+            hint = ""
+            g3p = self._convert_base() / "converted/g3p"
+            txt = self._convert_base() / "converted/txt"
+            g3p_count = len(list(g3p.iterdir())) if g3p.exists() else 0
+            txt_count = len(list(txt.iterdir())) if txt.exists() else 0
+            if g3p_count or txt_count:
+                hint = f"  [dim](but {g3p_count + txt_count} files in converted/ — try Push)[/]"
+            list_container = Label(f"  [dim]No files in convert/[/]{hint}")
 
         select_btn = Button("📁  Select Files")
         self._conv_select_btn = select_btn
@@ -781,7 +803,7 @@ class MainScreen(Screen):
     def _scan_push_files(self) -> list[Path]:
         base = self._convert_base()
         files: list[Path] = []
-        for sub in ("g3p", "txt"):
+        for sub in ("g3p", "txt", "images"):
             d = base / "converted" / sub
             if d.exists():
                 for f in sorted(d.iterdir()):
@@ -803,7 +825,14 @@ class MainScreen(Screen):
         self._convert_rows = rows
 
         if not rows:
-            list_container = Label("  [dim]No converted files in converted/[/]  [dim]Use Convert first[/]")
+            hint = ""
+            img_dir = self._convert_base() / "convert/images"
+            doc_dir = self._convert_base() / "convert/documents"
+            img_count = len(list(img_dir.iterdir())) if img_dir.exists() else 0
+            doc_count = len(list(doc_dir.iterdir())) if doc_dir.exists() else 0
+            if img_count or doc_count:
+                hint = f"  [dim](but {img_count + doc_count} files in convert/ — try Convert)[/]"
+            list_container = Label(f"  [dim]No converted files in converted/[/]{hint}")
         else:
             list_container = ScrollableContainer(*rows, classes="select-list")
 
