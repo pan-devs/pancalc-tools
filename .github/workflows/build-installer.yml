@@ -1,0 +1,98 @@
+name: Build Windows Installer
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Windows installer with Inno Setup
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Create prerequisites directory
+        run: mkdir -p installer/prereqs
+
+      - name: Download VC++ Redistributable
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://aka.ms/vs/17/release/vc_redist.x64.exe -OutFile installer/prereqs/vc_redist.x64.exe
+
+      - name: Download Gpg4win
+        shell: pwsh
+        run: |
+          # Using a specific version of Gpg4win that we know works
+          # Update this version periodically as needed
+          $gpg4winVersion = "4.2.0"
+          $gpg4winFile = "gpg4win-$gpg4winVersion.exe"
+          Invoke-WebRequest -Uri https://files.gpg4win.org/gpg4win-$gpg4winVersion.exe -OutFile installer/prereqs/$gpg4winFile
+          echo "GPG4WIN_FILE=$gpg4winFile" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Verify prerequisites downloaded
+        shell: pwsh
+        run: |
+          if (!(Test-Path installer\prereqs\vc_redist.x64.exe)) {
+            Write-Error "VC++ Redistributable not found"
+            exit 1
+          }
+          if (!(Test-Path installer\prereqs\$env:GPG4WIN_FILE)) {
+            Write-Error "Gpg4win not found"
+            exit 1
+          }
+
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          pip install --upgrade pip
+          pip install -e .[windows]
+          pip install pyinstaller
+          
+      - name: Build standalone executable with PyInstaller
+        shell: pwsh
+        run: |
+          pyinstaller --onedir --noconfirm --name pancalc-tools `
+            --collect-all pcalc --collect-all textual --collect-all fitz --collect-all gnupg `
+            --hidden-import pcalc.cli --hidden-import pcalc.tui --hidden-import pcalc.installer `
+            --hidden-import pcalc.converter --hidden-import pcalc.registry --hidden-import pcalc.crypto `
+            --hidden-import pcalc.config --hidden-import pcalc.banner --hidden-import pcalc.theme `
+            --hidden-import pcalc.calculator `
+            pcalc/__main__.py
+
+      - name: Extract version from tag
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          echo "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress --limit-output
+
+      - name: Compile Inno Setup installer
+        shell: cmd
+        run: iscc installer\pancalc-tools.iss /DMyAppVersion=%APP_VERSION% /DGPG4WIN_FILE=%GPG4WIN_FILE%
+
+      - name: Upload installer to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PanCalc-Tools-Setup-*.exe
+
+      - name: Upload installer as workflow artifact
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: PanCalc-Tools-Installer
+          path: PanCalc-Tools-Setup-*.exe

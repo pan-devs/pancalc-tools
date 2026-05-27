@@ -31,3 +31,16 @@ research/
 
 # Local installed DB
 installed.json
+
+# Build artifacts
+*.spec
+PanCalc-Tools-Setup-*.exe
+
+# Generated installer assets
+installer/icon.ico
+
+# Prerequisite installers (downloaded during CI)
+installer/prereqs/
+
+# Source image for icon (temporary)
+installer/source.jpg
