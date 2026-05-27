@@ -4,7 +4,7 @@ Supports fx-CG10/20/50 and Graph 90+E.
 """
 
 import struct, zlib, os, sys, re, unicodedata
-from PIL import Image, ImageOps
+from PIL import Image, ImageFilter, ImageOps
 
 WIDTH  = 384
 HEIGHT = 192
@@ -143,6 +143,7 @@ def _process_image_to_g3p(img: Image.Image, output_path: str, bit_depth: int = 1
 
     if do_split:
         img = img.resize((WIDTH, fit_h), Image.LANCZOS)
+        img = img.filter(ImageFilter.UnsharpMask(radius=0.5, percent=100, threshold=2))
         step = max(1, HEIGHT - overlap)
         n_strips = (fit_h - overlap + step - 1) // step
         base, ext = os.path.splitext(output_path)
@@ -172,6 +173,7 @@ def _process_image_to_g3p(img: Image.Image, output_path: str, bit_depth: int = 1
         new_w = int(src_w * scale)
         new_h = int(src_h * scale)
         img = img.resize((new_w, new_h), Image.LANCZOS)
+        img = img.filter(ImageFilter.UnsharpMask(radius=0.5, percent=100, threshold=2))
 
         canvas = Image.new('RGB', (WIDTH, HEIGHT), (0, 0, 0))
         x_offset = (WIDTH - new_w) // 2
@@ -198,7 +200,7 @@ def convert_image(input_path, output_path, bit_depth=16, split="auto", overlap=1
                           os.path.basename(input_path))
 
 
-RENDER_SCALE = 12.5
+RENDER_SCALE = 20.0
 
 
 def convert_document_g3p(input_path, output_path, bit_depth=16, overlap=16):
