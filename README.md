@@ -7,7 +7,12 @@ Part of the [Pan Devs](https://github.com/pan-devs) project.
 
 ---
 
-## 📖 Quick Start (for everyone)
+## 📖 Quick Start (for Windows only)
+
+Download the zip file in the latest release and click the .exe file to install it.
+Windows may say that it just protected you from the exe file, but clock on "learn more" or something like that and continue the installation. Then, accept that it can change your settings/device (when the pop-up window appear, clock "yes"), and continue the installation. It is highly recomended to click every box.
+And no worries, it is safe.
+
 
 > **PanCalc Tools** lets you install programs (add-ins) on your Casio calculator,
 > convert photos and documents so you can view them on the calculator screen,
