@@ -48,8 +48,8 @@ Source: "..\LICENSE.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\ARCHITECTURE.md"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Prerequisite installers (placed in temp directory during install)
-Source: "installer\prereqs\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: ignoreversion
-Source: "installer\prereqs\{#GPG4WIN_FILE}"; DestDir: "{tmp}"; Flags: ignoreversion
+Source: "installer\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: ignoreversion
+Source: "installer\{#GPG4WIN_FILE}"; DestDir: "{tmp}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\PanCalc Tools (CLI)"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Comment: "Command-line interface for managing calculator add-ins, converting files, and more"
