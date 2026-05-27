@@ -33,12 +33,9 @@ jobs:
       - name: Download Gpg4win
         shell: pwsh
         run: |
-          # Using a specific version of Gpg4win that we know works
-          # Update this version periodically as needed
-          $gpg4winVersion = "4.2.0"
-          $gpg4winFile = "gpg4win-$gpg4winVersion.exe"
-          Invoke-WebRequest -Uri https://files.gpg4win.org/gpg4win-$gpg4winVersion.exe -OutFile installer/prereqs/$gpg4winFile
-          echo "GPG4WIN_FILE=$gpg4winFile" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $gnupgFile = "gnupg-w32-2.5.20_20260513.exe"
+          Invoke-WebRequest -Uri https://www.gnupg.org/ftp/gcrypt/binary/$gnupgFile -OutFile installer/prereqs/$gnupgFile
+          echo "GPG4WIN_FILE=$gnupgFile" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Verify prerequisites downloaded
         shell: pwsh

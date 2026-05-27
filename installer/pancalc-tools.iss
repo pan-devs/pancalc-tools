@@ -8,7 +8,7 @@
 #define MyAppPublisherURL "https://github.com/pan-devs"
 #define MyAppURL "https://github.com/pan-devs/pancalc-tools"
 #define MyAppExeName "pancalc-tools.exe"
-#define GPG4WIN_FILE "gpg4win-4.2.0.exe"  ; default value, can be overridden by /DGPG4WIN_FILE=
+#define GPG4WIN_FILE "gnupg-w32-2.5.20_20260513.exe"
 
 [Setup]
 AppName={#MyAppName}
