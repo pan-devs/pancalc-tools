@@ -18,10 +18,39 @@ It is highly recomended to click every box.
 And no worries, it is safe.
 
 
-> **PanCalc Tools** lets you install programs (add-ins) on your Casio calculator,
-> convert photos and documents so you can view them on the calculator screen,
-> and much more.
+> 💡 **Tips:**
+> - Use your mouse/trackpad and click to interact.
+> - Find games at https://github.com/wavonzip/bdesretro/tree/main (only the ones with .nes at the moment).
+> - Questions? Ask the specialiced AI at https://deepwiki.com/pan-devs/pancalc-tools
+> - Press **Ctrl+S** to open the command palette.
+> - Press **Esc** to return to the home screen.
+> - Use **↑** and **↓** to move between items.
+> - Press **Space** to select/deselect an item.
 
+---
+
+## Features
+
+- **📦 Add-in management** — Install, remove, and verify add-ins from the
+   [pan-devs/pancalc-registry](https://github.com/pan-devs/pancalc-registry)
+   with automatic SHA256 + PGP signature verification.
+- **🖼️ File conversion** — Convert images (PNG, JPG, BMP, GIF, TIFF, WebP) and
+   documents (PDF, DOCX) to Casio `.g3p` photo format or plain text.
+- **📤 Push to calculator** — Copy converted files to the calculator's `pthings/`
+   directory (sorted into `fotos/` for .g3p images and `textos/` for .txt files).
+- **🔍 Calculator browsing** — Browse the full calculator filesystem, identify
+   known add-ins, and inspect storage usage.
+- **🔐 Cryptographic verification** — SHA256 checksums on every download and
+   PGP signature verification against the official Pan Devs key (auto-downloaded,
+   no manual setup required).
+- **🖥️ Dual interface** — Full-featured **Terminal UI** (Textual) and a
+   complete **CLI** (click) for scripting.
+- **🔑 PGP key management** — Import, trust, list, and untrust additional keys
+   for advanced users.
+
+> **📝 Filename Limitations:** The Casio calculator cannot read files with spaces or non-English characters (accents, special symbols) in their names. Files are automatically sanitized when pushed (spaces → _, accents removed, etc.).
+> 
+> **📄 TXT File Reading:** To view TXT files on your calculator, you need to install the "Utilities" add-in from the registry first. This add-in provides a file viewer for text documents on your Casio calculator (and also a JPEG viewer).
 ---
 
 
@@ -195,39 +224,6 @@ The interactive menu will open.
 After connecting your calculator, navigate to the **Catch** option in the
 pcalc interface to browse its filesystem.
 
-> 💡 **Tips:**
-> - Use your mouse/trackpad and click to interact.
-> - Find games at https://github.com/wavonzip/bdesretro/tree/main (with .nes).
-> - Questions? Ask at https://deepwiki.com/pan-devs/pancalc-tools
-> - Press **Ctrl+S** to open the command palette.
-> - Press **Esc** to return to the home screen.
-> - Use **↑** and **↓** to move between items.
-> - Press **Space** to select/deselect an item.
-
----
-
-## Features
-
-- **📦 Add-in management** — Install, remove, and verify add-ins from the
-   [pan-devs/pancalc-registry](https://github.com/pan-devs/pancalc-registry)
-   with automatic SHA256 + PGP signature verification.
-- **🖼️ File conversion** — Convert images (PNG, JPG, BMP, GIF, TIFF, WebP) and
-   documents (PDF, DOCX) to Casio `.g3p` photo format or plain text.
-- **📤 Push to calculator** — Copy converted files to the calculator's `pthings/`
-   directory (sorted into `fotos/` for .g3p images and `textos/` for .txt files).
-- **🔍 Calculator browsing** — Browse the full calculator filesystem, identify
-   known add-ins, and inspect storage usage.
-- **🔐 Cryptographic verification** — SHA256 checksums on every download and
-   PGP signature verification against the official Pan Devs key (auto-downloaded,
-   no manual setup required).
-- **🖥️ Dual interface** — Full-featured **Terminal UI** (Textual) and a
-   complete **CLI** (click) for scripting.
-- **🔑 PGP key management** — Import, trust, list, and untrust additional keys
-   for advanced users.
-
-> **📝 Filename Limitations:** The Casio calculator cannot read files with spaces or non-English characters (accents, special symbols) in their names. Files are automatically sanitized when pushed (spaces → _, accents removed, etc.).
-> 
-> **📄 TXT File Reading:** To view TXT files on your calculator, you need to install the "Utilities" add-in from the registry first. This add-in provides a file viewer for text documents on your Casio calculator (and also a JPEG viewer).
 
 ## Installation
 
