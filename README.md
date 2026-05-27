@@ -9,7 +9,7 @@ Part of the [Pan Devs](https://github.com/pan-devs) project.
 
 ## 📖 Quick Start (for Windows only)
 
-Download the zip file in the latest [release](https://github.com/pan-devs/pancalc-tools/releases) and click the .exe file to install it.
+Download the zip file in the latest [release](https://github.com/pan-devs/pancalc-tools/releases) and click the .exe file to install PanCalc Tools.
 
 Windows may say that it just protected you from the exe file, but click on "learn more" (or similar) and continue the installation. Then, accept that it can change your settings/device (when the pop-up window appear, click "yes"), and continue the installation. 
 
