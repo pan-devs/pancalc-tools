@@ -114,35 +114,23 @@ begin
             not FileExists(ExpandConstant('{sys}\vcruntime140_2.dll'));
 end;
 
-// Check if Gpg4win needs to be installed
-function Gpg4winNeedsInstall: Boolean;
-var
-  RegPath: string;
-  ExePath: string;
-  CmdResult: Integer;
-begin
-  // Check common Gpg4win installation paths
-  ExePath := ExpandConstant('{pf}\Gpg4win\bin\gpg.exe');
-  if not FileExists(ExePath) then
+  // Check if Gpg4win needs to be installed
+  function Gpg4winNeedsInstall: Boolean;
+  var
+    ExePath: string;
   begin
-    ExePath := ExpandConstant('{pf}\GNU\GnuPG\bin\gpg.exe');
+    // Check common Gpg4win installation paths
+    ExePath := ExpandConstant('{pf}\Gpg4win\bin\gpg.exe');
     if not FileExists(ExePath) then
     begin
-      ExePath := ExpandConstant('{sf}\gpg\bin\gpg.exe');
+      ExePath := ExpandConstant('{pf}\GNU\GnuPG\bin\gpg.exe');
       if not FileExists(ExePath) then
       begin
-        // Try to find gpg in PATH
-        if not (Exec(ExpandConstant('{cmd}'), '/c where gpg', '', SW_HIDE, ewWaitUntilTerminated, CmdResult)) then
-        begin
-          Result := True; // Assume not found if we can't run where command
-          Exit;
-        end;
-        Result := (CmdResult <> 0); // Non-zero exit code means not found
+        Result := True; // Not found in common locations
         Exit;
       end;
     end;
+   
+    // If we found gpg.exe, assume it's good enough
+    Result := False;
   end;
-  
-  // If we found gpg.exe, check if it's recent enough
-  Result := False; // Assume it's good enough if found
-end;
