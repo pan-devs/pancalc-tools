@@ -24,6 +24,10 @@ And no worries, it is safe.
 
 ---
 
+
+
+## Expanded start guide (for other OS and developers/advanced users)
+
 ### 1. Install dependencies
 
 Before installing PanCalc Tools, you need a few things depending on your OS.
