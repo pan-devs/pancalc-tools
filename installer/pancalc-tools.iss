@@ -71,7 +71,7 @@ Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; \
     Check: VCRedistNeedsInstall
 
 ; Install Gpg4win if needed  
-Filename: "{tmp}\{#GPG4WIN_FILE}"; Parameters: "/S"; \
+Filename: "{tmp}\{#GPG4WIN_FILE}"; Parameters: "/S /COMPONENTS=gnupg"; \
     StatusMsg: "Installing Gpg4win for add-in verification..."; \
     Flags: waituntilterminated runhidden; \
     Check: Gpg4winNeedsInstall
