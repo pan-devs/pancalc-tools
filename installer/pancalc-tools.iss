@@ -1,7 +1,7 @@
 ; PanCalc Tools — Windows Installer
 ; Fully self-contained installer that includes all prerequisites
 ; Set MyAppVersion via the /D switch when compiling, e.g.:
-;   iscc pancalc-tools.iss /DMyAppVersion=0.2.0
+;   iscc pancalc-tools.iss /DMyAppVersion=0.2.1
 
 #define MyAppName "PanCalc Tools"
 #define MyAppPublisher "Pan Devs"
@@ -70,9 +70,9 @@ Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; \
     Flags: waituntilterminated runhidden; \
     Check: VCRedistNeedsInstall
 
-; Install Gpg4win if needed  
+; Install GnuPG if needed  
 Filename: "{tmp}\{#GPG4WIN_FILE}"; Parameters: "/S"; \
-    StatusMsg: "Installing Gpg4win for add-in verification..."; \
+    StatusMsg: "Installing GnuPG for add-in verification..."; \
     Flags: waituntilterminated runhidden; \
     Check: Gpg4winNeedsInstall
 
@@ -114,23 +114,24 @@ begin
             not FileExists(ExpandConstant('{sys}\vcruntime140_2.dll'));
 end;
 
+  // Check if GnuPG needs to be installed (paths must match crypto.py)
   function Gpg4winNeedsInstall: Boolean;
-var
-  ExePath: string;
-begin
-  ExePath := ExpandConstant('{pf}\GnuPG\bin\gpg.exe');
-  if not FileExists(ExePath) then
+  var
+    ExePath: string;
   begin
-    ExePath := ExpandConstant('{pf}\Gpg4win\bin\gpg.exe');
+    ExePath := ExpandConstant('{pf}\GnuPG\bin\gpg.exe');
     if not FileExists(ExePath) then
     begin
-      ExePath := ExpandConstant('{pf}\GNU\GnuPG\bin\gpg.exe');
+      ExePath := ExpandConstant('{pf32}\GnuPG\bin\gpg.exe');
       if not FileExists(ExePath) then
       begin
-        Result := True;
-        Exit;
+        ExePath := ExpandConstant('{pf}\Gpg4win\bin\gpg.exe');
+        if not FileExists(ExePath) then
+        begin
+          Result := True;
+          Exit;
+        end;
       end;
     end;
+    Result := False;
   end;
-  Result := False;
-end;

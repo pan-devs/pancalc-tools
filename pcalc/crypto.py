@@ -115,8 +115,21 @@ def _gpg():
     if not _GPG_CHECKED:
         _GPG_CHECKED = True
         _ensure_gpg()
+
+    gpgbinary = None
+    if platform.system() == "Windows":
+        common_paths = [
+            "C:\\Program Files\\GnuPG\\bin\\gpg.exe",
+            "C:\\Program Files (x86)\\GnuPG\\bin\\gpg.exe",
+            "C:\\Program Files\\Gpg4win\\bin\\gpg.exe",
+        ]
+        for path in common_paths:
+            if Path(path).exists():
+                gpgbinary = path
+                break
+
     try:
-        return gnupg.GPG(gnupghome=str(GNUPG_DIR))
+        return gnupg.GPG(gnupghome=str(GNUPG_DIR), gpgbinary=gpgbinary)
     except OSError:
         return None
 
