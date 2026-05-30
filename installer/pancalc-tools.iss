@@ -71,7 +71,7 @@ Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; \
     Check: VCRedistNeedsInstall
 
 ; Install Gpg4win if needed  
-Filename: "{tmp}\{#GPG4WIN_FILE}"; Parameters: "/S /COMPONENTS=gnupg"; \
+Filename: "{tmp}\{#GPG4WIN_FILE}"; Parameters: "/S"; \
     StatusMsg: "Installing Gpg4win for add-in verification..."; \
     Flags: waituntilterminated runhidden; \
     Check: Gpg4winNeedsInstall
@@ -114,23 +114,23 @@ begin
             not FileExists(ExpandConstant('{sys}\vcruntime140_2.dll'));
 end;
 
-  // Check if Gpg4win needs to be installed
   function Gpg4winNeedsInstall: Boolean;
-  var
-    ExePath: string;
+var
+  ExePath: string;
+begin
+  ExePath := ExpandConstant('{pf}\GnuPG\bin\gpg.exe');
+  if not FileExists(ExePath) then
   begin
-    // Check common Gpg4win installation paths
     ExePath := ExpandConstant('{pf}\Gpg4win\bin\gpg.exe');
     if not FileExists(ExePath) then
     begin
       ExePath := ExpandConstant('{pf}\GNU\GnuPG\bin\gpg.exe');
       if not FileExists(ExePath) then
       begin
-        Result := True; // Not found in common locations
+        Result := True;
         Exit;
       end;
     end;
-   
-    // If we found gpg.exe, assume it's good enough
-    Result := False;
   end;
+  Result := False;
+end;
