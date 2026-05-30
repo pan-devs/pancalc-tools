@@ -1,7 +1,7 @@
 ; PanCalc Tools — Windows Installer
 ; Fully self-contained installer that includes all prerequisites
 ; Set MyAppVersion via the /D switch when compiling, e.g.:
-;   iscc pancalc-tools.iss /DMyAppVersion=0.2.1
+;   iscc pancalc-tools.iss /DMyAppVersion=0.2.2
 
 #define MyAppName "PanCalc Tools"
 #define MyAppPublisher "Pan Devs"

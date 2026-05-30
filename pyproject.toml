@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pancalc-tools"
-version = "0.2.1"
+version = "0.2.2"
 description = "Package manager and developer toolkit for Casio Prizm calculators"
 readme = "README.md"
 license = { text = "PAN DEVS NON-COMMERCIAL ATTRIBUTION LICENSE v1.0" }

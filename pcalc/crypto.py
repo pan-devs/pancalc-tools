@@ -151,29 +151,40 @@ def verify_sha256(data: bytes, expected: str) -> bool:
 def _ensure_official_key() -> str | None:
     """Download & import the official Pan Devs PGP key if not cached yet.
     Returns the key's fingerprint, or None on failure."""
+    print("[_ensure_official_key] START")
     gpg = _gpg()
     if gpg is None:
+        print("[_ensure_official_key] _gpg() returned None — GNUPG_DIR exists:", GNUPG_DIR.exists(), "| dir:", GNUPG_DIR)
         return None
+    print("[_ensure_official_key] _gpg() OK — gpgbinary:", getattr(gpg, 'gpgbinary', 'default'))
 
     # Already imported?
     for k in gpg.list_keys():
         fp = k["fingerprint"]
         if fp.endswith(OFFICIAL_KEY_ID):
+            print("[_ensure_official_key] key already imported:", fp)
             return fp
+    print("[_ensure_official_key] key not cached, downloading...")
 
     # Download from registry
     try:
+        print("[_ensure_official_key] fetching:", OFFICIAL_KEY_URL)
         with urllib.request.urlopen(OFFICIAL_KEY_URL, timeout=10) as r:
             key_data = r.read().decode("utf-8")
-    except Exception:
+        print("[_ensure_official_key] download OK —", len(key_data), "bytes")
+    except Exception as exc:
+        print("[_ensure_official_key] download failed:", type(exc).__name__, exc)
         return None
 
+    print("[_ensure_official_key] calling gpg.import_keys()...")
     result = gpg.import_keys(key_data)
+    print("[_ensure_official_key] import_keys done — count:", result.count, "| fingerprints:", result.fingerprints if result.fingerprints else "[]")
     if result.count == 0:
         return None
     fp = result.fingerprints[0]
     # Trust ultimately so python-gnupg reports trust_level
     gpg.trust_keys(fp, "TRUST_ULTIMATE")
+    print("[_ensure_official_key] DONE — fingerprint:", fp)
     return fp
 
 
