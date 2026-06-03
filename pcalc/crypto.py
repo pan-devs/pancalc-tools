@@ -13,17 +13,33 @@ import platform
 import shutil
 import subprocess
 import tempfile
-import urllib.request
 from pathlib import Path
 from platformdirs import user_cache_dir
 
 import gnupg
+import requests
 
 GNUPG_DIR = Path(user_cache_dir("pancalc")) / "gnupg"
 TRUSTED_FILE = Path(user_cache_dir("pancalc")) / "trusted-keys.json"
 
 OFFICIAL_KEY_URL = "https://raw.githubusercontent.com/pan-devs/pancalc-registry/main/pandevs.asc"
 OFFICIAL_KEY_ID = "1A370E1B68A194A8"  # fingerprint suffix of the Pan Devs key
+
+# Bundled copy of the official key — fallback when network download fails.
+_BUNDLED_KEY = """-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mDMEahFUBxYJKwYBBAHaRw8BAQdAOEtq3EOVn2T2x97h+QVJ4i4nl5D4Z5FWEOmn
+2ySi9rm0HVBhbiBEZXZzIDxwYW4uZGV2c0Bwcm90b24ubWU+iJAEExYKADgWIQTH
+rZaJ6JSyYX6rz+IaNw4baKGUqAUCahFUBwIbAwULCQgHAgYVCgkICwIEFgIDAQIe
+AQIXgAAKCRAaNw4baKGUqMBSAP4xBXIXJL7kXo9YSDG/XbCSEAw6CtP9PbN8VNnR
+VgGcZAD/RM++kS+rkT8qRTEKri1fllESG9tg5Z5Q/1/qQNWcMw64OARqEVQHEgor
+BgEEAZdVAQUBAQdA1Wf5SuBmiG9txeMsu3oUUde7wFrpEra8t/mcnrvVTmsDAQgH
+iHgEGBYKACAWIQTHrZaJ6JSyYX6rz+IaNw4baKGUqAUCahFUBwIbDAAKCRAaNw4b
+aKGUqItFAP96fOyKY8EB1ocbFeinOEzBE/ruc1Ytpj16gLV/lIEnZQEAnlRLo823
+gbjQiO//WHmYpathJeNBAhK/1XEJx6pI8wk=
+=lB8E
+-----END PGP PUBLIC KEY BLOCK-----
+"""
 
 
 _GPG_CHECKED = False
@@ -151,40 +167,38 @@ def verify_sha256(data: bytes, expected: str) -> bool:
 def _ensure_official_key() -> str | None:
     """Download & import the official Pan Devs PGP key if not cached yet.
     Returns the key's fingerprint, or None on failure."""
-    print("[_ensure_official_key] START")
     gpg = _gpg()
     if gpg is None:
-        print("[_ensure_official_key] _gpg() returned None — GNUPG_DIR exists:", GNUPG_DIR.exists(), "| dir:", GNUPG_DIR)
         return None
-    print("[_ensure_official_key] _gpg() OK — gpgbinary:", getattr(gpg, 'gpgbinary', 'default'))
 
     # Already imported?
     for k in gpg.list_keys():
         fp = k["fingerprint"]
         if fp.endswith(OFFICIAL_KEY_ID):
-            print("[_ensure_official_key] key already imported:", fp)
             return fp
-    print("[_ensure_official_key] key not cached, downloading...")
 
-    # Download from registry
+    # Download from registry (use requests — urllib fails on Windows/PyInstaller
+    # due to missing SSL certificates).
+    key_data = None
     try:
-        print("[_ensure_official_key] fetching:", OFFICIAL_KEY_URL)
-        with urllib.request.urlopen(OFFICIAL_KEY_URL, timeout=10) as r:
-            key_data = r.read().decode("utf-8")
-        print("[_ensure_official_key] download OK —", len(key_data), "bytes")
-    except Exception as exc:
-        print("[_ensure_official_key] download failed:", type(exc).__name__, exc)
-        return None
+        r = requests.get(OFFICIAL_KEY_URL, timeout=10)
+        r.raise_for_status()
+        key_data = r.text
+    except Exception:
+        pass
 
-    print("[_ensure_official_key] calling gpg.import_keys()...")
+    # Fallback: bundled copy of the official key.
+    if not key_data:
+        key_data = _BUNDLED_KEY
+
     result = gpg.import_keys(key_data)
-    print("[_ensure_official_key] import_keys done — count:", result.count, "| fingerprints:", result.fingerprints if result.fingerprints else "[]")
     if result.count == 0:
+        # Log stderr so we can diagnose GPG-side failures.
+        print(f"  ⚠  Failed to import official PGP key: {getattr(result, 'stderr', 'unknown error')}")
         return None
     fp = result.fingerprints[0]
     # Trust ultimately so python-gnupg reports trust_level
     gpg.trust_keys(fp, "TRUST_ULTIMATE")
-    print("[_ensure_official_key] DONE — fingerprint:", fp)
     return fp
 
 
