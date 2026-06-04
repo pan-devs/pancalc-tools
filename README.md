@@ -6,6 +6,7 @@ Package manager, file converter, and developer toolkit for **Casio Prizm** calcu
 Part of the [Pan Devs](https://github.com/pan-devs) project.
 
 ---
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/pan-devs/pancalc-tools)
 
 ## 📖 Quick Start (for Windows only)
 
