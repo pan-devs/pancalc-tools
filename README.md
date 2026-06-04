@@ -11,7 +11,8 @@ Part of the [Pan Devs](https://github.com/pan-devs) project.
 
 Download the PanCalc-Tools-Setup-XX.XX.XX.exe file in the latest [release](https://github.com/pan-devs/pancalc-tools/releases) by clicking it to install PanCalc Tools.
 
-Windows may not install it sying that it just protected you from the exe file, but click on the three dots in the download section, click on "conserve" (or something like that), then down in the "Eliminate" button click on the small arrow and click again on conserve. The installation should continue. Then, accept that it can change your settings/device (when the pop-up window appear, click "yes"), and continue the installation. 
+Windows may not install it sying that it just protected you from the exe file, but click on the three dots in the download section, click on "conserve" (or something like that), then down in the "Eliminate" button click on the small arrow and click again on conserve. The installation should continue. 
+Then, accept that it can change your settings/device (when the pop-up window appear, click "yes"), and continue the installation. 
 
 It is highly recomended to click/select every box.
 
