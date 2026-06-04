@@ -22,7 +22,6 @@ And no worries, it is safe.
 
 > 💡 **Tips:**
 > - Use your mouse/trackpad and click to interact.
-> - Find games at https://github.com/wavonzip/bdesretro/tree/main (only the ones with .nes at the moment).
 > - Questions? Ask the specialiced AI at https://deepwiki.com/pan-devs/pancalc-tools
 > - Press **Ctrl+S** to open the command palette.
 > - Press **Esc** to return to the home screen.
