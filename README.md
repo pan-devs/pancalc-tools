@@ -20,6 +20,9 @@ It is highly recomended to click/select every box.
 
 And no worries, it is safe.
 
+Click the image to watch the tutorial (it will be downloaded)
+
+
 [![Quick Install tutorial (click to download andwatch)](./thumbnail.png)](https://github.com/pan-devs/pancalc-tools/raw/refs/heads/main/QuickInstall-Win-TUI-small.mp4)
 
 
