@@ -20,6 +20,7 @@ It is highly recomended to click/select every box.
 
 And no worries, it is safe.
 
+![[QuickInstall-Win-TUI]]
 
 > 💡 **Tips:**
 > - Use your mouse/trackpad and click to interact.
