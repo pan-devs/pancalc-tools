@@ -6,21 +6,26 @@ Package manager, file converter, and developer toolkit for **Casio Prizm** calcu
 Part of the [Pan Devs](https://github.com/pan-devs) project.
 
 ---
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/pan-devs/pancalc-tools)
 
 ## 📖 Quick Start (for Windows only)
 
-Download the PanCalc-Tools-Installer.zip file in the latest [release](https://github.com/pan-devs/pancalc-tools/releases) and click the .exe file to install PanCalc Tools.
+Download the PanCalc-Tools-Setup-XX.XX.XX.exe file in the latest [release](https://github.com/pan-devs/pancalc-tools/releases) by clicking it to install PanCalc Tools.
 
-Windows may say that it just protected you from the exe file, but click on "learn more" (or similar) and continue the installation. Then, accept that it can change your settings/device (when the pop-up window appear, click "yes"), and continue the installation. 
+Windows may not install it sying that it just protected you from the exe file, but click on the three dots in the download section, click on "conserve" (or something like that), then down in the "Eliminate" button click on the small arrow and click again on conserve. The installation should continue. 
+
+Then, accept that it can change your settings/device (when the pop-up window appear, click "yes"), and continue the installation. 
 
 It is highly recomended to click/select every box.
 
 And no worries, it is safe.
 
+[⬇️ Download Quick Install tutorial](https://github.com/pan-devs/pancalc-tools/raw/refs/heads/main/QuickInstall-Win-TUI-small.mp4)
+
+
 
 > 💡 **Tips:**
 > - Use your mouse/trackpad and click to interact.
-> - Find games at https://github.com/wavonzip/bdesretro/tree/main (only the ones with .nes at the moment).
 > - Questions? Ask the specialiced AI at https://deepwiki.com/pan-devs/pancalc-tools
 > - Press **Ctrl+S** to open the command palette.
 > - Press **Esc** to return to the home screen.
