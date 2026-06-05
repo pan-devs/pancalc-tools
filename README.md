@@ -20,7 +20,8 @@ It is highly recomended to click/select every box.
 
 And no worries, it is safe.
 
-![Quick Install tutorial](./QuickInstall-Win-TUI-small.mp4)
+[⬇️ Download Quick Install tutorial](https://github.com/ag4pornis/pancalc-tools/raw/main/QuickInstall-Win-TUI-small.mp4?raw=1)
+
 
 > 💡 **Tips:**
 > - Use your mouse/trackpad and click to interact.
