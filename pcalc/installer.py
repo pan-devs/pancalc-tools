@@ -60,20 +60,32 @@ def _match_addin_by_filename(filename: str, addins: list[dict]) -> dict | None:
                 if f.get("filename", "").lower() == fname_lower:
                     return addin
         else:
-            legacy = addin.get("zip_file") or Path(addin.get("download_url", "")).name
+            legacy = addin.get("filename") or addin.get("zip_file") or Path(addin.get("download_url", "")).name
             if legacy.lower() == fname_lower:
                 return addin
     return None
 
 
 def scan_device(calc: Calculator, addins: list[dict] | None = None) -> list[DeviceFile]:
-    """Scan the calculator filesystem and return all files, matched against known add-ins."""
+    """Scan the calculator filesystem and return all files, matched against known add-ins/games."""
+    from pcalc import registry as _reg
     if addins is None:
-        from pcalc import registry as _reg
         try:
             addins = _reg.get_registry()
         except RuntimeError:
             addins = []
+    else:
+        # Create a copy so we don't mutate the caller's list
+        addins = list(addins)
+
+    try:
+        games = _reg.get_games()
+        addin_ids = {a.get("id") for a in addins}
+        for g in games:
+            if g.get("id") not in addin_ids:
+                addins.append(g)
+    except Exception:
+        pass
 
     results: list[DeviceFile] = []
     try:
@@ -96,12 +108,24 @@ def scan_device(calc: Calculator, addins: list[dict] | None = None) -> list[Devi
 def walk_calc(calc: Calculator, addins: list[dict] | None = None,
               max_depth: int = 8) -> list[CalcEntry]:
     """Recursively walk the calculator mount and return a tree of CalcEntry."""
+    from pcalc import registry as _reg
     if addins is None:
-        from pcalc import registry as _reg
         try:
             addins = _reg.get_registry()
         except RuntimeError:
             addins = []
+    else:
+        # Create a copy so we don't mutate the caller's list
+        addins = list(addins)
+
+    try:
+        games = _reg.get_games()
+        addin_ids = {a.get("id") for a in addins}
+        for g in games:
+            if g.get("id") not in addin_ids:
+                addins.append(g)
+    except Exception:
+        pass
 
     def _walk(dir_path: Path, rel_base: str, depth: int) -> list[CalcEntry]:
         if depth > max_depth:
@@ -203,6 +227,16 @@ def _download_bytes(url: str, progress_callback=None, cb_label: str = "") -> byt
     Raises:
         RuntimeError: On network or HTTP errors.
     """
+    if url.startswith("file://"):
+        import urllib.parse
+        parsed = urllib.parse.urlparse(url)
+        path_str = parsed.path
+        if os.name == 'nt' and path_str.startswith('/'):
+            path_str = path_str[1:]
+        p = Path(urllib.parse.unquote(path_str))
+        if not p.exists():
+            raise RuntimeError(f"Local file not found: {p}")
+        return p.read_bytes()
     try:
         r = requests.get(url, stream=True, timeout=30)
         r.raise_for_status()
@@ -295,6 +329,8 @@ def _get_addin_files(addin: dict) -> list[dict]:
         "download_type": dl_type,
         "zip_file": zip_file,
     }
+    if "filename" in addin:
+        entry["filename"] = addin["filename"]
     if "sha256" in addin:
         entry["sha256"] = addin["sha256"]
     if "signature_url" in addin:

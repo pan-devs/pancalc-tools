@@ -96,6 +96,24 @@ class InstallRow(ToggleRow):
         return f"[bold]{name}[/]  [dim]{aid}[/]"
 
 
+class GameRow(ToggleRow):
+    def __init__(self, index: int, game: dict, checked: bool = False,
+                 disabled: bool = False) -> None:
+        self._game = game
+        super().__init__(index, "", checked, disabled)
+
+    @property
+    def _label(self) -> str:
+        name = self._game.get("name", self._game.get("id", "?"))
+        aid = self._game.get("id", "?")
+        platform = self._game.get("platform", "unknown")
+        emulator = self._game.get("emulator", "unknown")
+        info = f"[{platform}] via {emulator}"
+        if self._disabled:
+            return f"[dim]{name}  {aid}  ({info})  (installed)[/]"
+        return f"[bold]{name}[/]  [dim]{aid}  [italic]{info}[/]"
+
+
 class RemoveRow(ToggleRow):
     def __init__(self, index: int, display_name: str, filename: str,
                  checked: bool = False, disabled: bool = False,
@@ -159,6 +177,7 @@ class MainScreen(Screen):
                 Button("🏠  Home",             id="home",      variant="primary"),
                 Button("📂  Catch",            id="catch"),
                 Button("📥  Install",          id="install"),
+                Button("🎮  Games",            id="games"),
                 Button("🗑️  Remove",           id="remove"),
                 Button("🔄  Convert",          id="convert"),
                 Button("📤  Push",             id="convpush"),
@@ -456,7 +475,7 @@ class MainScreen(Screen):
             return
 
         from pcalc.calculator import require_calculator
-        from pcalc.installer import install
+        from pcalc.installer import install, _get_addin_files, _resolve_file_name
 
         try:
             calc = require_calculator()
@@ -467,9 +486,117 @@ class MainScreen(Screen):
         for row in selected:
             addin = row._addin
             name = addin.get("name", addin.get("id", "?"))
+
+            # Check for missing required fields
+            if not addin.get("id"):
+                self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]missing 'id' in registry data[/]"))
+                continue
+
+            # Determine which files already exist and skip them
+            skip_files: set[str] = set()
+            try:
+                for f_info in _get_addin_files(addin):
+                    filename = f_info.get("filename", addin.get("filename", _resolve_file_name(f_info, addin["id"])))
+                    dest = calc.mount_path / filename
+                    if dest.exists():
+                        self.post_message(LogMessage(f"  ⏭️  [dim]{filename} already on device, skipping[/]"))
+                        skip_files.add(filename)
+            except (KeyError, RuntimeError):
+                pass
+
             self.post_message(LogMessage(f"  Installing [bold]{name}[/]..."))
             try:
-                install(addin, calc)
+                install(addin, calc, skip_files=skip_files)
+                self.post_message(LogMessage(f"  ✅ [bold]{name}[/] installed"))
+            except RuntimeError as e:
+                self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]{e}[/]"))
+
+        self.post_message(OperationDone())
+
+    # ── Games ──────────────────────────────────────────────────────
+
+    def _show_games(self) -> None:
+        self._update_calc_status()
+        from pcalc import registry
+        from pcalc.calculator import find_calculator
+        from pcalc.installer import scan_device
+
+        self._view = "games"
+
+        try:
+            games = registry.get_games()
+        except RuntimeError:
+            games = []
+
+        # Determine which games are already on device
+        on_device_ids: set[str] = set()
+        calc = find_calculator()
+        if calc:
+            try:
+                for df in scan_device(calc, games):
+                    if df.addin:
+                        on_device_ids.add(df.addin.get("id", ""))
+            except RuntimeError:
+                pass
+
+        rows: list[GameRow] = []
+        for i, g in enumerate(games):
+            already = g.get("id", "") in on_device_ids
+            rows.append(GameRow(i, g, disabled=already))
+
+        self._game_rows = rows
+        list_container = ScrollableContainer(*rows, classes="select-list")
+        self._install_list = list_container
+
+        self._output = None
+        btn = Button("📥  Install Checked Games", variant="primary")
+        btn.styles.margin = (1, 1, 0, 1)
+        self._games_do_btn = btn
+        out = RichLog(highlight=True, markup=True)
+        self._output = out
+        if not calc:
+            out.write("  [red]No calculator detected — install will fail until connected[/]")
+        self._set_content(list_container, btn, out)
+
+    def _games_impl(self) -> None:
+        selected = [r for r in self._game_rows if r._checked and not r._disabled]
+        if not selected:
+            self.post_message(LogMessage("  [dim]No games selected for install.[/]"))
+            return
+
+        from pcalc.calculator import require_calculator
+        from pcalc.installer import install, _get_addin_files, _resolve_file_name
+
+        try:
+            calc = require_calculator()
+        except RuntimeError as e:
+            self.post_message(LogMessage(f"  [red]{e}[/]"))
+            return
+
+        for row in selected:
+            game = row._game
+            name = game.get("name", game.get("id", "?"))
+
+            # Check for missing required fields
+            if not game.get("id") or not game.get("download_url"):
+                self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]missing 'id' or 'download_url' in registry data[/]"))
+                continue
+
+            # Determine which files already exist and skip them
+            skip_files: set[str] = set()
+            try:
+                for f_info in _get_addin_files(game):
+                    filename = f_info.get("filename", game.get("filename", _resolve_file_name(f_info, game["id"])))
+                    dest = calc.mount_path / filename
+                    if dest.exists():
+                        self.post_message(LogMessage(f"  ⏭️  [dim]{filename} already on device, skipping[/]"))
+                        skip_files.add(filename)
+            except (KeyError, RuntimeError):
+                pass
+
+            self.post_message(LogMessage(f"  Installing [bold]{name}[/]..."))
+            try:
+                install(game, calc, skip_files=skip_files)
                 self.post_message(LogMessage(f"  ✅ [bold]{name}[/] installed"))
             except RuntimeError as e:
                 self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]{e}[/]"))
@@ -1071,6 +1198,7 @@ class MainScreen(Screen):
         if bid == "home":        self._show_home();       return
         if bid == "catch":       self._show_catch();      return
         if bid == "install":     self._show_install();    return
+        if bid == "games":       self._show_games();      return
         if bid == "remove":      self._show_remove();     return
         if bid == "convert":     self._show_convert();    return
         if bid == "convpush":    self._show_convpush();   return
@@ -1132,11 +1260,16 @@ class MainScreen(Screen):
                 self.run_worker(self._convpush_impl, thread=True, exclusive=True)
             return
 
-        # Install/Remove action buttons — route by identity
+        # Install/Remove/Games action buttons — route by identity
         if btn is getattr(self, '_install_do_btn', None):
             if not self._worker_running and hasattr(self, '_install_rows'):
                 self._worker_running = True
                 self.run_worker(self._install_impl, thread=True, exclusive=True)
+            return
+        if btn is getattr(self, '_games_do_btn', None):
+            if not self._worker_running and hasattr(self, '_game_rows'):
+                self._worker_running = True
+                self.run_worker(self._games_impl, thread=True, exclusive=True)
             return
         if btn is getattr(self, '_remove_do_btn', None):
             if not self._worker_running and hasattr(self, '_install_rows'):

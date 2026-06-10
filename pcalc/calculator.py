@@ -211,6 +211,18 @@ def find_calculator() -> Calculator | None:
     Returns:
         A Calculator instance if found, None otherwise.
     """
+    mock_env = os.environ.get("PCALC_MOCK_MOUNT")
+    if mock_env:
+        mock_path = Path(mock_env)
+        mock_path.mkdir(parents=True, exist_ok=True)
+        (mock_path / "@MainMem").mkdir(parents=True, exist_ok=True)
+        return Calculator(
+            model="fx-CG50",
+            mount_path=mock_path,
+            storage_total=16 * 1024 * 1024,
+            storage_free=12 * 1024 * 1024,
+        )
+
     for path in _get_candidates():
         calc = _calc_from_path(path)
         if calc:

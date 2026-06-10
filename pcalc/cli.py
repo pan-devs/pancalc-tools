@@ -150,6 +150,37 @@ def _addin_table(addins: list[dict], title: str = "") -> Table:
     return table
 
 
+def _game_table(games: list[dict], title: str = "") -> Table:
+    table = Table(
+        title=title,
+        show_header=True,
+        header_style=theme.S_PRIMARY,
+        border_style=theme.PRIMARY,
+        show_lines=False,
+        pad_edge=True,
+    )
+    table.add_column("ID",         style="bold white",   no_wrap=True)
+    table.add_column("Name",       style="white")
+    table.add_column("Author",     style=theme.S_DIM)
+    table.add_column("Version",    style=theme.S_ACCENT, no_wrap=True)
+    table.add_column("Emulator",   style="white")
+    table.add_column("Platform",   style="white")
+    table.add_column("Compatible", style=theme.S_DIM)
+
+    for g in games:
+        compat = ", ".join(g.get("compatible", []))
+        table.add_row(
+            g.get("id", ""),
+            g.get("name", ""),
+            g.get("author", ""),
+            g.get("version", ""),
+            g.get("emulator", "unknown"),
+            g.get("platform", "unknown"),
+            compat,
+        )
+    return table
+
+
 def _registry_error(e: Exception) -> None:
     console.print(f"\n  [bold red]Error:[/] {e}")
     console.print(f"  [dim]Check your internet connection and try again.[/]\n")
@@ -733,6 +764,247 @@ def cmd_installed(app):
 
     console.print(table)
     console.print(f"\n  [dim]{len(installed)} add-in{'s' if len(installed) != 1 else ''} installed.[/]\n")
+
+
+# ---------------------------------------------------------------------------
+# Games management
+# ---------------------------------------------------------------------------
+
+@cli.group("games", invoke_without_command=True)
+@click.pass_context
+def cmd_games(ctx):
+    """Manage emulator games/ROMs for the calculator."""
+    if ctx.invoked_subcommand is None:
+        ctx.forward(cmd_games_list)
+
+
+@cmd_games.command("list")
+@pass_ctx
+def cmd_games_list(app):
+    """List all available games/ROMs from the registry."""
+    from pcalc import registry
+
+    try:
+        games = registry.get_games()
+    except RuntimeError as e:
+        _registry_error(e)
+        return
+
+    if not games:
+        console.print(f"  [dim]No games found.[/]")
+        return
+
+    console.print(_game_table(games, title="All games"))
+    console.print(f"\n  [dim]{len(games)} game{'s' if len(games) != 1 else ''} found.[/]\n")
+
+
+@cmd_games.command("search")
+@click.argument("query")
+@pass_ctx
+def cmd_games_search(app, query):
+    """Search games by name, tag, author, description, emulator or platform."""
+    from pcalc import registry
+
+    try:
+        games = registry.search_games(query)
+    except RuntimeError as e:
+        _registry_error(e)
+        return
+
+    if not games:
+        console.print(f"\n  [dim]No results for '[/][white]{query}[/][dim]'.[/]\n")
+        return
+
+    console.print(_game_table(games, title=f"Results for '{query}'"))
+    console.print(f"\n  [dim]{len(games)} result{'s' if len(games) != 1 else ''} found.[/]\n")
+
+
+@cmd_games.command("info")
+@click.argument("name")
+@pass_ctx
+def cmd_games_info(app, name):
+    """Show full details of a game."""
+    from pcalc import registry
+    from pcalc.installer import is_installed, scan_device
+
+    try:
+        game = registry.get_game(name)
+    except RuntimeError as e:
+        _registry_error(e)
+        return
+
+    if game is None:
+        console.print(f"\n  [bold red]Not found:[/] '{name}'\n")
+        return
+
+    console.print()
+    title = Text()
+    title.append(f"  {game.get('name', '')} ", style="bold white")
+    version_str = game.get('version', '')
+    if version_str and version_str != "latest":
+        title.append(f"v{version_str}  ", style=theme.S_ACCENT)
+    title.append(f"by {game.get('author', '')}", style=theme.S_DIM)
+    console.print(title)
+    console.print(f"  [dim]{'─' * 44}[/]")
+
+    desc = game.get("description", "")
+    if desc:
+        console.print(f"\n  {desc}\n")
+
+    cached = is_installed(game.get("id", ""))
+    on_device = False
+    from pcalc.calculator import find_calculator
+    calc = find_calculator()
+    if calc:
+        device_files = scan_device(calc)
+        game_files = game.get("files", [])
+        if not game_files:
+            legacy = game.get("zip_file") or game.get("download_url", "").rsplit("/", 1)[-1]
+            legacy_fn = game.get("filename", legacy)
+            game_files = [{"filename": legacy_fn}]
+        on_device = any(
+            df.filename.lower() == f.get("filename", "").lower()
+            for df in device_files for f in game_files
+        )
+
+    if cached:
+        status_text = f"[{theme.SUCCESS}]tracked as installed[/]"
+        if on_device:
+            status_text += f"  [{theme.SUCCESS}]✓ on device[/]"
+        else:
+            status_text += f"  [{theme.WARNING}]not on device[/]"
+    elif on_device:
+        status_text = f"[{theme.SUCCESS}]on device[/]  [dim](not tracked)[/]"
+    else:
+        status_text = "[dim]not installed[/]"
+
+    fields = [
+        ("ID",          game.get("id", "")),
+        ("Status",      status_text),
+        ("Emulator",    game.get("emulator", "unknown")),
+        ("Platform",    game.get("platform", "unknown")),
+        ("Compatible",  ", ".join(game.get("compatible", []))),
+        ("License",     game.get("license", "unknown")),
+        ("Size",        f"{game.get('size_kb')} KiB" if game.get("size_kb") else "unknown"),
+        ("Tags",        ", ".join(game.get("tags", []))),
+        ("URL",         game.get("url", "")),
+    ]
+
+    for label, value in fields:
+        label_t = Text(f"  {label:<12}", style=theme.S_DIM)
+        console.print(label_t, end="")
+        console.print(value)
+
+    console.print()
+
+
+@cmd_games.command("install")
+@click.argument("names", nargs=-1, required=True)
+@click.option("--overwrite", is_flag=True, help="Overwrite existing files without asking")
+@pass_ctx
+def cmd_games_install(app, names, overwrite):
+    """Install one or more games/ROMs to the calculator."""
+    from pcalc import registry
+    from pcalc.calculator import require_calculator
+    from pcalc.installer import install, is_installed, _get_addin_files, _resolve_file_name
+
+    resolved = []
+    for name in names:
+        try:
+            game = registry.get_game(name)
+        except RuntimeError as e:
+            _registry_error(e)
+            raise SystemExit(1)
+
+        if game is None:
+            _fail(f"Game '{name}' not found.")
+
+        # Validate required fields
+        if not game.get("id"):
+            _fail(f"Game '{name}' has no 'id' field in registry data — malformed entry.")
+        if not game.get("download_url"):
+            _fail(f"Game '{name}' has no 'download_url' field in registry data — malformed entry.")
+
+        if is_installed(game["id"]):
+            console.print(f"  [dim]'{game['name']}' is already tracked as installed, skipping.[/]")
+            continue
+
+        resolved.append(game)
+
+    if not resolved:
+        console.print()
+        raise SystemExit(1)
+
+    console.print()
+    for game in resolved:
+        console.print(f"  [bold white]{game['name']}[/] [dim]v{game.get('version','')} by {game.get('author','')}[/]")
+    if not _confirm(app, f"Install {'this game' if len(resolved) == 1 else f'these {len(resolved)} games'}?"):
+        console.print(f"  [dim]Cancelled.[/]\n")
+        raise SystemExit(1)
+
+    try:
+        calc = require_calculator()
+    except RuntimeError as e:
+        _fail(str(e))
+
+    for game in resolved:
+        skip_files: set[str] = set()
+        for f_info in _get_addin_files(game):
+            filename = f_info.get("filename", game.get("filename", _resolve_file_name(f_info, game["id"])))
+            dest = calc.mount_path / filename
+            try:
+                file_exists = dest.exists()
+            except OSError:
+                file_exists = False
+            if file_exists:
+                if app.yes or overwrite:
+                    continue
+                if not _confirm(app, f"File '{filename}' already exists on device. Overwrite?"):
+                    console.print(f"  [dim]Skipping {filename}.[/]")
+                    skip_files.add(filename)
+
+        if skip_files and len(skip_files) == len(_get_addin_files(game)):
+            console.print(f"  [dim]All files skipped for '{game['name']}'.[/]\n")
+            continue
+
+        with Progress(
+            "[progress.description]{task.description}",
+            AsciiBarColumn(bar_width=30),
+            DownloadColumn(),
+            TransferSpeedColumn(),
+            TimeRemainingColumn(),
+            console=console,
+            transient=True,
+        ) as progress:
+            dl_task = progress.add_task(
+                f"  [{game['name']}] Downloading...", total=None)
+
+            def on_progress(downloaded, total, label=""):
+                if label:
+                    progress.update(dl_task, completed=downloaded, total=total or downloaded,
+                                    description=f"  [{game['name']}] Downloading {label}")
+                else:
+                    progress.update(dl_task, completed=downloaded, total=total or downloaded)
+
+            write_task = None
+            def on_write(filename, written, total):
+                nonlocal write_task
+                if write_task is None:
+                    write_task = progress.add_task(
+                        f"  [{game['name']}] Writing {filename}...", total=total)
+                progress.update(write_task, completed=written, total=total,
+                                description=f"  [{game['name']}] Writing {filename}...")
+
+            try:
+                dests = install(game, calc, progress_callback=on_progress,
+                                write_callback=on_write, skip_files=skip_files)
+            except RuntimeError as e:
+                console.print(f"\n  [bold red]Error installing {game['name']}:[/] {e}\n")
+                continue
+
+        file_list = ", ".join(str(d) for d in dests)
+        if file_list:
+            console.print(f"  [bold {theme.SUCCESS}]✓[/] {game['name']} installed to [dim]{file_list}[/]\n")
 
 
 # ---------------------------------------------------------------------------
