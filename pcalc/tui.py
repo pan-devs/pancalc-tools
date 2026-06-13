@@ -91,9 +91,11 @@ class InstallRow(ToggleRow):
     def _label(self) -> str:
         name = self._addin.get("name", self._addin.get("id", "?"))
         aid = self._addin.get("id", "?")
+        is_local = self._addin.get("source") == "local"
+        marker = " [yellow]L[/]" if is_local else ""
         if self._disabled:
-            return f"[dim]{name}  {aid}  (installed)[/]"
-        return f"[bold]{name}[/]  [dim]{aid}[/]"
+            return f"[dim]{name}  {aid}{marker}  (installed)[/]"
+        return f"[bold]{name}[/]  [dim]{aid}{marker}[/]"
 
 
 class GameRow(ToggleRow):
@@ -109,9 +111,11 @@ class GameRow(ToggleRow):
         platform = self._game.get("platform", "unknown")
         emulator = self._game.get("emulator", "unknown")
         info = f"[{platform}] via {emulator}"
+        is_local = self._game.get("source") == "local"
+        marker = " [yellow]L[/]" if is_local else ""
         if self._disabled:
-            return f"[dim]{name}  {aid}  ({info})  (installed)[/]"
-        return f"[bold]{name}[/]  [dim]{aid}  [italic]{info}[/]"
+            return f"[dim]{name}  {aid}{marker}  ({info})  (installed)[/]"
+        return f"[bold]{name}[/]  [dim]{aid}{marker}  [italic]{info}[/]"
 
 
 class RemoveRow(ToggleRow):
@@ -459,14 +463,18 @@ class MainScreen(Screen):
         self._install_list = list_container
 
         self._output = None
-        btn = Button("📥  Install Checked", variant="primary")
-        btn.styles.margin = (1, 1, 0, 1)
-        self._install_do_btn = btn
+        add_btn = Button("📁  Add Add-in File")
+        self._addin_add_btn = add_btn
+        remove_local_btn = Button("🗑️  Remove Local", variant="error")
+        self._addin_remove_local_btn = remove_local_btn
+        install_btn = Button("📥  Install Checked", variant="primary")
+        self._install_do_btn = install_btn
+        top_row = Horizontal(add_btn, remove_local_btn, install_btn, classes="button-row-inline")
         out = RichLog(highlight=True, markup=True)
         self._output = out
         if not calc:
             out.write("  [red]No calculator detected — install will fail until connected[/]")
-        self._set_content(list_container, btn, out)
+        self._set_content(list_container, top_row, out)
 
     def _install_impl(self) -> None:
         selected = [r for r in self._install_rows if r._checked and not r._disabled]
@@ -549,14 +557,18 @@ class MainScreen(Screen):
         self._install_list = list_container
 
         self._output = None
-        btn = Button("📥  Install Checked Games", variant="primary")
-        btn.styles.margin = (1, 1, 0, 1)
-        self._games_do_btn = btn
+        add_btn = Button("📁  Add Game File")
+        self._game_add_btn = add_btn
+        remove_local_btn = Button("🗑️  Remove Local", variant="error")
+        self._game_remove_local_btn = remove_local_btn
+        install_btn = Button("📥  Install Checked Games", variant="primary")
+        self._games_do_btn = install_btn
+        top_row = Horizontal(add_btn, remove_local_btn, install_btn, classes="button-row-inline")
         out = RichLog(highlight=True, markup=True)
         self._output = out
         if not calc:
             out.write("  [red]No calculator detected — install will fail until connected[/]")
-        self._set_content(list_container, btn, out)
+        self._set_content(list_container, top_row, out)
 
     def _games_impl(self) -> None:
         selected = [r for r in self._game_rows if r._checked and not r._disabled]
@@ -578,8 +590,11 @@ class MainScreen(Screen):
             name = game.get("name", game.get("id", "?"))
 
             # Check for missing required fields
-            if not game.get("id") or not game.get("download_url"):
-                self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]missing 'id' or 'download_url' in registry data[/]"))
+            if not game.get("id"):
+                self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]missing 'id' in registry data[/]"))
+                continue
+            if not game.get("download_url") and not game.get("local_path"):
+                self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]missing 'download_url' or 'local_path' in registry data[/]"))
                 continue
 
             # Determine which files already exist and skip them
@@ -602,6 +617,22 @@ class MainScreen(Screen):
                 self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]{e}[/]"))
 
         self.post_message(OperationDone())
+
+    def _remove_local_impl(self, rows: list) -> None:
+        """Remove selected local items from the library."""
+        from pcalc import library as _lib
+        removed = 0
+        for row in rows:
+            item = getattr(row, '_addin', None) or getattr(row, '_game', None)
+            if not item or item.get("source") != "local":
+                continue
+            if _lib.remove(item.get("id", "")):
+                self.post_message(LogMessage(f"  🗑️  [bold]{item.get('name', '?')}[/] removed from local library"))
+                removed += 1
+        if removed:
+            self._refresh_install_view()
+        else:
+            self.post_message(LogMessage("  [dim]No local items selected for removal.[/]"))
 
     # ── Remove ─────────────────────────────────────────────────────
 
@@ -720,12 +751,65 @@ class MainScreen(Screen):
             rows.append(ConvertRow(len(rows), f))
         return rows
 
-    def _pick_files(self) -> int:
+    def _copy_files_to_convert(self, paths: list[str]) -> None:
+        base = self._convert_base()
+        img_dir = base / "convert/images"
+        doc_dir = base / "convert/documents"
+        img_dir.mkdir(parents=True, exist_ok=True)
+        doc_dir.mkdir(parents=True, exist_ok=True)
+        img_exts = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif", ".webp"}
+        doc_exts = {".pdf", ".docx", ".doc", ".txt"}
+        all_valid = img_exts | doc_exts
+        import shutil
+        copied = 0
+        for p in paths:
+            src = Path(p)
+            if not src.is_file():
+                continue
+            ext = src.suffix.lower()
+            if ext in img_exts:
+                shutil.copy2(str(src), str(img_dir / src.name))
+                copied += 1
+            elif ext in doc_exts:
+                shutil.copy2(str(src), str(doc_dir / src.name))
+                copied += 1
+        if copied:
+            self.post_message(LogMessage(f"  [dim]{copied} file(s) added to convert/[/]"))
+
+    def _pick_files(self) -> None:
+        paths = self._open_file_dialog("Select files to convert")
+        if not paths:
+            return
+
+        img_exts = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif", ".webp"}
+        doc_exts = {".pdf", ".docx", ".doc", ".txt"}
+        all_valid = img_exts | doc_exts
+
+        valid, invalid = [], []
+        for p in paths:
+            (valid if Path(p).suffix.lower() in all_valid else invalid).append(p)
+
+        if invalid:
+            names = ", ".join(Path(p).name for p in invalid[:3])
+            if len(invalid) > 3:
+                names += f" ... (+{len(invalid)-3} more)"
+            self.post_message(LogMessage(
+                f"  [yellow]⚠[/] {len(invalid)} file(s) with unsupported format: {names}"
+            ))
+            def _on_confirm(ok: bool):
+                self._copy_files_to_convert(valid + (invalid if ok else []))
+                self._refresh_convert_view()
+            self._confirm("Add files with unsupported formats anyway?", _on_confirm)
+        else:
+            self._copy_files_to_convert(valid)
+            self._refresh_convert_view()
+
+    def _open_file_dialog(self, title: str) -> list[str]:
         paths: list[str] = []
         try:
             import subprocess
             r = subprocess.run(
-                ["zenity", "--file-selection", "--multiple", "--title=Select files to convert"],
+                ["zenity", "--file-selection", "--multiple", f"--title={title}"],
                 capture_output=True, timeout=30
             )
             if r.returncode == 0:
@@ -739,35 +823,55 @@ class MainScreen(Screen):
                 root = tk.Tk()
                 root.withdraw()
                 root.lift()
-                paths = list(filedialog.askopenfilenames(title="Select files to convert"))
+                paths = list(filedialog.askopenfilenames(title=title))
                 root.destroy()
             except Exception:
                 self.post_message(LogMessage("  [red]No file dialog available (install zenity or tkinter)[/]"))
-                return 0
-        if not paths:
-            return 0
+        return [p.strip() for p in paths if p.strip()]
 
-        base = self._convert_base()
-        img_dir = base / "convert/images"
-        doc_dir = base / "convert/documents"
-        img_dir.mkdir(parents=True, exist_ok=True)
-        doc_dir.mkdir(parents=True, exist_ok=True)
-        img_exts = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif", ".webp"}
-        doc_exts = {".pdf", ".docx", ".doc", ".txt"}
-        import shutil
-        count = 0
+    def _import_files(self, paths: list[str], item_type: str) -> None:
+        from pcalc import library as _lib
+        label = "Add-in" if item_type == "addin" else "Game"
+        imported = 0
         for p in paths:
-            src = Path(p.strip())
+            src = Path(p)
             if not src.is_file():
                 continue
-            ext = src.suffix.lower()
-            if ext in img_exts:
-                shutil.copy2(str(src), str(img_dir / src.name))
-                count += 1
-            elif ext in doc_exts:
-                shutil.copy2(str(src), str(doc_dir / src.name))
-                count += 1
-        return count
+            try:
+                entry = _lib.import_file(str(src), item_type=item_type)
+                self.post_message(LogMessage(f"  ✅ [bold]{entry['name']}[/] ({label}) imported"))
+                imported += 1
+            except (ValueError, FileNotFoundError) as e:
+                self.post_message(LogMessage(f"  [red]{e}[/]"))
+        if imported:
+            self.post_message(LogMessage(f"  [dim]{imported} file(s) imported[/]"))
+
+    def _pick_file_for_import(self, item_type: str) -> None:
+        title = "Select add-in file" if item_type == "addin" else "Select game/ROM file"
+        paths = self._open_file_dialog(title)
+        if not paths:
+            return
+
+        from pcalc import library as _lib
+        expected = _lib.expected_extensions(item_type)
+        valid, invalid = [], []
+        for p in paths:
+            (valid if _lib.has_valid_extension(p, item_type) else invalid).append(p)
+
+        if invalid:
+            names = ", ".join(Path(p).name for p in invalid[:3])
+            if len(invalid) > 3:
+                names += f" ... (+{len(invalid)-3} more)"
+            self.post_message(LogMessage(
+                f"  [yellow]⚠[/] {len(invalid)} file(s) with unexpected format: {names}"
+            ))
+            def _confirm_cb(ok: bool):
+                self._import_files(valid + (invalid if ok else []), item_type)
+                self._refresh_install_view()
+            self._confirm("Import files with unexpected formats anyway?", _confirm_cb)
+        else:
+            self._import_files(valid, item_type)
+            self._refresh_install_view()
 
     def _ensure_convert_dirs(self) -> None:
         base = self._convert_base()
@@ -792,6 +896,12 @@ class MainScreen(Screen):
             self._show_convert()
         elif self._view == "convpush":
             self._show_convpush()
+
+    def _refresh_install_view(self) -> None:
+        if self._view == "install":
+            self._show_install()
+        elif self._view == "games":
+            self._show_games()
 
     def on_file_dropped(self, event) -> None:
         pass
@@ -1226,10 +1336,7 @@ class MainScreen(Screen):
             return
         # Convert/ConvPush: select files
         if btn is getattr(self, '_conv_select_btn', None):
-            count = self._pick_files()
-            if count:
-                self.post_message(LogMessage(f"  [dim]{count} file(s) added[/]"))
-            self._refresh_convert_view()
+            self._pick_files()
             return
         if btn is getattr(self, '_conv_refresh_btn', None):
             self._refresh_convert_view()
@@ -1258,6 +1365,25 @@ class MainScreen(Screen):
             if not self._worker_running and hasattr(self, '_convert_rows'):
                 self._worker_running = True
                 self.run_worker(self._convpush_impl, thread=True, exclusive=True)
+            return
+
+        # Install/Games: add file import buttons
+        if btn is getattr(self, '_addin_add_btn', None):
+            self._pick_file_for_import("addin")
+            return
+        if btn is getattr(self, '_game_add_btn', None):
+            self._pick_file_for_import("game")
+            return
+        # Remove local items
+        if btn is getattr(self, '_addin_remove_local_btn', None):
+            rows = getattr(self, '_install_rows', [])
+            selected = [r for r in rows if r._checked and getattr(r, '_addin', {}).get("source") == "local"]
+            self._remove_local_impl(selected)
+            return
+        if btn is getattr(self, '_game_remove_local_btn', None):
+            rows = getattr(self, '_game_rows', [])
+            selected = [r for r in rows if r._checked and getattr(r, '_game', {}).get("source") == "local"]
+            self._remove_local_impl(selected)
             return
 
         # Install/Remove/Games action buttons — route by identity

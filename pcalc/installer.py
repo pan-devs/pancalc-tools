@@ -316,6 +316,17 @@ def _extract_g3a_from_zip(zip_bytes: bytes, zip_file: str) -> bytes:
 
 def _get_addin_files(addin: dict) -> list[dict]:
     """Resolve the list of files to install from an add-in dict."""
+    # Local file — convert path to file:// URL
+    if "local_path" in addin:
+        entry = {
+            "download_url": Path(addin["local_path"]).as_uri(),
+            "download_type": "direct",
+            "filename": addin.get("filename", Path(addin["local_path"]).name),
+        }
+        if "sha256" in addin:
+            entry["sha256"] = addin["sha256"]
+        return [entry]
+
     if "files" in addin:
         return addin["files"]
 
@@ -474,6 +485,49 @@ def install(addin: dict, calc: Calculator, progress_callback=None, write_callbac
     return installed_paths
 
 
+SAVE_EXTS = {'.sav', '.srm', '.state', '.sgm', '.frz'}
+
+
+def _clean_save_files(rom_path: Path) -> None:
+    """Delete companion save/state files for a ROM file.
+
+    Checks:
+    1. Same stem + save extension (zelda.nes → zelda.sav)
+    2. Appended extension (zelda.nes → zelda.nes.sav)
+    3. Case-insensitive stem match in the same directory
+    """
+    stem = rom_path.stem
+    parent = rom_path.parent
+
+    for ext in SAVE_EXTS:
+        # Pattern: same stem, different extension
+        p = rom_path.with_suffix(ext)
+        if p.exists() and p.is_file():
+            try:
+                p.unlink()
+            except OSError:
+                pass
+        # Pattern: appended extension
+        p = Path(str(rom_path) + ext)
+        if p.exists() and p.is_file():
+            try:
+                p.unlink()
+            except OSError:
+                pass
+
+    # Case-insensitive stem match in directory (handles sanitize mismatches)
+    try:
+        for f in parent.iterdir():
+            if f.is_file() and f.suffix.lower() in SAVE_EXTS:
+                if f.stem.lower() == stem.lower():
+                    try:
+                        f.unlink()
+                    except OSError:
+                        pass
+    except OSError:
+        pass
+
+
 def remove(addin_id: str, calc: Calculator) -> None:
     """
     Remove an installed add-in from the calculator and the local database.
@@ -505,6 +559,7 @@ def remove(addin_id: str, calc: Calculator) -> None:
                     path.unlink()
                 except OSError as e:
                     raise RuntimeError(f"Failed to remove '{filename}' from calculator: {e}")
+            _clean_save_files(path)
 
         del installed[addin_id]
         _save_installed(installed)
@@ -529,6 +584,9 @@ def remove(addin_id: str, calc: Calculator) -> None:
     files_to_remove = []
     if "files" in addin:
         files_to_remove = [f["filename"] for f in addin["files"]]
+    elif "local_path" in addin:
+        fname = addin.get("filename") or Path(addin["local_path"]).name
+        files_to_remove = [fname]
     else:
         fname = addin.get("zip_file") or Path(addin.get("download_url", "")).name
         files_to_remove = [fname]
@@ -542,6 +600,8 @@ def remove(addin_id: str, calc: Calculator) -> None:
                 deleted_any = True
             except OSError as e:
                 raise RuntimeError(f"Failed to remove '{filename}' from calculator: {e}")
+        # Delete companion save files
+        _clean_save_files(path)
 
     if not deleted_any:
         raise RuntimeError(f"'{addin_id}' is not installed.")
@@ -612,7 +672,16 @@ def verify_addin(addin: dict, calc: Calculator) -> bool:
     addin_id = aid
     files_to_verify: list[dict] = []
 
-    if "files" in addin:
+    # Local entry (user-imported file) — has local_path, filename, sha256
+    if "local_path" in addin:
+        fname = addin.get("filename") or Path(addin["local_path"]).name
+        sha = addin.get("sha256", "")
+        if sha:
+            files_to_verify = [{"filename": fname, "sha256": sha}]
+        else:
+            raise RuntimeError(f"No SHA256 checksum available for local add-in '{aid}'.")
+
+    elif "files" in addin:
         # Multi-file addin (e.g. KhiCAS): each entry has filename + sha256
         files_to_verify = [
             {"filename": f["filename"], "sha256": f["sha256"]}

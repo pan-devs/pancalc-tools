@@ -139,8 +139,12 @@ def _addin_table(addins: list[dict], title: str = "") -> Table:
 
     for a in addins:
         compat = ", ".join(a.get("compatible", []))
+        is_local = a.get("source") == "local"
+        aid = a.get("id", "")
+        if is_local:
+            aid = f"[{theme.WARNING}]L[/] {aid}"
         table.add_row(
-            a.get("id", ""),
+            aid,
             a.get("name", ""),
             a.get("author", ""),
             a.get("version", ""),
@@ -169,8 +173,12 @@ def _game_table(games: list[dict], title: str = "") -> Table:
 
     for g in games:
         compat = ", ".join(g.get("compatible", []))
+        is_local = g.get("source") == "local"
+        gid = g.get("id", "")
+        if is_local:
+            gid = f"[{theme.WARNING}]L[/] {gid}"
         table.add_row(
-            g.get("id", ""),
+            gid,
             g.get("name", ""),
             g.get("author", ""),
             g.get("version", ""),
@@ -767,6 +775,106 @@ def cmd_installed(app):
 
 
 # ---------------------------------------------------------------------------
+# Local library (user-imported addins & games)
+# ---------------------------------------------------------------------------
+
+@cli.group("local", invoke_without_command=True)
+@click.pass_context
+def cmd_local(ctx):
+    """Manage locally imported add-ins and games."""
+    if ctx.invoked_subcommand is None:
+        ctx.forward(cmd_local_list)
+
+
+@cmd_local.command("import")
+@click.argument("path", type=click.Path(exists=True))
+@click.option("--type", "item_type", default="addin",
+              type=click.Choice(["addin", "game"]),
+              help="Type of item (addin or game)")
+@click.option("--name", default=None, help="Display name")
+@click.option("--author", default=None, help="Author name")
+@click.option("--version", default=None, help="Version string")
+@click.option("--emulator", default=None, help="Emulator (games only)")
+@click.option("--platform", default=None, help="Platform (games only)")
+@pass_ctx
+def cmd_local_import(app, path, item_type, name, author, version, emulator, platform):
+    """Import a local file into the library for installation and catch recognition."""
+    from pcalc import library as _lib
+
+    if not _lib.has_valid_extension(path, item_type):
+        console.print(f"  [yellow]⚠[/] '{path}' doesn't look like a {item_type} file (expected {', '.join(_lib.expected_extensions(item_type))})")
+        if not app.yes and not click.confirm("  Import anyway?"):
+            raise SystemExit(1)
+
+    try:
+        entry = _lib.import_file(
+            path=path,
+            item_type=item_type,
+            name=name,
+            author=author,
+            version=version,
+            emulator=emulator,
+            platform=platform,
+        )
+    except (FileNotFoundError, ValueError) as e:
+        _fail(str(e))
+
+    label = "Add-in" if item_type == "addin" else "Game"
+    console.print(f"\n  [{theme.SUCCESS}]✓[/] {label} imported as [bold white]{entry['name']}[/] [dim]({entry['id']})[/]")
+    console.print(f"  [dim]File: {entry['local_path']}[/]")
+    console.print(f"  [dim]SHA256: {entry['sha256']}[/]\n")
+
+
+@cmd_local.command("remove")
+@click.argument("item_id")
+@pass_ctx
+def cmd_local_remove(app, item_id):
+    """Remove a locally imported item from the library by ID."""
+    from pcalc import library as _lib
+
+    entry = _lib.get(item_id)
+    if entry is None:
+        _fail(f"Local item '{item_id}' not found.")
+
+    if not _confirm(app, f"Remove '{entry.get('name', item_id)}' from local library?"):
+        console.print(f"  [dim]Cancelled.[/]\n")
+        raise SystemExit(1)
+
+    if _lib.remove(item_id):
+        console.print(f"  [{theme.SUCCESS}]✓[/] Removed [bold white]{entry.get('name', item_id)}[/] from local library.\n")
+    else:
+        _fail(f"Could not remove '{item_id}'.")
+
+
+@cmd_local.command("list")
+@click.option("--type", "item_type", default=None,
+              type=click.Choice(["addin", "game"]),
+              help="Filter by type")
+@pass_ctx
+def cmd_local_list(app, item_type):
+    """List all locally imported items."""
+    from pcalc import library as _lib
+
+    items = _lib.get_all(item_type=item_type)
+
+    if not items:
+        console.print(f"\n  [dim]No local items found.[/]\n")
+        return
+
+    for entry in items:
+        t = entry.get("type", "addin")
+        label = "addin" if t == "addin" else "game"
+        console.print(f"  [bold white]{entry['name']}[/] [dim]({entry['id']})[/] — [{theme.S_ACCENT}]{label}[/]")
+        console.print(f"    [dim]File: {entry.get('local_path', '?')}[/]")
+        console.print(f"    [dim]Author: {entry.get('author', '')}  Version: {entry.get('version', '')}[/]")
+        if t == "game":
+            console.print(f"    [dim]Emulator: {entry.get('emulator', '')}  Platform: {entry.get('platform', '')}[/]")
+        console.print()
+
+    console.print(f"  [dim]{len(items)} local item{'s' if len(items) != 1 else ''}.[/]\n")
+
+
+# ---------------------------------------------------------------------------
 # Games management
 # ---------------------------------------------------------------------------
 
@@ -796,6 +904,57 @@ def cmd_games_list(app):
 
     console.print(_game_table(games, title="All games"))
     console.print(f"\n  [dim]{len(games)} game{'s' if len(games) != 1 else ''} found.[/]\n")
+
+
+@cmd_games.command("import")
+@click.argument("path", type=click.Path(exists=True))
+@click.option("--name", default=None, help="Display name")
+@click.option("--author", default=None, help="Author name")
+@click.option("--version", default=None, help="Version string")
+@click.option("--emulator", default=None, help="Emulator name")
+@click.option("--platform", default=None, help="Platform name")
+@pass_ctx
+def cmd_games_import_file(app, path, name, author, version, emulator, platform):
+    """Import a local game/ROM file into the library."""
+    from pcalc import library as _lib
+
+    if not _lib.has_valid_extension(path, "game"):
+        console.print(f"  [yellow]⚠[/] '{path}' doesn't look like a game file (expected {', '.join(_lib.expected_extensions('game'))})")
+        if not app.yes and not click.confirm("  Import anyway?"):
+            raise SystemExit(1)
+
+    try:
+        entry = _lib.import_file(
+            path=path, item_type="game",
+            name=name, author=author, version=version,
+            emulator=emulator, platform=platform,
+        )
+    except (FileNotFoundError, ValueError) as e:
+        _fail(str(e))
+
+    console.print(f"\n  [{theme.SUCCESS}]✓[/] Game imported as [bold white]{entry['name']}[/] [dim]({entry['id']})[/]")
+    console.print(f"  [dim]File: {entry['local_path']}[/]\n")
+
+
+@cmd_games.command("remove")
+@click.argument("item_id")
+@pass_ctx
+def cmd_games_remove_local(app, item_id):
+    """Remove a locally imported game from the library by ID."""
+    from pcalc import library as _lib
+
+    entry = _lib.get(item_id)
+    if entry is None:
+        _fail(f"Local game '{item_id}' not found.")
+
+    if not _confirm(app, f"Remove '{entry.get('name', item_id)}' from local library?"):
+        console.print(f"  [dim]Cancelled.[/]\n")
+        raise SystemExit(1)
+
+    if _lib.remove(item_id):
+        console.print(f"  [{theme.SUCCESS}]✓[/] Removed [bold white]{entry.get('name', item_id)}[/] from local library.\n")
+    else:
+        _fail(f"Could not remove '{item_id}'.")
 
 
 @cmd_games.command("search")
@@ -922,8 +1081,8 @@ def cmd_games_install(app, names, overwrite):
         # Validate required fields
         if not game.get("id"):
             _fail(f"Game '{name}' has no 'id' field in registry data — malformed entry.")
-        if not game.get("download_url"):
-            _fail(f"Game '{name}' has no 'download_url' field in registry data — malformed entry.")
+        if not game.get("download_url") and not game.get("local_path"):
+            _fail(f"Game '{name}' has no 'download_url' or 'local_path' in registry data — malformed entry.")
 
         if is_installed(game["id"]):
             console.print(f"  [dim]'{game['name']}' is already tracked as installed, skipping.[/]")
