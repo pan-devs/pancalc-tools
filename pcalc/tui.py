@@ -328,6 +328,7 @@ class MainScreen(Screen):
 
     def _show_home(self) -> None:
         self._update_calc_status()
+        from pcalc import __version__
         from pcalc.calculator import find_calculator
         from pcalc.banner import PANDEVS_ASCII
 
@@ -355,20 +356,21 @@ class MainScreen(Screen):
 
         out.write("")
         out.write("[bold underline]About[/]")
-        out.write("  PanCalc Tools — package manager & converter for Casio Prizm calculators.")
+        out.write(f"  [bold]PanCalc Tools v{__version__}[/] — package manager & converter for Casio Prizm calculators.")
         out.write("  Part of the [bold]Pan Devs[/bold] project: open-source software for graphing")
         out.write("  calculators.  [dim]https://github.com/pan-devs[/]")
         out.write("")
         out.write("[bold underline]Commands[/]")
-        out.write("  [bold]Catch[/]      — browse calculator filesystem")
-        out.write("  [bold]Install[/]   — install add-ins from the registry")
-        out.write("  [bold]Remove[/]    — uninstall add-ins or delete pthings files")
-        out.write("  [bold]Convert[/]   — convert images/docs to G3P/TXT")
-        out.write("  [bold]Push[/]      — copy converted files to calculator (pthings/)")
-        out.write("  [bold]Verify[/]    — check SHA256 of installed add-ins")
-        out.write("  [bold]Registry[/]  — browse available add-ins")
-        out.write("  [bold]PGP Keys[/]  — manage cryptographic keys")
-        out.write("  [bold]Eject[/]     — safely unmount calculator")
+        out.write("  [bold]Catch[/]       — browse calculator filesystem")
+        out.write("  [bold]Install[/]     — install add-ins from registry + import local")
+        out.write("  [bold]Games[/]       — install emulator games + import local ROMs")
+        out.write("  [bold]Remove[/]      — uninstall add-ins/games, delete pthings/orphans")
+        out.write("  [bold]Convert[/]     — convert images/docs to G3P/TXT")
+        out.write("  [bold]Push[/]        — copy converted files to calculator (pthings/)")
+        out.write("  [bold]Verify[/]      — check SHA256 of installed add-ins")
+        out.write("  [bold]Registry[/]    — browse add-ins + games (unified)")
+        out.write("  [bold]PGP Keys[/]    — manage cryptographic keys")
+        out.write("  [bold]Eject[/]       — safely unmount calculator")
         out.write("")
         out.write("[dim]Ctrl+S  — command palette · Esc — home · ↑↓ — navigate · Space — toggle[/]")
 

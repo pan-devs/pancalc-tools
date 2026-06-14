@@ -45,7 +45,8 @@ pcalc/
 ├── converter.py     # Image/Document → G3P/TXT conversion
 ├── crypto.py        # SHA256 hashing & PGP verification
 ├── installer.py     # Add-in install/remove/verify + filesystem walk
-├── registry.py      # Add-in registry (fetch, cache, search)
+├── library.py       # Local library management (import/remove local files)
+├── registry.py      # Add-in + game registry (fetch, cache, search, merge)
 ├── theme.py         # Color/style constants
 └── tui.py           # Textual Terminal UI
 ```
@@ -72,15 +73,18 @@ Windows.
 | macOS    | `/Volumes/*` |
 | Windows  | Drive letters A-Z via `win32api` |
 
-### `pcalc/registry.py` — Add-in Registry
+### `pcalc/registry.py` — Add-in & Game Registry
 
-Fetches the add-in list from the
+Fetches the add-in and game lists from the
 [pan-devs/pancalc-registry](https://github.com/pan-devs/pancalc-registry)
 GitHub repository.
 
-- **`get_registry(force=False)`** — returns `list[dict]`. Cached locally
-  for 6 hours (configurable). Pass `force=True` to bypass cache.
-- **`get_addin(name)`** — lookup by ID or name.
+- **`get_registry(force=False, include_local=True)`** — returns `list[dict]`.
+  Cached locally for 6 hours (configurable). Merges local library items with
+  `source: "local"` marker.
+- **`get_games(force=False, include_local=True)`** — same, for games registry.
+  Games have `emulator` and `platform` fields.
+- **`get_addin(name)`** / **`get_game(name)`** — lookup by ID or name.
 - **`search_registry(query)`** — case-insensitive full-text search across
   name, description, author, and category.
 
@@ -105,19 +109,21 @@ The core add-in lifecycle: install, remove, verify, and filesystem scanning.
 #### Install Flow
 
 ```
-registry addin dict
+registry addin dict (or local entry with local_path)
         │
         ▼
 _get_addin_files()      → list of file_info dicts
+                          • local_path → file:// URI (skips PGP, keeps SHA256)
+                          • remote URL → normal download flow
         │
         ▼
 _download_bytes()       → raw bytes (with progress callback)
         │
         ▼
-verify_sha256()         → compare against registry sha256
+verify_sha256()         → compare against registry/local sha256
         │
         ▼
-verify_official_signature() → PGP verify via crypto module
+verify_official_signature() → PGP verify (only for registry files, skipped for local)
         │
         ▼
 _extract_g3a_from_zip() → if download_type == "zip"
@@ -127,23 +133,47 @@ _write_with_progress()  → chunked write to calculator + fsync
         │
         ▼
 installed.json update   → local cache of installed add-ins
-```
 
 #### Verify Flow (no-cache)
 
 ```
-registry addin dict
+registry addin dict (or local entry with local_path)
         │
         ▼
-┌─── files[]? ────→ per-file sha256 from registry
+┌─── local_path? ──→ use filename + sha256 from addin dict
+│
+├─── files[]? ─────→ per-file sha256 from registry
 │
 └─── single-file?
      │
      ├── direct ──→ sha256 from registry root
      └── zip ─────→ download zip, extract, compute sha256 of extracted file
-                         │
-                         ▼
-                   compare with file on calculator
+                          │
+                          ▼
+                    compare with file on calculator
+```
+
+#### Remove Flow
+
+```
+registry addin id (or orphan file path)
+        │
+        ▼
+┌─── installed.json? ──→ file list from stored entry
+│
+└─── fallback ──────────→ scan device, match by filename against registry
+        │
+        ▼
+for each ROM file:
+  ├── ROM.unlink()                 ← delete ROM from calculator
+  └── _clean_save_files(ROM_path)  ← delete companion saves
+        │
+        ▼
+  SAVE_EXTS = {.sav, .srm, .state, .sgm, .frz}
+  Check:
+    1. ROM.with_suffix(ext)            ← same stem, different extension
+    2. Path(str(ROM) + ext)            ← appended extension
+    3. Same directory, case-insensitive stem match ← handles sanitize mismatches
 ```
 
 ### `pcalc/converter.py` — File Conversion
@@ -215,7 +245,53 @@ Uses `python-gnupg` (not `pgpy` — broken on Python 3.14+).
 **Known issue with GPG 2.4.9**: `verify_data()` causes `BrokenPipeError`.
 The module uses `verify_file()` with `io.BytesIO` and tempfiles instead.
 
-### `pcalc/cli.py` — Command-Line Interface
+### `pcalc/library.py` — Local Library Management
+
+Manages user-imported add-ins and games stored locally on the machine.
+
+#### Storage
+
+- `LIBRARY_DIR` = `~/.local/share/pancalc/library/`
+- `LIBRARY_FILE` = `library/library.json` — JSON list of imported entries
+- `LIBRARY_FILES_DIR` = `library/files/` — copies of imported files (originals
+  may be deleted after import)
+
+#### Key Functions
+
+| Function | Description |
+|----------|-------------|
+| `import_file(path, item_type, ...)` | Import a local file → copy to `files/`, hash, save to `library.json` |
+| `remove(item_id)` | Delete entry from JSON + physical file in `files/` |
+| `get_all(item_type)` | List all items, optionally filtered by type (`"addin"` / `"game"`) |
+| `get(item_id)` / `get_by_filename(name)` | Lookup single entry |
+| `has_valid_extension(path, item_type)` | Check file extension against allowed sets |
+| `expected_extensions(item_type)` | Return allowed extension set |
+
+#### Import Flow
+
+```
+file path → sanitize name → generate ID → copy to files/ →
+SHA256 → save entry to library.json
+```
+
+- The `name` field is sanitized (accents stripped, spaces → `_`, special chars removed)
+- The `id` is derived from the sanitized stem
+- `sha256` is computed from the copied file
+- `filename` preserves the original file's name (for calculator compatibility)
+- No PGP verification — the file came from the user
+
+#### Allowed Extensions
+
+| Type    | Extensions                         |
+|---------|------------------------------------|
+| Add-ins | `.g3a`, `.g3e`                     |
+| Games   | `.nes`, `.rom`, `.bin`, `.gba`, `.sms`, `.gg` |
+
+### `pcalc/registry.py` — Add-in & Game Registry
+
+Fetches the add-in and game lists from the
+[pan-devs/pancalc-registry](https://github.com/pan-devs/pancalc-registry)
+GitHub repository.
 
 Built with [click](https://click.palletsprojects.com/). Entry point: `pcalc`.
 
@@ -278,12 +354,13 @@ UI via Textual messages:
 |---------|-------|-------------|
 | `home` | — | Dashboard with ASCII banner, calc info, help |
 | `catch` | — | Calculator filesystem tree |
-| `install` | `InstallRow` + `ToggleRow` | Registry add-in selection + install |
-| `remove` | `RemoveRow` | Installed add-ins + pthings/ files |
+| `install` | `InstallRow` + `ToggleRow` | Registry add-in selection + import local + install |
+| `games` | `GameRow` + `ToggleRow` | Emulator game ROMs: import local + install |
+| `remove` | `RemoveRow` | Installed add-ins + games + orphans + pthings/ files |
 | `convert` | `ConvertRow` | convert/{images,documents} → G3P/TXT |
 | `convpush` | `ConvertRow` | converted/{g3p,txt} → calculator push |
 | `verify` | `VerifyRow` | Installed add-in SHA256 verification |
-| `registry` | `ListView` + `RichLog` | Browse registry + detail view |
+| `registry` | `ListView` + `RichLog` | Browse add-ins + games with detail view |
 | `keys` | `RichLog` | PGP key listing |
 
 #### Widget Classes
@@ -408,3 +485,6 @@ python -m pytest tests/
 | TUI containers via constructor args | Textual `MountError` when mounting after creation |
 | `self.run_worker()` instead of `@work` | `@work` decorator not available in Textual 8.2.7 |
 | Instance-ref button routing | Textual `DuplicateIds` error with reused button IDs |
+| `valid if cond else invalid` over `and/or` | Boolean `and/or` short-circuit fails when both lists start empty (first file pushed to wrong list) |
+| Local files copied to `library/files/` | Allows deleting originals; library is self-contained; `remove()` cleans entry + file |
+| `_clean_save_files()` with 3 patterns | Catches `.sav`, `.srm`, `.state` in all naming conventions: same stem, appended ext, case-insensitive |

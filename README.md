@@ -23,7 +23,7 @@ And no worries, it is safe.
 _Click the image below to watch the tutorial (it will be downloaded)_
 
 
-[![Quick Install tutorial (click to download andwatch)](./thumbnail.png)](https://github.com/pan-devs/pancalc-tools/raw/refs/heads/main/QuickInstall-Win-TUI-small.mp4)
+[![Quick Install tutorial](./thumbnail.png)](https://github.com/pan-devs/pancalc-tools/raw/refs/heads/main/QuickInstall-Win-TUI-small.mp4)
 
 
 > 💡 **Tips:**
@@ -39,24 +39,32 @@ _Click the image below to watch the tutorial (it will be downloaded)_
 ## Features
 
 - **📦 Add-in management** — Install, remove, and verify add-ins from the
-   [pan-devs/pancalc-registry](https://github.com/pan-devs/pancalc-registry)
-   with automatic SHA256 + PGP signature verification.
+  [pan-devs/pancalc-registry](https://github.com/pan-devs/pancalc-registry)
+  with automatic SHA256 + PGP signature verification.
+- **🎮 Games / Emulators** — Install NES, GB, GBA, SMS, GG ROMs via emulators
+  (Nesizm, etc.). Games tracked in the same tool alongside add-ins.
+- **📁 Local Library** — Import your own `.g3a`/`.g3e` add-ins or game ROMs
+  from local files. No registry needed. Files copied for safekeeping.
 - **🖼️ File conversion** — Convert images (PNG, JPG, BMP, GIF, TIFF, WebP) and
-   documents (PDF, DOCX) to Casio `.g3p` photo format or plain text.
-- **📤 Push to calculator** — Copy converted files to the calculator's `pthings/`
-   directory (sorted into `fotos/` for .g3p images and `textos/` for .txt files).
+  documents (PDF, DOCX) to Casio `.g3p` photo format or plain text.
+- **📤 Push to calculator** — Copy converted files to `pthings/fotos/`
+  (`.g3p`) or `pthings/textos/` (`.txt`) automatically.
 - **🔍 Calculator browsing** — Browse the full calculator filesystem, identify
-   known add-ins, and inspect storage usage.
+  known add-ins, and inspect storage usage.
+- **🗑️ Orphan removal** — Detects files not in any registry and removes them,
+  including companion save files (`.sav`, `.srm`, `.state`).
 - **🔐 Cryptographic verification** — SHA256 checksums on every download and
-   PGP signature verification against the official Pan Devs key (auto-downloaded,
-   no manual setup required).
+  PGP signature verification against the official Pan Devs key (auto-downloaded,
+  no manual setup required).
 - **🖥️ Dual interface** — Full-featured **Terminal UI** (Textual) and a
-   complete **CLI** (click) for scripting.
+  complete **CLI** (click) for scripting.
 - **🔑 PGP key management** — Import, trust, list, and untrust additional keys
-   for advanced users.
+  for advanced users.
 
-> **📝 Filename Limitations:** The Casio calculator cannot read files with spaces or non-English characters (accents, special symbols) in their names. Files are automatically sanitized when pushed (spaces → _, accents removed, etc.).
-> 
+> **Filename Limitations:** The Casio calculator cannot read files with spaces
+> or non-English characters (accents, special symbols). Files are automatically
+> sanitized when pushed (spaces → `_`, accents removed, etc.).
+>
 > **📄 TXT File Reading:** To view TXT files on your calculator, you need to install the "Utilities" add-in from the registry first. This add-in provides a file viewer for text documents on your Casio calculator (and also a JPEG viewer).
 ---
 
@@ -232,12 +240,39 @@ After connecting your calculator, navigate to the **Catch** option in the
 pcalc interface to browse its filesystem.
 
 
+---
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Terminal UI (TUI)](#terminal-ui)
+- [CLI Reference](#cli-reference)
+  - [Registry & Search](#pcalc-list--search--info)
+  - [Install](#pcalc-install)
+  - [Remove](#pcalc-remove--rm)
+  - [Local Library](#pcalc-local)
+  - [Games](#pcalc-games)
+  - [Verify](#pcalc-verify)
+  - [Convert & Push](#pcalc-convert--convpush)
+  - [Eject & Catch](#pcalc-eject--catch)
+  - [PGP Keys](#pgp-keys)
+  - [Configuration](#configuration)
+- [Local Library](LOCAL_LIBRARY.md)
+- [Games / Emulators](GAMES.md)
+- [Orphan Removal](ORPHAN_REMOVAL.md)
+- [Architecture](ARCHITECTURE.md)
+- [Changelog](CHANGELOG.md)
+- [License & Contributing](#license)
+
+---
+
 ## Installation
 
 ### Requirements
 
 - **Python 3.10+**
-- A **Casio Prizm** calculator connected via USB in **mass storage mode** (F1).
+- A **Casio Prizm** calculator connected via USB in **mass storage mode** (F1)
+- **GnuPG** (gpg) — for PGP signature verification (see per-OS instructions below)
 
 ### From PyPI
 
@@ -251,9 +286,6 @@ On **Windows**, also install `pywin32` for automatic drive detection and eject:
 python -m pip install pancalc-tools[windows]
 ```
 
-> **Note:** PGP signature verification requires `gpg` (GnuPG) installed on your system.
-> See the Quick Start section above for installation instructions per OS.
-
 ### From source
 
 ```bash
@@ -262,23 +294,58 @@ cd pancalc-tools
 pip install -e .
 ```
 
-### Dependencies
+### Installing GnuPG
 
-| Package | Purpose |
-|---------|---------|
-| `click` | CLI framework |
-| `rich`  | Terminal formatting & progress bars |
-| `textual` | Terminal UI framework |
-| `Pillow` | Image processing |
-| `pymupdf` | PDF & DOCX parsing |
-| `requests` | HTTP downloads |
-| `python-gnupg` | PGP signature verification |
-| `questionary` | Interactive prompts |
-| `platformdirs` | Cross-platform config paths |
+#### 🪟 Windows
 
-## Quick Start
+The installer bundles a standalone GnuPG component. If installing via pip:
 
-### Terminal UI
+1. Download **GnuPG binary** from [gnupg.org/download](https://www.gnupg.org/download/)
+2. Extract and place `gpg.exe` in your `PATH` (e.g. `C:\Program Files\GnuPG\bin\`)
+3. Or run the Gpg4win installer with only the GnuPG component selected
+
+#### 🍎 macOS
+
+```bash
+brew install gnupg          # Homebrew
+# or install GPG Suite: https://gpgtools.org
+```
+
+#### 🐧 Linux
+
+```bash
+# Debian / Ubuntu / Mint
+sudo apt install gnupg
+
+# Arch / Manjaro
+sudo pacman -S gnupg
+
+# Fedora
+sudo dnf install gnupg2
+```
+
+### Launch
+
+```bash
+pcalc
+```
+
+> **Windows:** If `pcalc` is not recognized, add `%APPDATA%\Python\Python3xx\Scripts`
+> to your PATH, or use `python -m pcalc`.
+
+### Connect calculator
+
+1. Turn on your Casio calculator
+2. Press **F1** (USB mass storage mode)
+3. Connect via USB
+4. PanCalc Tools detects it automatically
+
+> **Linux:** If not detected, try `udisksctl mount -b /dev/sdb1`
+> (check device with `lsblk`).
+
+---
+
+## Terminal UI
 
 ```bash
 pcalc
@@ -286,36 +353,31 @@ pcalc
 
 Opens the interactive TUI with a sidebar for navigation:
 
-| Button | Action |
-|--------|--------|
-| 🏠 Home | Dashboard with calculator info & help |
-| 📂 Catch | Browse calculator filesystem |
-| 📥 Install | Install add-ins from the registry |
-| 🗑️ Remove | Uninstall add-ins or delete `pthings/` files |
-| 🔄 Convert | Convert images/documents to G3P/TXT |
-| 📤 Push | Copy converted files to calculator |
-| ✅ Verify | Check SHA256 of installed add-ins |
-| 📋 Registry | Browse available add-ins |
-| 🔑 PGP Keys | Manage cryptographic keys |
-| 🔄 Update Registry | Force-refresh add-in list from GitHub |
-| ⏏️ Eject | Safely unmount calculator |
+| Button                       | Action                                    |
+|------------------------------|-------------------------------------------|
+| 🏠 Home                      | Dashboard with calculator info & help     |
+| 📂 Catch                     | Browse calculator filesystem              |
+| 📥 Install                   | Install add-ins from the registry + local |
+| 🎮 Games                     | Install/import/remove emulator game ROMs  |
+| 🗑️ Remove                    | Uninstall add-ins, games, orphans, files  |
+| 🔄 Convert                   | Convert images/docs to G3P/TXT            |
+| 📤 Push                      | Copy converted files to calculator        |
+| ✅ Verify                    | Check SHA256 of installed add-ins         |
+| 📋 Registry                  | Browse add-ins + games with details view  |
+| 🔑 PGP Keys                  | Manage cryptographic keys                 |
 
-### CLI
+Additional buttons in specific screens:
 
-```bash
-pcalc install khicas
-pcalc verify
-pcalc convert image.png
-pcalc convpush
-pcalc catch
-pcalc eject
-```
+| Screen   | Button                | Action                              |
+|----------|-----------------------|-------------------------------------|
+| Install  | 📁 Add Add-in File    | Import local `.g3a`/`.g3e` to lib   |
+| Install  | 🗑️ Remove Local      | Remove selected local library items  |
+| Games    | 📁 Add Game File      | Import local ROM to library          |
+| Games    | 🗑️ Remove Local      | Remove selected local library items  |
+| Home     | 🔄 Update Registry   | Force-refresh from GitHub            |
+| Home     | ⏏️ Eject             | Safely unmount calculator            |
 
-See all commands:
-
-```bash
-pcalc --help
-```
+---
 
 ## CLI Reference
 
@@ -330,85 +392,86 @@ pcalc info khicas             # Show add-in details
 ### `pcalc install`
 
 ```bash
-pcalc install khicas utilities   # Install multiple add-ins
-pcalc install --yes khicas       # Skip confirmation prompts
-pcalc install --overwrite khicas # Overwrite existing files
+pcalc install khicas utilities       # Install multiple add-ins
+pcalc install --yes khicas           # Skip confirmation
+pcalc install --overwrite khicas     # Overwrite existing files
 ```
 
 ### `pcalc remove` / `rm`
 
 ```bash
-pcalc remove khicas              # By add-in name
-pcalc rm pthings/fotos/photo.g3p # By path (relative to mount)
+pcalc remove khicas                  # By add-in ID (scans registry)
+pcalc rm pthings/fotos/photo.g3p     # By relative path
 ```
+
+### `pcalc local`
+
+Manage your local library of user-imported files.
+
+```bash
+pcalc local import myaddin.g3a       # Import add-in (copied to library)
+pcalc local import game.nes          # Import game ROM
+pcalc local import --yes file.gba    # Skip format validation
+pcalc local remove <id>              # Remove from library (entry + file)
+pcalc local list                     # List all locally imported items
+```
+
+See [LOCAL_LIBRARY.md](LOCAL_LIBRARY.md) for details.
+
+### `pcalc games`
+
+Install, import, and remove emulator game ROMs.
+
+```bash
+pcalc games import game.nes          # Import ROM to local library
+pcalc games install <id>             # Install ROM to calculator
+pcalc games remove <id>              # Remove ROM from local library
+pcalc games list                     # List available games
+```
+
+See [GAMES.md](GAMES.md) for details.
 
 ### `pcalc verify`
 
 ```bash
-pcalc verify                     # Verify ALL add-ins on the calculator
-pcalc verify khicas utilities    # Verify specific add-ins
+pcalc verify                        # Verify ALL add-ins on calculator
+pcalc verify khicas utilities       # Verify specific add-ins
 ```
 
 Scans the calculator directly — no local cache needed.
 
-### `pcalc convert`
+### `pcalc convert` / `convpush`
 
 ```bash
-pcalc convert photo.png          # Image → G3P
-pcalc convert doc.pdf            # PDF → interactive prompt (G3P/TXT/Both)
-pcalc convert --g3p doc.pdf      # PDF → G3P only
-pcalc convert --txt doc.pdf      # PDF → TXT only
-pcalc convert --both doc.pdf     # PDF → G3P + TXT
-```
-
-### `pcalc convpush`
-
-```bash
-pcalc convpush                   # Copy all converted files to calculator
+pcalc convert photo.png             # Image → G3P
+pcalc convert doc.pdf               # PDF → interactive prompt
+pcalc convert --g3p doc.pdf         # PDF → G3P only
+pcalc convert --txt doc.pdf         # PDF → TXT only
+pcalc convert --both doc.pdf        # PDF → G3P + TXT
+pcalc convpush                      # Copy converted files to calculator
 ```
 
 Files go to `pthings/fotos/` (`.g3p`) and `pthings/textos/` (`.txt`).
-Filenames are automatically sanitized (accents stripped, spaces → `_`,
-special characters removed).
+Filenames are sanitized automatically.
 
-### `pcalc catch` / `calc`
-
-```bash
-pcalc catch                  # Browse calculator filesystem
-```
-
-### `pcalc eject`
+### `pcalc eject` / `catch`
 
 ```bash
 pcalc eject                   # Safely unmount calculator
-```
-
-### Registry
-
-```bash
-pcalc update-registry         # Force-refresh add-in registry from GitHub
+pcalc catch                   # Browse calculator filesystem
+pcalc calc                    # Alias for catch
 ```
 
 ### PGP Keys
 
 ```bash
-pcalc import-key mykey.asc    # Import a PGP public key
-pcalc list-keys               # List all keys and trust status
-pcalc trust-key <fingerprint> # Trust a key for signature verification
+pcalc import-key mykey.asc
+pcalc list-keys
+pcalc trust-key <fingerprint>
 pcalc untrust-key <fingerprint>
 ```
 
-## Configuration
-
-Settings are stored via `platformdirs` and can be managed programmatically:
-
-| Key | Default | Description |
-|-----|---------|-------------|
-| `registry_url` | GitHub repo URL | Add-in registry source |
-| `cache_ttl_hours` | 6 | Registry cache duration |
-| `auto_update` | `true` | Auto-refresh registry on install |
-| `confirm_install` | `true` | Ask before installing |
-| `confirm_remove` | `true` | Ask before removing |
+---
 
 ## Input / Output Layout
 
@@ -422,32 +485,37 @@ pancalc-tools/
 │   └── txt/            (.txt files)
 ```
 
-Both the TUI **Convert** and **Push** views scan these directories automatically.
+## Data Locations
+
+| Data                  | Location                                              |
+|-----------------------|-------------------------------------------------------|
+| Library (local files) | `~/.local/share/pancalc/library/files/`               |
+| Library index         | `~/.local/share/pancalc/library/library.json`         |
+| Installed DB          | `~/.local/share/pancalc/installed.json`               |
+| Registry cache        | `~/.cache/pancalc/`                                   |
+
+---
 
 ## Security
 
 ### SHA256 Verification
 
-Every add-in in the registry includes a `sha256` field. The installer computes
-the SHA256 of every downloaded/extracted file and aborts on mismatch.
+Every add-in / game in the registry includes a `sha256` field. The installer
+computes the SHA256 of every downloaded file and aborts on mismatch.
+Local library files also have SHA256 — verified on install.
 
 ### PGP Signatures
 
 All official registry files are signed with the **Pan Devs PGP key**.
-The key is **auto-downloaded from the registry** on first use — no manual
-import or trust setup required.
+The key is **auto-downloaded** on first use — no manual setup required.
 
-- Key fingerprint: `C7AD 9689 E894 B261 7EAB  CFE2 1A37 0E1B 68A1 94A8`
+- Fingerprint: `C7AD 9689 E894 B261 7EAB  CFE2 1A37 0E1B 68A1 94A8`
 - Algorithm: Ed25519
+- Public key: [`pandevs.asc`](https://github.com/pan-devs/pancalc-registry/blob/main/pandevs.asc)
 
-For zip-type add-ins (e.g., Nesizm), verification downloads the zip,
-extracts the `.g3a`, and computes the SHA of the extracted file —
-no local cache dependency.
+Local library files skip PGP (they came from you, no signature needed).
 
-## Architecture
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed overview of the codebase
-structure, module responsibilities, and data flow.
+---
 
 ## License
 
@@ -480,3 +548,5 @@ pip install -e ".[dev]"
 - **Registry:** https://github.com/pan-devs/pancalc-registry
 - **Issues:** https://github.com/pan-devs/pancalc-tools/issues
 - **Contact:** pan.devs@proton.me
+- **Changelog:** [CHANGELOG.md](CHANGELOG.md)
+- **Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md)

@@ -1,0 +1,88 @@
+# Games / Emulators — User Guide
+
+Play retro games on your Casio fx-CG50 via emulators installed from the registry.
+
+---
+
+## Supported Platforms
+
+| Platform          | Extensions                     | Emulator        | Status   |
+|-------------------|--------------------------------|-----------------|----------|
+| NES               | `.nes`                         | Nesizm          | ✅ Ready |
+| Game Boy / Color  | `.gb`, `.gbc`                  | GPSP*           | ⏳ Soon  |
+| Game Boy Advance  | `.gba`                         | GPSP*           | ⏳ Soon  |
+| Master System     | `.sms`                         | SMSPlusGX*      | ⏳ Soon  |
+| Game Gear         | `.gg`                          | SMSPlusGX*      | ⏳ Soon  |
+| Generic ROM       | `.rom`, `.bin`                 | Platform-dependent | —     |
+
+\* Emulator add-in not yet available in the registry — check back later.
+
+## Installing an Emulator
+
+1. Go to **Install** screen (TUI) or run:
+
+```bash
+pcalc install nesizm
+```
+
+2. This installs the NES emulator to your calculator
+
+## Adding Games
+
+### Via TUI
+
+1. Go to **Games** screen
+2. Click **"📁 Add Game File"**
+3. Select one or more `.nes`, `.gba`, `.rom`, `.bin`, `.sms`, `.gg` files
+4. They appear in the list with `[L]` (local) badge
+
+### Via CLI
+
+```bash
+pcalc games import supermario.nes              # import to library
+pcalc games install lawn_mower                  # install by registry ID
+pcalc games remove supermario                   # remove from library
+```
+
+## Installing Games to Calculator
+
+- In **Games** screen, check the games you want (they must be installed on your calculator to play)
+- Click **"📥 Install Checked Games"**
+- The ROM is copied to the calculator
+
+## Playing
+
+1. On your calculator, open the emulator (e.g. **Nesizm**)
+2. Navigate to the game file
+3. Play
+
+## Save Files
+
+- Emulators create save files next to the ROM:
+  - `.sav` — standard save
+  - `.srm` — battery-backed save
+  - `.state` — emulator state snapshot
+  - `.sgm` / `.frz` — additional save formats
+- When you **remove** a game from the calculator via PanCalc Tools, these are deleted too
+- **To backup saves**: copy them off the calculator before removing
+
+## Registry Games
+
+Games in the official registry include metadata:
+
+```json
+{
+  "emulator": "nesizm",
+  "platform": "NES",
+  "filename": "lawnmow.nes"
+}
+```
+
+The **Registry** view in TUI marks them as `[emulator:nesizm/NES]`.
+
+## Notes
+
+- Some games are `.g3a` files that bundle the ROM inside the add-in — these are
+  **addins**, not games. They appear in the **Install** screen, not Games.
+- Games / Emulators screen is for **ROM files** (`.nes`, `.gba`, etc.) that
+  are loaded by an emulator at runtime.
