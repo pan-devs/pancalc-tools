@@ -124,15 +124,17 @@ class RemoveRow(ToggleRow):
                  kind: str = "addin", path: Path | None = None) -> None:
         self._display_name = display_name
         self._filename = filename
-        self._kind = kind  # "addin" or "file"
-        self._path = path  # full calc path (for "file" kind)
+        self._kind = kind  # "addin", "file", or "orphan"
+        self._path = path  # full calc path (for "file" and "orphan" kind)
         super().__init__(index, "", checked, disabled)
 
     @property
     def _label(self) -> str:
-        tag = {"addin": "bold cyan", "file": "bold magenta"}
+        tag = {"addin": "bold cyan", "file": "bold magenta", "orphan": "bold yellow"}
+        icon = {"addin": "📦", "file": "📄", "orphan": "🎮"}
         style = tag.get(self._kind, "dim")
-        return f"[{style}]{'📦' if self._kind == 'addin' else '📄'}[/] [bold]{self._display_name}[/]  [dim]{self._filename}[/]"
+        badge = " [O]" if self._kind == "orphan" else ""
+        return f"[{style}]{icon.get(self._kind, '📦')}[/] [bold]{self._display_name}[/]{badge}  [dim]{self._filename}[/]"
 
 
 class VerifyRow(ToggleRow):
@@ -639,21 +641,56 @@ class MainScreen(Screen):
     def _show_remove(self) -> None:
         self._update_calc_status()
         from pcalc.calculator import find_calculator
-        from pcalc.installer import walk_calc
+        from pcalc.installer import walk_calc, _match_addin_by_filename
         from pcalc import registry
 
         self._view = "remove"
 
+        ADDIN_EXTS = {".g3a", ".g3e", ".g3m"}
+        GAME_EXTS = {".g3a", ".rom", ".bin", ".gba", ".nes", ".sms", ".gg"}
+        ALL_EXTS = ADDIN_EXTS | GAME_EXTS
+
         rows: list[RemoveRow] = []
         calc = find_calculator()
         if calc:
+            # Get all registry entries (addins + games)
+            all_registry = []
             try:
-                addin_entries = [e for e in walk_calc(calc, registry.get_registry()) if e.addin]
+                all_registry.extend(registry.get_registry())
+            except RuntimeError:
+                pass
+            try:
+                all_registry.extend(registry.get_games())
+            except RuntimeError:
+                pass
+
+            # Matched entries from walk_calc
+            matched_paths: set[str] = set()
+            try:
+                addin_entries = [e for e in walk_calc(calc, all_registry) if e.addin]
                 for i, e in enumerate(addin_entries):
                     name = e.addin.get("name", e.addin.get("id", "?"))
                     rows.append(RemoveRow(i, name, e.name, kind="addin"))
+                    matched_paths.add(e.name)
             except RuntimeError:
                 pass
+
+            # Recursive scan for orphan files (not in registry)
+            for f in calc.mount_path.rglob("*"):
+                if not f.is_file():
+                    continue
+                if f.suffix.lower() not in ALL_EXTS:
+                    continue
+                rel = str(f.relative_to(calc.mount_path))
+                if rel in matched_paths:
+                    continue
+                match = _match_addin_by_filename(f.name, all_registry)
+                if match:
+                    # Should have been caught by walk_calc, but just in case
+                    continue
+                # Orphan: not in registry
+                rows.append(RemoveRow(len(rows), f.stem, rel, kind="orphan", path=f))
+
             # Also scan pthings subdirectories for user files
             for sub in ("fotos", "textos"):
                 d = calc.mount_path / "pthings" / sub
@@ -691,7 +728,7 @@ class MainScreen(Screen):
 
         from pcalc.calculator import require_calculator
         from pcalc import registry
-        from pcalc.installer import remove, walk_calc
+        from pcalc.installer import remove, walk_calc, _clean_save_files
 
         try:
             calc = require_calculator()
@@ -716,6 +753,17 @@ class MainScreen(Screen):
                     self.post_message(LogMessage(f"  ✅ [bold]{name}[/] removed"))
                 except RuntimeError as e:
                     self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]{e}[/]"))
+            elif row._kind == "orphan":
+                path = row._path
+                if path and path.exists():
+                    try:
+                        path.unlink()
+                        _clean_save_files(path)
+                        self.post_message(LogMessage(f"  🗑️  [bold]{row._display_name}[/] (orphan) removed from {row._filename}"))
+                    except OSError as e:
+                        self.post_message(LogMessage(f"  ❌ [bold]{row._display_name}[/]: [red]{e}[/]"))
+                else:
+                    self.post_message(LogMessage(f"  ⏭️  [dim]{row._display_name} — already gone[/]"))
             else:
                 path = row._path
                 if path and path.exists():
@@ -1216,16 +1264,35 @@ class MainScreen(Screen):
             addins = registry.get_registry()
         except RuntimeError:
             addins = []
-        self._registry_addins = addins
+        try:
+            games = registry.get_games()
+        except RuntimeError:
+            games = []
+
+        combined = []
+        for a in addins:
+            a["_type"] = "addin"
+            combined.append(a)
+        for g in games:
+            g["_type"] = "emulator"
+            combined.append(g)
+
+        self._registry_addins = combined
 
         items = []
-        for a in addins:
+        for a in combined:
             aid = a.get("id", "?")
             name = a.get("name", aid)
             author = a.get("author", "")
             ver = a.get("version", "")
+            typ = a.get("_type", "?")
+            type_label = f"[{typ}]"
+            if typ == "emulator":
+                emu = a.get("emulator", "?")
+                plat = a.get("platform", "?")
+                type_label = f"[emulator:{emu}/{plat}]"
             items.append(ListItem(Label(
-                f"[bold]{name}[/]  [dim]{aid}[/]  [italic]{author}[/]  [{theme.S_ACCENT}]{ver}[/]"
+                f"{type_label} [bold]{name}[/]  [dim]{aid}[/]  [italic]{author}[/]  [{theme.S_ACCENT}]{ver}[/]"
             )))
         if not items:
             items.append(ListItem(Label("[dim]Failed to load registry[/]")))
@@ -1235,7 +1302,7 @@ class MainScreen(Screen):
         lv.styles.height = "1fr"
         out = RichLog(highlight=True, markup=True)
         self._output = out
-        out.write("  [dim]Click an add-in for details[/]")
+        out.write("  [dim]Click an entry for details[/]")
         self._set_content(lv, out)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
@@ -1245,14 +1312,19 @@ class MainScreen(Screen):
         if idx is None or idx >= len(addins):
             return
         a = addins[idx]
+        typ = a.get("_type", "?")
         lines = [
             f"  [bold]{a.get('name', '?')}[/]  [dim]{a.get('id', '?')}[/]",
-            f"  Author: {a.get('author', '?')}   Version: {a.get('version', '?')}",
+            f"  Type: {typ}   Author: {a.get('author', '?')}   Version: {a.get('version', '?')}",
             f"  Category: {a.get('category', '?')}",
             f"  Compatible: {', '.join(a.get('compatible', []))}",
             f"  Description: {a.get('description', '?')}",
             f"  URL: {a.get('url', '?')}",
         ]
+        if typ == "emulator":
+            emu = a.get("emulator", "?")
+            plat = a.get("platform", "?")
+            lines.append(f"  Emulator: {emu}   Platform: {plat}")
         if "size_kb" in a:
             lines.append(f"  Size: {a['size_kb']:.1f} KiB")
         if "license" in a:
