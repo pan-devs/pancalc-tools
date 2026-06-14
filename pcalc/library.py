@@ -20,8 +20,8 @@ LIBRARY_FILE     = LIBRARY_DIR / "library.json"
 LIBRARY_FILES_DIR = LIBRARY_DIR / "files"
 
 # Expected file extensions for validation
-ADDIN_EXTS = {".g3a", ".g3e", ".g3m"}
-GAME_EXTS  = {".g3a", ".rom", ".bin", ".gba", ".nes", ".sms", ".gg"}
+ADDIN_EXTS = {".g3a", ".g3e"}
+GAME_EXTS  = {".rom", ".bin", ".gba", ".nes", ".sms", ".gg"}
 
 
 def expected_extensions(item_type: str) -> set[str]:

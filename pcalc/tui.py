@@ -646,8 +646,8 @@ class MainScreen(Screen):
 
         self._view = "remove"
 
-        ADDIN_EXTS = {".g3a", ".g3e", ".g3m"}
-        GAME_EXTS = {".g3a", ".rom", ".bin", ".gba", ".nes", ".sms", ".gg"}
+        ADDIN_EXTS = {".g3a", ".g3e"}
+        GAME_EXTS = {".rom", ".bin", ".gba", ".nes", ".sms", ".gg"}
         ALL_EXTS = ADDIN_EXTS | GAME_EXTS
 
         rows: list[RemoveRow] = []
@@ -740,7 +740,8 @@ class MainScreen(Screen):
             if row._kind == "addin":
                 name = row._display_name
                 try:
-                    entries = [e for e in walk_calc(calc, registry.get_registry()) if e.addin]
+                    all_registry = registry.get_registry() + registry.get_games()
+                    entries = [e for e in walk_calc(calc, all_registry) if e.addin]
                 except RuntimeError:
                     entries = []
                 match = next((e for e in entries if e.addin.get("name", e.addin.get("id", "")) == name), None)
