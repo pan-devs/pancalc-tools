@@ -38,9 +38,12 @@ dependencies = [
 
 [project.scripts]
 pcalc = "pcalc.cli:cli"
+pcalc-gui = "main_gui:main"
 
 [tool.setuptools.packages.find]
 include = ["pcalc*"]
 
 [project.optional-dependencies]
 windows = ["pywin32"]
+gui = ["flet>=0.21.0"]
+dev = ["pytest>=7.0", "ruff>=0.1.0"]
