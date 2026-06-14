@@ -36,7 +36,7 @@ class AsciiBarColumn(ProgressColumn):
             result.append("░" * (self.bar_width - filled), style=theme.PRIMARY)
         return result
 
-VERSION = "0.2.3"
+VERSION = "0.2.4"
 
 
 # ---------------------------------------------------------------------------
