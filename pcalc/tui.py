@@ -121,20 +121,21 @@ class GameRow(ToggleRow):
 class RemoveRow(ToggleRow):
     def __init__(self, index: int, display_name: str, filename: str,
                  checked: bool = False, disabled: bool = False,
-                 kind: str = "addin", path: Path | None = None) -> None:
+                 kind: str = "addin", path: Path | None = None,
+                 icon: str = "📦") -> None:
         self._display_name = display_name
         self._filename = filename
         self._kind = kind  # "addin", "file", or "orphan"
         self._path = path  # full calc path (for "file" and "orphan" kind)
+        self._icon = icon
         super().__init__(index, "", checked, disabled)
 
     @property
     def _label(self) -> str:
         tag = {"addin": "bold cyan", "file": "bold magenta", "orphan": "bold yellow"}
-        icon = {"addin": "📦", "file": "📄", "orphan": "🎮"}
         style = tag.get(self._kind, "dim")
         badge = " [O]" if self._kind == "orphan" else ""
-        return f"[{style}]{icon.get(self._kind, '📦')}[/] [bold]{self._display_name}[/]{badge}  [dim]{self._filename}[/]"
+        return f"[{style}]{self._icon}[/] [bold]{self._display_name}[/]{badge}  [dim]{self._filename}[/]"
 
 
 class VerifyRow(ToggleRow):
@@ -670,7 +671,9 @@ class MainScreen(Screen):
                 addin_entries = [e for e in walk_calc(calc, all_registry) if e.addin]
                 for i, e in enumerate(addin_entries):
                     name = e.addin.get("name", e.addin.get("id", "?"))
-                    rows.append(RemoveRow(i, name, e.name, kind="addin"))
+                    # Icon: 🎮 for games (has emulator), 📦 for addins
+                    icon = "🎮" if e.addin.get("emulator") else "📦"
+                    rows.append(RemoveRow(i, name, e.name, kind="addin", icon=icon))
                     matched_paths.add(e.name)
             except RuntimeError:
                 pass
@@ -688,8 +691,9 @@ class MainScreen(Screen):
                 if match:
                     # Should have been caught by walk_calc, but just in case
                     continue
-                # Orphan: not in registry
-                rows.append(RemoveRow(len(rows), f.stem, rel, kind="orphan", path=f))
+                # Orphan: not in registry — icon based on extension
+                icon = "📦" if f.suffix.lower() in ADDIN_EXTS else "🎮"
+                rows.append(RemoveRow(len(rows), f.stem, rel, kind="orphan", path=f, icon=icon))
 
             # Also scan pthings subdirectories for user files
             for sub in ("fotos", "textos"):
