@@ -10,14 +10,22 @@ from pathlib import Path
 import requests
 from platformdirs import user_cache_dir
 
+from pcalc import config
+from pcalc import library
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-REGISTRY_URL  = "https://raw.githubusercontent.com/pan-devs/pancalc-registry/main/registry.json"
-ADDINS_BASE   = "https://raw.githubusercontent.com/pan-devs/pancalc-registry/main/"
+REGISTRY_URL = config.get("registry_url")
+if REGISTRY_URL.endswith("registry.json"):
+    ADDINS_BASE = REGISTRY_URL[:-len("registry.json")]
+else:
+    ADDINS_BASE = REGISTRY_URL.rsplit("/", 1)[0] + "/"
+
 CACHE_DIR     = Path(user_cache_dir("pancalc"))
 CACHE_FILE    = CACHE_DIR / "registry.json"
+CACHE_FILE_GAMES = CACHE_DIR / "games.json"
 CACHE_TTL     = 60 * 60 * 6  # 6 hours in seconds
 
 
@@ -33,8 +41,26 @@ def _cache_is_fresh() -> bool:
     return age < CACHE_TTL
 
 
+def _cache_games_is_fresh() -> bool:
+    """Return True if the cached games registry exists and is less than TTL seconds old."""
+    if not CACHE_FILE_GAMES.exists():
+        return False
+    age = time.time() - CACHE_FILE_GAMES.stat().st_mtime
+    return age < CACHE_TTL
+
+
 def _fetch_json(url: str) -> dict:
     """Download a JSON file from a URL and return it as a dict."""
+    if url.startswith("file://"):
+        import urllib.parse
+        parsed = urllib.parse.urlparse(url)
+        # Handle both file://localhost/path and file:///path
+        path_str = parsed.path
+        if os.name == 'nt' and path_str.startswith('/'):
+            path_str = path_str[1:]
+        p = Path(urllib.parse.unquote(path_str))
+        with open(p, "r", encoding="utf-8") as f:
+            return json.load(f)
     try:
         r = requests.get(url, timeout=10)
         r.raise_for_status()
@@ -68,6 +94,21 @@ def _build_full_registry(index: dict) -> list[dict]:
     return addins
 
 
+def _build_games_registry(index: dict) -> list[dict]:
+    """
+    Given the index (registry.json), fetch all individual game JSONs
+    and return a flat list of game dicts.
+    """
+    games = []
+    for path in index.get("games", []):
+        try:
+            game = _load_addin(path)
+            games.append(game)
+        except RuntimeError:
+            pass  # skip broken entries silently
+    return games
+
+
 def _save_cache(addins: list[dict]) -> None:
     """Save the full add-in list to the local cache."""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -81,17 +122,31 @@ def _load_cache() -> list[dict]:
         return json.load(f)
 
 
+def _save_games_cache(games: list[dict]) -> None:
+    """Save the full game list to the local cache."""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    with open(CACHE_FILE_GAMES, "w", encoding="utf-8") as f:
+        json.dump(games, f, indent=2, ensure_ascii=False)
+
+
+def _load_games_cache() -> list[dict]:
+    """Load the cached game list from disk."""
+    with open(CACHE_FILE_GAMES, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
-def get_registry(force: bool = False) -> list[dict]:
+def get_registry(force: bool = False, include_local: bool = True) -> list[dict]:
     """
     Return the full list of add-in dicts from the registry.
     Uses cache if fresh, otherwise fetches from GitHub.
 
     Args:
         force: If True, bypass cache and always fetch fresh data.
+        include_local: If True, append user-imported local add-ins.
 
     Returns:
         List of add-in dicts.
@@ -100,12 +155,17 @@ def get_registry(force: bool = False) -> list[dict]:
         RuntimeError: If network is unavailable and no cache exists.
     """
     if not force and _cache_is_fresh():
-        return _load_cache()
+        addins = _load_cache()
+    else:
+        index = _fetch_json(REGISTRY_URL)
+        addins = _build_full_registry(index)
+        _save_cache(addins)
 
-    # Cache is stale or missing — fetch fresh
-    index = _fetch_json(REGISTRY_URL)
-    addins = _build_full_registry(index)
-    _save_cache(addins)
+    if include_local:
+        for loc in library.get_all(item_type="addin"):
+            loc["source"] = "local"
+            addins.append(loc)
+
     return addins
 
 
@@ -170,7 +230,88 @@ def filter_by_category(category: str) -> list[dict]:
     return [a for a in addins if a.get("category", "").lower() == category.lower()]
 
 
+def get_games(force: bool = False, include_local: bool = True) -> list[dict]:
+    """
+    Return the full list of game dicts from the registry.
+    Uses cache if fresh, otherwise fetches from GitHub.
+
+    Args:
+        force: If True, bypass cache and always fetch fresh data.
+        include_local: If True, append user-imported local games.
+
+    Returns:
+        List of game dicts.
+
+    Raises:
+        RuntimeError: If network is unavailable and no cache exists.
+    """
+    if not force and _cache_games_is_fresh():
+        games = _load_games_cache()
+    else:
+        index = _fetch_json(REGISTRY_URL)
+        games = _build_games_registry(index)
+        _save_games_cache(games)
+
+    if include_local:
+        for loc in library.get_all(item_type="game"):
+            loc["source"] = "local"
+            games.append(loc)
+
+    return games
+
+
+def get_game(name: str, force: bool = False) -> dict | None:
+    """
+    Find a single game by ID or name (case-insensitive).
+
+    Args:
+        name: Game ID or display name to look up.
+        force: Force registry refresh before searching.
+
+    Returns:
+        Game dict if found, None otherwise.
+    """
+    games = get_games(force=force)
+    name_lower = name.lower()
+    for game in games:
+        if game.get("id", "").lower() == name_lower:
+            return game
+        if game.get("name", "").lower() == name_lower:
+            return game
+    return None
+
+
+def search_games(query: str) -> list[dict]:
+    """
+    Search games by name, ID, description, emulator, platform or tags (case-insensitive).
+
+    Args:
+        query: Search string.
+
+    Returns:
+        List of matching game dicts.
+    """
+    games = get_games()
+    q = query.lower()
+    results = []
+    for game in games:
+        haystack = " ".join([
+            game.get("id", ""),
+            game.get("name", ""),
+            game.get("description", ""),
+            game.get("author", ""),
+            game.get("emulator", ""),
+            game.get("platform", ""),
+            " ".join(game.get("tags", [])),
+        ]).lower()
+        if q in haystack:
+            results.append(game)
+    return results
+
+
 def invalidate_cache() -> None:
     """Delete the local registry cache, forcing a fresh fetch on next call."""
     if CACHE_FILE.exists():
         CACHE_FILE.unlink()
+    if CACHE_FILE_GAMES.exists():
+        CACHE_FILE_GAMES.unlink()

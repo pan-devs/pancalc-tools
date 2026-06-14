@@ -1,6 +1,6 @@
 PAN DEVS NON-COMMERCIAL ATTRIBUTION LICENSE
 Version 1.0
-Copyright © 2026 Adrián Lavado Munuera (Pan Devs)
+Copyright © 2026 Pan Devs
 ================================================================================
 PREAMBLE
 This license governs the use, modification, distribution, and exploitation of
@@ -16,7 +16,7 @@ files, data structures, command-line interfaces, and all associated materials
 created by the Author and made available under this License, whether in source
 code form, object code form, executable form, or any other form.
 
-1.2 "Author" means Adrián Lavado Munuera, operating under the name Pan Devs,
+1.2 "Author" means Pan Devs (and its administrator),
 the original creator, copyright holder, and intellectual property owner of the
 Software.
 
@@ -118,16 +118,15 @@ to the Author in all of the following circumstances:
         Software or Derivative Works.
 
 3.2 Attribution must include all of the following elements:
-    (a) The name "Adrián Lavado Munuera" or the designation "Pan Devs" clearly
+    (a) The name "Pan Devs" clearly
         identifying the Author;
-    (b) An explicit statement identifying Adrián Lavado Munuera as the original
+    (b) An explicit statement identifying Pan Devs as the original
         creator and copyright holder of the Software;
     (c) A functional hyperlink or other reference to the original project
         repository at https://github.com/pan-devs/pancalc-tools, or such other
         location as the Author may designate;
     (d) A notice in substantially the following form:
-        "This work is based on PanCalc Tools, originally created by Adrián
-        Lavado Munuera (Pan Devs). Original software available at
+        "This work is based on PanCalc Tools, originally created by Pan Devs. Original software available at
         https://github.com/pan-devs/pancalc-tools. Used under the Pan Devs
         Non-Commercial Attribution License."
 
@@ -275,6 +274,6 @@ address as the Author may designate.
 END OF LICENSE
 For questions regarding this License or to request a Commercial License:
 
-Pan Devs (Adrián Lavado Munuera)
+Pan Devs
 Email:      pan.devs@proton.me
 Repository: https://github.com/pan-devs/pancalc-tools

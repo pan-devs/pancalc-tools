@@ -132,8 +132,8 @@ def _gpg():
         _GPG_CHECKED = True
         _ensure_gpg()
 
-    gpgbinary = None
-    if platform.system() == "Windows":
+    gpgbinary = shutil.which("gpg")
+    if gpgbinary is None and platform.system() == "Windows":
         common_paths = [
             "C:\\Program Files\\GnuPG\\bin\\gpg.exe",
             "C:\\Program Files (x86)\\GnuPG\\bin\\gpg.exe",
@@ -144,8 +144,12 @@ def _gpg():
                 gpgbinary = path
                 break
 
+    kwargs = {"gnupghome": str(GNUPG_DIR)}
+    if gpgbinary is not None:
+        kwargs["gpgbinary"] = gpgbinary
+
     try:
-        return gnupg.GPG(gnupghome=str(GNUPG_DIR), gpgbinary=gpgbinary)
+        return gnupg.GPG(**kwargs)
     except OSError:
         return None
 

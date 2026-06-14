@@ -91,26 +91,51 @@ class InstallRow(ToggleRow):
     def _label(self) -> str:
         name = self._addin.get("name", self._addin.get("id", "?"))
         aid = self._addin.get("id", "?")
+        is_local = self._addin.get("source") == "local"
+        marker = " [yellow]L[/]" if is_local else ""
         if self._disabled:
-            return f"[dim]{name}  {aid}  (installed)[/]"
-        return f"[bold]{name}[/]  [dim]{aid}[/]"
+            return f"[dim]{name}  {aid}{marker}  (installed)[/]"
+        return f"[bold]{name}[/]  [dim]{aid}{marker}[/]"
+
+
+class GameRow(ToggleRow):
+    def __init__(self, index: int, game: dict, checked: bool = False,
+                 disabled: bool = False) -> None:
+        self._game = game
+        super().__init__(index, "", checked, disabled)
+
+    @property
+    def _label(self) -> str:
+        name = self._game.get("name", self._game.get("id", "?"))
+        aid = self._game.get("id", "?")
+        platform = self._game.get("platform", "unknown")
+        emulator = self._game.get("emulator", "unknown")
+        info = f"[{platform}] via {emulator}"
+        is_local = self._game.get("source") == "local"
+        marker = " [yellow]L[/]" if is_local else ""
+        if self._disabled:
+            return f"[dim]{name}  {aid}{marker}  ({info})  (installed)[/]"
+        return f"[bold]{name}[/]  [dim]{aid}{marker}  [italic]{info}[/]"
 
 
 class RemoveRow(ToggleRow):
     def __init__(self, index: int, display_name: str, filename: str,
                  checked: bool = False, disabled: bool = False,
-                 kind: str = "addin", path: Path | None = None) -> None:
+                 kind: str = "addin", path: Path | None = None,
+                 icon: str = "📦") -> None:
         self._display_name = display_name
         self._filename = filename
-        self._kind = kind  # "addin" or "file"
-        self._path = path  # full calc path (for "file" kind)
+        self._kind = kind  # "addin", "file", or "orphan"
+        self._path = path  # full calc path (for "file" and "orphan" kind)
+        self._icon = icon
         super().__init__(index, "", checked, disabled)
 
     @property
     def _label(self) -> str:
-        tag = {"addin": "bold cyan", "file": "bold magenta"}
+        tag = {"addin": "bold cyan", "file": "bold magenta", "orphan": "bold yellow"}
         style = tag.get(self._kind, "dim")
-        return f"[{style}]{'📦' if self._kind == 'addin' else '📄'}[/] [bold]{self._display_name}[/]  [dim]{self._filename}[/]"
+        badge = " [O]" if self._kind == "orphan" else ""
+        return f"[{style}]{self._icon}[/] [bold]{self._display_name}[/]{badge}  [dim]{self._filename}[/]"
 
 
 class VerifyRow(ToggleRow):
@@ -159,6 +184,7 @@ class MainScreen(Screen):
                 Button("🏠  Home",             id="home",      variant="primary"),
                 Button("📂  Catch",            id="catch"),
                 Button("📥  Install",          id="install"),
+                Button("🎮  Games",            id="games"),
                 Button("🗑️  Remove",           id="remove"),
                 Button("🔄  Convert",          id="convert"),
                 Button("📤  Push",             id="convpush"),
@@ -302,6 +328,7 @@ class MainScreen(Screen):
 
     def _show_home(self) -> None:
         self._update_calc_status()
+        from pcalc import __version__
         from pcalc.calculator import find_calculator
         from pcalc.banner import PANDEVS_ASCII
 
@@ -329,20 +356,21 @@ class MainScreen(Screen):
 
         out.write("")
         out.write("[bold underline]About[/]")
-        out.write("  PanCalc Tools — package manager & converter for Casio Prizm calculators.")
+        out.write(f"  [bold]PanCalc Tools v{__version__}[/] — package manager & converter for Casio Prizm calculators.")
         out.write("  Part of the [bold]Pan Devs[/bold] project: open-source software for graphing")
         out.write("  calculators.  [dim]https://github.com/pan-devs[/]")
         out.write("")
         out.write("[bold underline]Commands[/]")
-        out.write("  [bold]Catch[/]      — browse calculator filesystem")
-        out.write("  [bold]Install[/]   — install add-ins from the registry")
-        out.write("  [bold]Remove[/]    — uninstall add-ins or delete pthings files")
-        out.write("  [bold]Convert[/]   — convert images/docs to G3P/TXT")
-        out.write("  [bold]Push[/]      — copy converted files to calculator (pthings/)")
-        out.write("  [bold]Verify[/]    — check SHA256 of installed add-ins")
-        out.write("  [bold]Registry[/]  — browse available add-ins")
-        out.write("  [bold]PGP Keys[/]  — manage cryptographic keys")
-        out.write("  [bold]Eject[/]     — safely unmount calculator")
+        out.write("  [bold]Catch[/]       — browse calculator filesystem")
+        out.write("  [bold]Install[/]     — install add-ins from registry + import local")
+        out.write("  [bold]Games[/]       — install emulator games + import local ROMs")
+        out.write("  [bold]Remove[/]      — uninstall add-ins/games, delete pthings/orphans")
+        out.write("  [bold]Convert[/]     — convert images/docs to G3P/TXT")
+        out.write("  [bold]Push[/]        — copy converted files to calculator (pthings/)")
+        out.write("  [bold]Verify[/]      — check SHA256 of installed add-ins")
+        out.write("  [bold]Registry[/]    — browse add-ins + games (unified)")
+        out.write("  [bold]PGP Keys[/]    — manage cryptographic keys")
+        out.write("  [bold]Eject[/]       — safely unmount calculator")
         out.write("")
         out.write("[dim]Ctrl+S  — command palette · Esc — home · ↑↓ — navigate · Space — toggle[/]")
 
@@ -440,14 +468,18 @@ class MainScreen(Screen):
         self._install_list = list_container
 
         self._output = None
-        btn = Button("📥  Install Checked", variant="primary")
-        btn.styles.margin = (1, 1, 0, 1)
-        self._install_do_btn = btn
+        add_btn = Button("📁  Add Add-in File")
+        self._addin_add_btn = add_btn
+        remove_local_btn = Button("🗑️  Remove Local", variant="error")
+        self._addin_remove_local_btn = remove_local_btn
+        install_btn = Button("📥  Install Checked", variant="primary")
+        self._install_do_btn = install_btn
+        top_row = Horizontal(add_btn, remove_local_btn, install_btn, classes="button-row-inline")
         out = RichLog(highlight=True, markup=True)
         self._output = out
         if not calc:
             out.write("  [red]No calculator detected — install will fail until connected[/]")
-        self._set_content(list_container, btn, out)
+        self._set_content(list_container, top_row, out)
 
     def _install_impl(self) -> None:
         selected = [r for r in self._install_rows if r._checked and not r._disabled]
@@ -456,7 +488,7 @@ class MainScreen(Screen):
             return
 
         from pcalc.calculator import require_calculator
-        from pcalc.installer import install
+        from pcalc.installer import install, _get_addin_files, _resolve_file_name
 
         try:
             calc = require_calculator()
@@ -467,35 +499,204 @@ class MainScreen(Screen):
         for row in selected:
             addin = row._addin
             name = addin.get("name", addin.get("id", "?"))
+
+            # Check for missing required fields
+            if not addin.get("id"):
+                self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]missing 'id' in registry data[/]"))
+                continue
+
+            # Determine which files already exist and skip them
+            skip_files: set[str] = set()
+            try:
+                for f_info in _get_addin_files(addin):
+                    filename = f_info.get("filename", addin.get("filename", _resolve_file_name(f_info, addin["id"])))
+                    dest = calc.mount_path / filename
+                    if dest.exists():
+                        self.post_message(LogMessage(f"  ⏭️  [dim]{filename} already on device, skipping[/]"))
+                        skip_files.add(filename)
+            except (KeyError, RuntimeError):
+                pass
+
             self.post_message(LogMessage(f"  Installing [bold]{name}[/]..."))
             try:
-                install(addin, calc)
+                install(addin, calc, skip_files=skip_files)
                 self.post_message(LogMessage(f"  ✅ [bold]{name}[/] installed"))
             except RuntimeError as e:
                 self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]{e}[/]"))
 
         self.post_message(OperationDone())
 
+    # ── Games ──────────────────────────────────────────────────────
+
+    def _show_games(self) -> None:
+        self._update_calc_status()
+        from pcalc import registry
+        from pcalc.calculator import find_calculator
+        from pcalc.installer import scan_device
+
+        self._view = "games"
+
+        try:
+            games = registry.get_games()
+        except RuntimeError:
+            games = []
+
+        # Determine which games are already on device
+        on_device_ids: set[str] = set()
+        calc = find_calculator()
+        if calc:
+            try:
+                for df in scan_device(calc, games):
+                    if df.addin:
+                        on_device_ids.add(df.addin.get("id", ""))
+            except RuntimeError:
+                pass
+
+        rows: list[GameRow] = []
+        for i, g in enumerate(games):
+            already = g.get("id", "") in on_device_ids
+            rows.append(GameRow(i, g, disabled=already))
+
+        self._game_rows = rows
+        list_container = ScrollableContainer(*rows, classes="select-list")
+        self._install_list = list_container
+
+        self._output = None
+        add_btn = Button("📁  Add Game File")
+        self._game_add_btn = add_btn
+        remove_local_btn = Button("🗑️  Remove Local", variant="error")
+        self._game_remove_local_btn = remove_local_btn
+        install_btn = Button("📥  Install Checked Games", variant="primary")
+        self._games_do_btn = install_btn
+        top_row = Horizontal(add_btn, remove_local_btn, install_btn, classes="button-row-inline")
+        out = RichLog(highlight=True, markup=True)
+        self._output = out
+        if not calc:
+            out.write("  [red]No calculator detected — install will fail until connected[/]")
+        self._set_content(list_container, top_row, out)
+
+    def _games_impl(self) -> None:
+        selected = [r for r in self._game_rows if r._checked and not r._disabled]
+        if not selected:
+            self.post_message(LogMessage("  [dim]No games selected for install.[/]"))
+            return
+
+        from pcalc.calculator import require_calculator
+        from pcalc.installer import install, _get_addin_files, _resolve_file_name
+
+        try:
+            calc = require_calculator()
+        except RuntimeError as e:
+            self.post_message(LogMessage(f"  [red]{e}[/]"))
+            return
+
+        for row in selected:
+            game = row._game
+            name = game.get("name", game.get("id", "?"))
+
+            # Check for missing required fields
+            if not game.get("id"):
+                self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]missing 'id' in registry data[/]"))
+                continue
+            if not game.get("download_url") and not game.get("local_path"):
+                self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]missing 'download_url' or 'local_path' in registry data[/]"))
+                continue
+
+            # Determine which files already exist and skip them
+            skip_files: set[str] = set()
+            try:
+                for f_info in _get_addin_files(game):
+                    filename = f_info.get("filename", game.get("filename", _resolve_file_name(f_info, game["id"])))
+                    dest = calc.mount_path / filename
+                    if dest.exists():
+                        self.post_message(LogMessage(f"  ⏭️  [dim]{filename} already on device, skipping[/]"))
+                        skip_files.add(filename)
+            except (KeyError, RuntimeError):
+                pass
+
+            self.post_message(LogMessage(f"  Installing [bold]{name}[/]..."))
+            try:
+                install(game, calc, skip_files=skip_files)
+                self.post_message(LogMessage(f"  ✅ [bold]{name}[/] installed"))
+            except RuntimeError as e:
+                self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]{e}[/]"))
+
+        self.post_message(OperationDone())
+
+    def _remove_local_impl(self, rows: list) -> None:
+        """Remove selected local items from the library."""
+        from pcalc import library as _lib
+        removed = 0
+        for row in rows:
+            item = getattr(row, '_addin', None) or getattr(row, '_game', None)
+            if not item or item.get("source") != "local":
+                continue
+            if _lib.remove(item.get("id", "")):
+                self.post_message(LogMessage(f"  🗑️  [bold]{item.get('name', '?')}[/] removed from local library"))
+                removed += 1
+        if removed:
+            self._refresh_install_view()
+        else:
+            self.post_message(LogMessage("  [dim]No local items selected for removal.[/]"))
+
     # ── Remove ─────────────────────────────────────────────────────
 
     def _show_remove(self) -> None:
         self._update_calc_status()
         from pcalc.calculator import find_calculator
-        from pcalc.installer import walk_calc
+        from pcalc.installer import walk_calc, _match_addin_by_filename
         from pcalc import registry
 
         self._view = "remove"
 
+        ADDIN_EXTS = {".g3a", ".g3e"}
+        GAME_EXTS = {".rom", ".bin", ".gba", ".nes", ".sms", ".gg"}
+        ALL_EXTS = ADDIN_EXTS | GAME_EXTS
+
         rows: list[RemoveRow] = []
         calc = find_calculator()
         if calc:
+            # Get all registry entries (addins + games)
+            all_registry = []
             try:
-                addin_entries = [e for e in walk_calc(calc, registry.get_registry()) if e.addin]
-                for i, e in enumerate(addin_entries):
-                    name = e.addin.get("name", e.addin.get("id", "?"))
-                    rows.append(RemoveRow(i, name, e.name, kind="addin"))
+                all_registry.extend(registry.get_registry())
             except RuntimeError:
                 pass
+            try:
+                all_registry.extend(registry.get_games())
+            except RuntimeError:
+                pass
+
+            # Matched entries from walk_calc
+            matched_paths: set[str] = set()
+            try:
+                addin_entries = [e for e in walk_calc(calc, all_registry) if e.addin]
+                for i, e in enumerate(addin_entries):
+                    name = e.addin.get("name", e.addin.get("id", "?"))
+                    # Icon: 🎮 for games (has emulator), 📦 for addins
+                    icon = "🎮" if e.addin.get("emulator") else "📦"
+                    rows.append(RemoveRow(i, name, e.name, kind="addin", icon=icon))
+                    matched_paths.add(e.name)
+            except RuntimeError:
+                pass
+
+            # Recursive scan for orphan files (not in registry)
+            for f in calc.mount_path.rglob("*"):
+                if not f.is_file():
+                    continue
+                if f.suffix.lower() not in ALL_EXTS:
+                    continue
+                rel = str(f.relative_to(calc.mount_path))
+                if rel in matched_paths:
+                    continue
+                match = _match_addin_by_filename(f.name, all_registry)
+                if match:
+                    # Should have been caught by walk_calc, but just in case
+                    continue
+                # Orphan: not in registry — icon based on extension
+                icon = "📦" if f.suffix.lower() in ADDIN_EXTS else "🎮"
+                rows.append(RemoveRow(len(rows), f.stem, rel, kind="orphan", path=f, icon=icon))
+
             # Also scan pthings subdirectories for user files
             for sub in ("fotos", "textos"):
                 d = calc.mount_path / "pthings" / sub
@@ -533,7 +734,7 @@ class MainScreen(Screen):
 
         from pcalc.calculator import require_calculator
         from pcalc import registry
-        from pcalc.installer import remove, walk_calc
+        from pcalc.installer import remove, walk_calc, _clean_save_files
 
         try:
             calc = require_calculator()
@@ -545,7 +746,8 @@ class MainScreen(Screen):
             if row._kind == "addin":
                 name = row._display_name
                 try:
-                    entries = [e for e in walk_calc(calc, registry.get_registry()) if e.addin]
+                    all_registry = registry.get_registry() + registry.get_games()
+                    entries = [e for e in walk_calc(calc, all_registry) if e.addin]
                 except RuntimeError:
                     entries = []
                 match = next((e for e in entries if e.addin.get("name", e.addin.get("id", "")) == name), None)
@@ -558,6 +760,17 @@ class MainScreen(Screen):
                     self.post_message(LogMessage(f"  ✅ [bold]{name}[/] removed"))
                 except RuntimeError as e:
                     self.post_message(LogMessage(f"  ❌ [bold]{name}[/]: [red]{e}[/]"))
+            elif row._kind == "orphan":
+                path = row._path
+                if path and path.exists():
+                    try:
+                        path.unlink()
+                        _clean_save_files(path)
+                        self.post_message(LogMessage(f"  🗑️  [bold]{row._display_name}[/] (orphan) removed from {row._filename}"))
+                    except OSError as e:
+                        self.post_message(LogMessage(f"  ❌ [bold]{row._display_name}[/]: [red]{e}[/]"))
+                else:
+                    self.post_message(LogMessage(f"  ⏭️  [dim]{row._display_name} — already gone[/]"))
             else:
                 path = row._path
                 if path and path.exists():
@@ -593,12 +806,65 @@ class MainScreen(Screen):
             rows.append(ConvertRow(len(rows), f))
         return rows
 
-    def _pick_files(self) -> int:
+    def _copy_files_to_convert(self, paths: list[str]) -> None:
+        base = self._convert_base()
+        img_dir = base / "convert/images"
+        doc_dir = base / "convert/documents"
+        img_dir.mkdir(parents=True, exist_ok=True)
+        doc_dir.mkdir(parents=True, exist_ok=True)
+        img_exts = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif", ".webp"}
+        doc_exts = {".pdf", ".docx", ".doc", ".txt"}
+        all_valid = img_exts | doc_exts
+        import shutil
+        copied = 0
+        for p in paths:
+            src = Path(p)
+            if not src.is_file():
+                continue
+            ext = src.suffix.lower()
+            if ext in img_exts:
+                shutil.copy2(str(src), str(img_dir / src.name))
+                copied += 1
+            elif ext in doc_exts:
+                shutil.copy2(str(src), str(doc_dir / src.name))
+                copied += 1
+        if copied:
+            self.post_message(LogMessage(f"  [dim]{copied} file(s) added to convert/[/]"))
+
+    def _pick_files(self) -> None:
+        paths = self._open_file_dialog("Select files to convert")
+        if not paths:
+            return
+
+        img_exts = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif", ".webp"}
+        doc_exts = {".pdf", ".docx", ".doc", ".txt"}
+        all_valid = img_exts | doc_exts
+
+        valid, invalid = [], []
+        for p in paths:
+            (valid if Path(p).suffix.lower() in all_valid else invalid).append(p)
+
+        if invalid:
+            names = ", ".join(Path(p).name for p in invalid[:3])
+            if len(invalid) > 3:
+                names += f" ... (+{len(invalid)-3} more)"
+            self.post_message(LogMessage(
+                f"  [yellow]⚠[/] {len(invalid)} file(s) with unsupported format: {names}"
+            ))
+            def _on_confirm(ok: bool):
+                self._copy_files_to_convert(valid + (invalid if ok else []))
+                self._refresh_convert_view()
+            self._confirm("Add files with unsupported formats anyway?", _on_confirm)
+        else:
+            self._copy_files_to_convert(valid)
+            self._refresh_convert_view()
+
+    def _open_file_dialog(self, title: str) -> list[str]:
         paths: list[str] = []
         try:
             import subprocess
             r = subprocess.run(
-                ["zenity", "--file-selection", "--multiple", "--title=Select files to convert"],
+                ["zenity", "--file-selection", "--multiple", f"--title={title}"],
                 capture_output=True, timeout=30
             )
             if r.returncode == 0:
@@ -612,35 +878,55 @@ class MainScreen(Screen):
                 root = tk.Tk()
                 root.withdraw()
                 root.lift()
-                paths = list(filedialog.askopenfilenames(title="Select files to convert"))
+                paths = list(filedialog.askopenfilenames(title=title))
                 root.destroy()
             except Exception:
                 self.post_message(LogMessage("  [red]No file dialog available (install zenity or tkinter)[/]"))
-                return 0
-        if not paths:
-            return 0
+        return [p.strip() for p in paths if p.strip()]
 
-        base = self._convert_base()
-        img_dir = base / "convert/images"
-        doc_dir = base / "convert/documents"
-        img_dir.mkdir(parents=True, exist_ok=True)
-        doc_dir.mkdir(parents=True, exist_ok=True)
-        img_exts = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif", ".webp"}
-        doc_exts = {".pdf", ".docx", ".doc", ".txt"}
-        import shutil
-        count = 0
+    def _import_files(self, paths: list[str], item_type: str) -> None:
+        from pcalc import library as _lib
+        label = "Add-in" if item_type == "addin" else "Game"
+        imported = 0
         for p in paths:
-            src = Path(p.strip())
+            src = Path(p)
             if not src.is_file():
                 continue
-            ext = src.suffix.lower()
-            if ext in img_exts:
-                shutil.copy2(str(src), str(img_dir / src.name))
-                count += 1
-            elif ext in doc_exts:
-                shutil.copy2(str(src), str(doc_dir / src.name))
-                count += 1
-        return count
+            try:
+                entry = _lib.import_file(str(src), item_type=item_type)
+                self.post_message(LogMessage(f"  ✅ [bold]{entry['name']}[/] ({label}) imported"))
+                imported += 1
+            except (ValueError, FileNotFoundError) as e:
+                self.post_message(LogMessage(f"  [red]{e}[/]"))
+        if imported:
+            self.post_message(LogMessage(f"  [dim]{imported} file(s) imported[/]"))
+
+    def _pick_file_for_import(self, item_type: str) -> None:
+        title = "Select add-in file" if item_type == "addin" else "Select game/ROM file"
+        paths = self._open_file_dialog(title)
+        if not paths:
+            return
+
+        from pcalc import library as _lib
+        expected = _lib.expected_extensions(item_type)
+        valid, invalid = [], []
+        for p in paths:
+            (valid if _lib.has_valid_extension(p, item_type) else invalid).append(p)
+
+        if invalid:
+            names = ", ".join(Path(p).name for p in invalid[:3])
+            if len(invalid) > 3:
+                names += f" ... (+{len(invalid)-3} more)"
+            self.post_message(LogMessage(
+                f"  [yellow]⚠[/] {len(invalid)} file(s) with unexpected format: {names}"
+            ))
+            def _confirm_cb(ok: bool):
+                self._import_files(valid + (invalid if ok else []), item_type)
+                self._refresh_install_view()
+            self._confirm("Import files with unexpected formats anyway?", _confirm_cb)
+        else:
+            self._import_files(valid, item_type)
+            self._refresh_install_view()
 
     def _ensure_convert_dirs(self) -> None:
         base = self._convert_base()
@@ -665,6 +951,12 @@ class MainScreen(Screen):
             self._show_convert()
         elif self._view == "convpush":
             self._show_convpush()
+
+    def _refresh_install_view(self) -> None:
+        if self._view == "install":
+            self._show_install()
+        elif self._view == "games":
+            self._show_games()
 
     def on_file_dropped(self, event) -> None:
         pass
@@ -979,16 +1271,35 @@ class MainScreen(Screen):
             addins = registry.get_registry()
         except RuntimeError:
             addins = []
-        self._registry_addins = addins
+        try:
+            games = registry.get_games()
+        except RuntimeError:
+            games = []
+
+        combined = []
+        for a in addins:
+            a["_type"] = "addin"
+            combined.append(a)
+        for g in games:
+            g["_type"] = "emulator"
+            combined.append(g)
+
+        self._registry_addins = combined
 
         items = []
-        for a in addins:
+        for a in combined:
             aid = a.get("id", "?")
             name = a.get("name", aid)
             author = a.get("author", "")
             ver = a.get("version", "")
+            typ = a.get("_type", "?")
+            type_label = f"[{typ}]"
+            if typ == "emulator":
+                emu = a.get("emulator", "?")
+                plat = a.get("platform", "?")
+                type_label = f"[emulator:{emu}/{plat}]"
             items.append(ListItem(Label(
-                f"[bold]{name}[/]  [dim]{aid}[/]  [italic]{author}[/]  [{theme.S_ACCENT}]{ver}[/]"
+                f"{type_label} [bold]{name}[/]  [dim]{aid}[/]  [italic]{author}[/]  [{theme.S_ACCENT}]{ver}[/]"
             )))
         if not items:
             items.append(ListItem(Label("[dim]Failed to load registry[/]")))
@@ -998,7 +1309,7 @@ class MainScreen(Screen):
         lv.styles.height = "1fr"
         out = RichLog(highlight=True, markup=True)
         self._output = out
-        out.write("  [dim]Click an add-in for details[/]")
+        out.write("  [dim]Click an entry for details[/]")
         self._set_content(lv, out)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
@@ -1008,14 +1319,19 @@ class MainScreen(Screen):
         if idx is None or idx >= len(addins):
             return
         a = addins[idx]
+        typ = a.get("_type", "?")
         lines = [
             f"  [bold]{a.get('name', '?')}[/]  [dim]{a.get('id', '?')}[/]",
-            f"  Author: {a.get('author', '?')}   Version: {a.get('version', '?')}",
+            f"  Type: {typ}   Author: {a.get('author', '?')}   Version: {a.get('version', '?')}",
             f"  Category: {a.get('category', '?')}",
             f"  Compatible: {', '.join(a.get('compatible', []))}",
             f"  Description: {a.get('description', '?')}",
             f"  URL: {a.get('url', '?')}",
         ]
+        if typ == "emulator":
+            emu = a.get("emulator", "?")
+            plat = a.get("platform", "?")
+            lines.append(f"  Emulator: {emu}   Platform: {plat}")
         if "size_kb" in a:
             lines.append(f"  Size: {a['size_kb']:.1f} KiB")
         if "license" in a:
@@ -1071,6 +1387,7 @@ class MainScreen(Screen):
         if bid == "home":        self._show_home();       return
         if bid == "catch":       self._show_catch();      return
         if bid == "install":     self._show_install();    return
+        if bid == "games":       self._show_games();      return
         if bid == "remove":      self._show_remove();     return
         if bid == "convert":     self._show_convert();    return
         if bid == "convpush":    self._show_convpush();   return
@@ -1098,10 +1415,7 @@ class MainScreen(Screen):
             return
         # Convert/ConvPush: select files
         if btn is getattr(self, '_conv_select_btn', None):
-            count = self._pick_files()
-            if count:
-                self.post_message(LogMessage(f"  [dim]{count} file(s) added[/]"))
-            self._refresh_convert_view()
+            self._pick_files()
             return
         if btn is getattr(self, '_conv_refresh_btn', None):
             self._refresh_convert_view()
@@ -1132,11 +1446,35 @@ class MainScreen(Screen):
                 self.run_worker(self._convpush_impl, thread=True, exclusive=True)
             return
 
-        # Install/Remove action buttons — route by identity
+        # Install/Games: add file import buttons
+        if btn is getattr(self, '_addin_add_btn', None):
+            self._pick_file_for_import("addin")
+            return
+        if btn is getattr(self, '_game_add_btn', None):
+            self._pick_file_for_import("game")
+            return
+        # Remove local items
+        if btn is getattr(self, '_addin_remove_local_btn', None):
+            rows = getattr(self, '_install_rows', [])
+            selected = [r for r in rows if r._checked and getattr(r, '_addin', {}).get("source") == "local"]
+            self._remove_local_impl(selected)
+            return
+        if btn is getattr(self, '_game_remove_local_btn', None):
+            rows = getattr(self, '_game_rows', [])
+            selected = [r for r in rows if r._checked and getattr(r, '_game', {}).get("source") == "local"]
+            self._remove_local_impl(selected)
+            return
+
+        # Install/Remove/Games action buttons — route by identity
         if btn is getattr(self, '_install_do_btn', None):
             if not self._worker_running and hasattr(self, '_install_rows'):
                 self._worker_running = True
                 self.run_worker(self._install_impl, thread=True, exclusive=True)
+            return
+        if btn is getattr(self, '_games_do_btn', None):
+            if not self._worker_running and hasattr(self, '_game_rows'):
+                self._worker_running = True
+                self.run_worker(self._games_impl, thread=True, exclusive=True)
             return
         if btn is getattr(self, '_remove_do_btn', None):
             if not self._worker_running and hasattr(self, '_install_rows'):
