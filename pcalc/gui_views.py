@@ -210,10 +210,10 @@ class ViewBuilder:
                 all_ids = []
                 all_lib_types = []
                 for sid in g._selected_registry_ids:
-                    lib = plibrary.get("addin", sid) or plibrary.get("game", sid)
+                    lib = plibrary.get(sid)
                     if lib:
                         all_ids.append(sid)
-                        all_lib_types.append(lib.get("_type", "addin"))
+                        all_lib_types.append(lib.get("type", "addin"))
                 if all_ids:
                     drag_data["all_ids"] = all_ids
                     drag_data["all_lib_types"] = all_lib_types
@@ -631,10 +631,10 @@ class ViewBuilder:
                     all_ids = []
                     all_lib_types = []
                     for sid in g._selected_registry_ids:
-                        lib = plibrary.get("addin", sid) or plibrary.get("game", sid)
+                        lib = plibrary.get(sid)
                         if lib:
                             all_ids.append(sid)
-                            all_lib_types.append(lib.get("_type", "addin"))
+                            all_lib_types.append(lib.get("type", "addin"))
                     if all_ids:
                         drag_data["all_ids"] = all_ids
                         drag_data["all_lib_types"] = all_lib_types

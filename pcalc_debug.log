@@ -7,3 +7,20 @@
 [DEBUG] _dlg_close called with result=True
 [DEBUG] Loop finished, returning result=True
 [DEBUG] confirm result ok=True
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'installable': True, 'item_id': 'test'}, item_type=unknown
+[DEBUG] all_paths to delete=[]
+[DEBUG] No paths to delete and not local library, aborting
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'installable': True, 'item_id': 'test'}, item_type=unknown
+[DEBUG] all_paths to delete=[]
+[DEBUG] No paths to delete and not local library, aborting
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'item_id': 'legend-of-zelda-the-usa-rev-1', 'lib_type': 'game', 'item_type': 'local_library', 'installable': True, 'all_ids': ['legend-of-zelda-the-usa-rev-1'], 'all_lib_types': ['game']}, item_type=local_library
+[DEBUG] all_paths to delete=[]
+[DEBUG] confirm_remove is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Delete Local', message='Delete 1 item(s) from local library?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
