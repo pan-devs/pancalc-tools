@@ -24,3 +24,49 @@
 [DEBUG] _dlg_close called with result=True
 [DEBUG] Loop finished, returning result=True
 [DEBUG] confirm result ok=True
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'installable': True, 'item_id': 'test', 'all_ids': ['legend-of-zelda-the-usa-rev-1'], 'all_lib_types': ['game'], 'item_type': 'local_library'}, item_type=local_library
+[DEBUG] all_paths=[], all_ids=['legend-of-zelda-the-usa-rev-1']
+[DEBUG] confirm_remove is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Delete Local', message='Delete 1 item(s) from local library?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
+[DEBUG] _install_selected called with item_ids=['utilities']
+[DEBUG] ids_to_install=['utilities']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 1 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
+[DEBUG] Entering _confirm with title='Reset', message='Reset all settings to defaults?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'installable': True, 'item_id': 'probsim'}, item_type=unknown
+[DEBUG] all_paths=[], all_ids=None
+[DEBUG] No deletable items, aborting
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'installable': True, 'item_id': 'test'}, item_type=unknown
+[DEBUG] all_paths=[], all_ids=None
+[DEBUG] No deletable items, aborting
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'installable': True, 'item_id': 'utilities', 'all_ids': ['legend-of-zelda-the-usa-rev-1'], 'all_lib_types': ['game'], 'item_type': 'local_library'}, item_type=local_library
+[DEBUG] all_paths=[], all_ids=['legend-of-zelda-the-usa-rev-1']
+[DEBUG] confirm_remove is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Delete Local', message='Delete 1 item(s) from local library?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
+[DEBUG] _install_selected called with item_ids=['utilities']
+[DEBUG] ids_to_install=['utilities']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 1 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True

@@ -993,31 +993,20 @@ class PanCalcGUI:
         item_type = data.get("item_type", "unknown")
         debug_log(f"Trash drop data={data}, item_type={item_type}")
         
-        # Get all paths to delete — from all_paths (group/multi-select) or single path
+        # Extract ALL types of deletable items from drag data
         all_paths = data.get("all_paths", None)
         if not all_paths:
             single = data.get("path", None)
             all_paths = [single] if single else []
-        debug_log(f"all_paths to delete={all_paths}")
+        all_ids = data.get("all_ids", None)
         
-        if not all_paths and item_type != "local_library":
-            debug_log("No paths to delete and not local library, aborting")
+        debug_log(f"all_paths={all_paths}, all_ids={all_ids}")
+        
+        if not all_paths and not all_ids and item_type not in ("convert_input", "converted"):
+            debug_log("No deletable items, aborting")
             return
-        if pconfig.get("confirm_remove"):
-            debug_log("confirm_remove is enabled, showing confirmation...")
-            if item_type == "local_library":
-                all_ids = data.get("all_ids", None)
-                if all_ids:
-                    ok = await self._confirm("Delete Local", f"Delete {len(all_ids)} item(s) from local library?")
-                else:
-                    item_id = data.get("item_id", "")
-                    lib_type = data.get("lib_type", "addin")
-                    ok = await self._confirm("Delete Local", f"Delete '{item_id}' ({lib_type}) from local library?")
-            else:
-                ok = await self._confirm("Delete", f"Delete {len(all_paths)} file(s)/item(s)?")
-            debug_log(f"confirm result ok={ok}")
-            if not ok:
-                return
+        
+        # Handle convert_input/converted first (different cleanup logic)
         if item_type in ("convert_input", "converted"):
             deleted = 0
             for p in all_paths:
@@ -1033,39 +1022,25 @@ class PanCalcGUI:
                 self._show_snackbar("No files found to delete.", type="warning")
             self._selection_mode = False
             self._build_current_view()
+            return
         
-        elif item_type == "local_library":
-            all_ids = data.get("all_ids", None)
-            if all_ids:
-                all_lib_types = data.get("all_lib_types", [])
-                count = 0
-                for item_id, lib_type in zip(all_ids, all_lib_types):
-                    ok = plibrary.remove(item_id)
-                    if ok:
-                        count += 1
-                    self._multi_selected.discard(item_id)
-                    self._selected_registry_ids.discard(item_id)
-                if count:
-                    self._show_snackbar(f"Deleted {count} item(s) from local library", type="success")
-                await self._load_registry_data()
+        # Confirmation dialog
+        if pconfig.get("confirm_remove"):
+            debug_log("confirm_remove is enabled, showing confirmation...")
+            if all_ids and not all_paths:
+                ok = await self._confirm("Delete Local", f"Delete {len(all_ids)} item(s) from local library?")
+            elif all_paths and not all_ids:
+                ok = await self._confirm("Delete", f"Delete {len(all_paths)} file(s)?")
             else:
-                item_id = data.get("item_id", "")
-                item_type_str = data.get("lib_type", "addin")
-                self._multi_selected.discard(item_id)
-                self._selected_registry_ids.discard(item_id)
-                try:
-                    ok = plibrary.remove(item_id)
-                    if ok:
-                        self._show_snackbar(f"Deleted from local library", type="success")
-                    else:
-                        self._show_snackbar(f"Item not found", type="warning")
-                except Exception as e:
-                    self._show_notification(f"Failed to delete: {e}", type="error")
-                await self._load_registry_data()
-            self._selection_mode = False
-            self._build_current_view()
+                ok = await self._confirm("Delete", f"Delete {len(all_paths)} file(s) + {len(all_ids)} local item(s)?")
+            debug_log(f"confirm result ok={ok}")
+            if not ok:
+                return
         
-        elif item_type == "calculator_file":
+        need_registry_reload = False
+        
+        # Delete calculator files (matched addins, orphans, pthings)
+        if all_paths:
             from pcalc.installer import _clean_save_files
             for p in all_paths:
                 pp = Path(p)
@@ -1077,7 +1052,25 @@ class PanCalcGUI:
                 await run_sync(_clean_save_files, pp)
             self._multi_selected.difference_update(all_paths)
             self._selected_registry_ids.clear()
-            self._selection_mode = False
+        
+        # Delete local library items
+        if all_ids:
+            all_lib_types = data.get("all_lib_types", [])
+            count = 0
+            for item_id, lib_type in zip(all_ids, all_lib_types):
+                ok = plibrary.remove(item_id)
+                if ok:
+                    count += 1
+                self._multi_selected.discard(item_id)
+                self._selected_registry_ids.discard(item_id)
+            if count:
+                self._show_snackbar(f"Deleted {count} item(s) from local library", type="success")
+            need_registry_reload = True
+        
+        self._selection_mode = False
+        if need_registry_reload:
+            await self._load_registry_data()
+        if all_ids or all_paths:
             self._build_current_view()
     async def _refresh_installed_view(self):
         self._build_current_view()

@@ -206,19 +206,21 @@ class ViewBuilder:
                 "item_type": "local_library",
                 "installable": True,
             }
-            if g._selection_mode and aid in g._selected_registry_ids:
-                all_ids = []
-                all_lib_types = []
-                for sid in g._selected_registry_ids:
-                    lib = plibrary.get(sid)
-                    if lib:
-                        all_ids.append(sid)
-                        all_lib_types.append(lib.get("type", "addin"))
-                if all_ids:
-                    drag_data["all_ids"] = all_ids
-                    drag_data["all_lib_types"] = all_lib_types
         else:
             drag_data = {"installable": True, "item_id": aid}
+
+        if g._selection_mode and aid in g._selected_registry_ids:
+            all_ids = []
+            all_lib_types = []
+            for sid in g._selected_registry_ids:
+                lib = plibrary.get(sid)
+                if lib:
+                    all_ids.append(sid)
+                    all_lib_types.append(lib.get("type", "addin"))
+            if all_ids:
+                drag_data["all_ids"] = all_ids
+                drag_data["all_lib_types"] = all_lib_types
+                drag_data["item_type"] = "local_library"
         if g._selection_mode and aid in g._selected_registry_ids:
             count = len(g._selected_registry_ids)
             feedback = ft.Container(
@@ -337,6 +339,21 @@ class ViewBuilder:
                 aid = fe.addin.get("id", "")
                 if aid:
                     id_to_path[aid] = str(calc.mount_path / fe.name)
+        # Unified deletable items for selection mode — same list used by ALL card builders
+        all_deletable_paths: list[str] = []
+        all_deletable_ids: list[str] = []
+        all_deletable_types: list[str] = []
+        if g._selection_mode:
+            for sid in list(g._selected_registry_ids):
+                if sid in id_to_path:
+                    all_deletable_paths.append(id_to_path[sid])
+                elif Path(sid).exists():
+                    all_deletable_paths.append(sid)
+                else:
+                    lib = plibrary.get(sid)
+                    if lib:
+                        all_deletable_ids.append(sid)
+                        all_deletable_types.append(lib.get("type", "addin"))
         for f in iter_calc_files(entries):
             if not f.addin:
                 continue
@@ -399,8 +416,7 @@ class ViewBuilder:
                     padding=10, bgcolor=ft.Colors.ERROR_CONTAINER, border_radius=8,
                 )
             if g._selection_mode and aid in g._selected_registry_ids:
-                selected_paths = [id_to_path[sid] for sid in g._selected_registry_ids if sid in id_to_path]
-                drag_data = {"all_paths": selected_paths, "item_type": "calculator_file"}
+                drag_data = {"all_paths": all_deletable_paths, "all_ids": all_deletable_ids, "all_lib_types": all_deletable_types, "item_type": "calculator_file"}
             else:
                 drag_data = {"path": full_path, "item_type": "calculator_file"}
             rows.append(ft.Draggable(
@@ -463,10 +479,9 @@ class ViewBuilder:
                 ink=True,
             )
             if g._selection_mode and fpath_str in g._selected_registry_ids:
-                all_selected_paths = [x for x in g._selected_registry_ids if Path(x).exists()]
-                orphan_data = {"all_paths": all_selected_paths, "item_type": "calculator_file"}
+                orphan_data = {"all_paths": all_deletable_paths, "all_ids": all_deletable_ids, "all_lib_types": all_deletable_types, "item_type": "calculator_file"}
                 orphan_feedback = ft.Container(
-                    ft.Text(f"🗑️ {len(all_selected_paths)}", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_ERROR),
+                    ft.Text(f"🗑️ {len(all_deletable_paths)}", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_ERROR),
                     padding=10, bgcolor=ft.Colors.ERROR_CONTAINER, border_radius=8,
                 )
             else:
@@ -528,10 +543,9 @@ class ViewBuilder:
                             ink=True,
                         )
                         if g._selection_mode and pfpath in g._selected_registry_ids:
-                            all_sel = [x for x in g._selected_registry_ids if Path(x).exists()]
-                            pdata = {"all_paths": all_sel, "item_type": "calculator_file"}
+                            pdata = {"all_paths": all_deletable_paths, "all_ids": all_deletable_ids, "all_lib_types": all_deletable_types, "item_type": "calculator_file"}
                             pfb = ft.Container(
-                                ft.Text(f"🗑️ {len(all_sel)}", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_ERROR),
+                                ft.Text(f"🗑️ {len(all_deletable_paths)}", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_ERROR),
                                 padding=10, bgcolor=ft.Colors.ERROR_CONTAINER, border_radius=8,
                             )
                         else:
@@ -628,16 +642,11 @@ class ViewBuilder:
                     )
                 drag_data = {"item_id": d["id"], "lib_type": item_type, "item_type": "local_library", "installable": True}
                 if g._selection_mode and aid in g._selected_registry_ids:
-                    all_ids = []
-                    all_lib_types = []
-                    for sid in g._selected_registry_ids:
-                        lib = plibrary.get(sid)
-                        if lib:
-                            all_ids.append(sid)
-                            all_lib_types.append(lib.get("type", "addin"))
-                    if all_ids:
-                        drag_data["all_ids"] = all_ids
-                        drag_data["all_lib_types"] = all_lib_types
+                    if all_deletable_ids:
+                        drag_data["all_ids"] = all_deletable_ids
+                        drag_data["all_lib_types"] = all_deletable_types
+                    if all_deletable_paths:
+                        drag_data["all_paths"] = all_deletable_paths
                 rows.append(ft.Draggable(
                     group="all_items",
                     content=wrap,
