@@ -47,8 +47,61 @@ class ViewBuilder:
         }
         self._processing_section = None
         self._selected_push_paths: set[str] = set()
+        self._card_refs: dict[str, ft.Control] = {}
+    
+    def _on_selection_drag_start(self, e: ft.DragStartEvent):
+        g = self.gui
+        if not g._selection_mode:
+            return
+        data = e.control.data
+        dragged_id = data.get("item_id") or data.get("path") if isinstance(data, dict) else None
+        changed = False
+        for sid in list(g._selected_registry_ids):
+            if dragged_id is not None and sid == dragged_id:
+                continue
+            c = self._card_refs.get(sid)
+            if c is not None:
+                c.opacity = 0.3
+                changed = True
+        if changed:
+            g.page.update()
+    
+    def _on_selection_drag_complete(self, e: ft.DragEndEvent):
+        g = self.gui
+        for c in self._card_refs.values():
+            c.opacity = 1.0
+        g.page.update()
+        g._build_current_view()
+    
+    def _make_drag_feedback(self, count: int, name: str = "",
+                            breakdown: dict[str, int] | None = None,
+                            local_counts: dict[str, int] | None = None,
+                            card: ft.Control | None = None) -> ft.Container | None:
+        if count <= 1:
+            if card is not None:
+                return ft.Container(content=card, opacity=1.0, offset=ft.Offset(-0.5, -0.5))
+            return None
+        lines = [ft.Row([
+            ft.Icon(ft.Icons.DRAG_INDICATOR, size=16, color=ft.Colors.PRIMARY),
+            ft.Text(f"{count}", size=16, weight=ft.FontWeight.BOLD),
+        ], tight=True, spacing=4)]
+        if breakdown:
+            for label in sorted(breakdown):
+                cnt = breakdown[label]
+                loc = local_counts.get(label, 0) if local_counts else 0
+                txt = f"  {label}: {cnt}" + (f" ({loc} local)" if loc and loc < cnt else "")
+                lines.append(ft.Text(txt, size=11, color=ft.Colors.OUTLINE))
+        return ft.Container(
+            content=ft.Column(lines, spacing=1, tight=True),
+            padding=ft.Padding(left=12, right=12, top=8, bottom=8),
+            border=ft.Border.all(2, ft.Colors.PRIMARY),
+            border_radius=8,
+            bgcolor=ft.Colors.SURFACE_CONTAINER,
+            offset=ft.Offset(-0.5, -0.5),
+        )
     # ── 1. Registry View ───────────────────────────────────────────
     def _build_registry_view(self):
+        self._card_refs.clear()
         g = self.gui
         
         # Load local addins
@@ -198,6 +251,8 @@ class ViewBuilder:
             on_long_press=_on_long_press,
             ink=True,
         )
+        if aid:
+            self._card_refs[aid] = wrap
         is_local = source == "local"
         if is_local:
             drag_data = {
@@ -222,25 +277,29 @@ class ViewBuilder:
                 drag_data["all_lib_types"] = all_lib_types
                 drag_data["item_type"] = "local_library"
         if g._selection_mode and aid in g._selected_registry_ids:
-            count = len(g._selected_registry_ids)
-            feedback = ft.Container(
-                ft.Text(f"📥 {count}", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_PRIMARY),
-                padding=10, bgcolor=ft.Colors.PRIMARY, border_radius=8,
-            )
+            bd: dict[str, int] = {}
+            lc: dict[str, int] = {}
+            for sid in g._selected_registry_ids:
+                lib = plibrary.get(sid)
+                if lib:
+                    t = lib.get("type", "addin") + "s"
+                    bd[t] = bd.get(t, 0) + 1
+                    lc[t] = lc.get(t, 0) + 1
+            feedback = self._make_drag_feedback(len(g._selected_registry_ids), "", bd, lc)
         else:
-            feedback = ft.Container(
-                ft.Text(f"📥 {name}", size=12, weight=ft.FontWeight.BOLD),
-                padding=10, bgcolor=ft.Colors.SECONDARY_CONTAINER, border_radius=8,
-            )
+            feedback = self._make_drag_feedback(1, name, card=wrap)
         return ft.Draggable(
             group="all_items",
             content=wrap,
             content_when_dragging=ft.Container(opacity=0.3, content=wrap),
             content_feedback=feedback,
+            on_drag_start=self._on_selection_drag_start,
+            on_drag_complete=self._on_selection_drag_complete,
             data=drag_data,
         )
     # ── 2. Games View ──────────────────────────────────────────────
     def _build_games_view(self):
+        self._card_refs.clear()
         g = self.gui
         
         # Load local games
@@ -312,6 +371,7 @@ class ViewBuilder:
         )
     # ── 3. Installed View ──────────────────────────────────────────
     def _build_installed_view(self):
+        self._card_refs.clear()
         g = self.gui
         calc = find_calculator()
         if not calc:
@@ -354,6 +414,16 @@ class ViewBuilder:
                     if lib:
                         all_deletable_ids.append(sid)
                         all_deletable_types.append(lib.get("type", "addin"))
+        _del_count = len(all_deletable_paths) + len(all_deletable_ids)
+        _del_breakdown: dict[str, int] = {}
+        _del_local: dict[str, int] = {}
+        if _del_count:
+            if all_deletable_paths:
+                _del_breakdown["files"] = len(all_deletable_paths)
+            for tid, ttype in zip(all_deletable_ids, all_deletable_types):
+                label = ttype + "s"
+                _del_breakdown[label] = _del_breakdown.get(label, 0) + 1
+                _del_local[label] = _del_local.get(label, 0) + 1
         for f in iter_calc_files(entries):
             if not f.addin:
                 continue
@@ -404,17 +474,12 @@ class ViewBuilder:
                 on_long_press=_on_long_press,
                 ink=True,
             )
+            if aid:
+                self._card_refs[aid] = wrap
             if g._selection_mode and aid in g._selected_registry_ids:
-                count = len(g._selected_registry_ids)
-                feedback = ft.Container(
-                    ft.Text(f"🗑️ {count}", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_ERROR),
-                    padding=10, bgcolor=ft.Colors.ERROR_CONTAINER, border_radius=8,
-                )
+                feedback = self._make_drag_feedback(_del_count, "", _del_breakdown, _del_local)
             else:
-                feedback = ft.Container(
-                    ft.Text(f"🗑️ {name}", size=12, weight=ft.FontWeight.BOLD),
-                    padding=10, bgcolor=ft.Colors.ERROR_CONTAINER, border_radius=8,
-                )
+                feedback = self._make_drag_feedback(1, name, card=wrap)
             if g._selection_mode and aid in g._selected_registry_ids:
                 drag_data = {"all_paths": all_deletable_paths, "all_ids": all_deletable_ids, "all_lib_types": all_deletable_types, "item_type": "calculator_file"}
             else:
@@ -424,6 +489,8 @@ class ViewBuilder:
                 content=wrap,
                 content_when_dragging=ft.Container(opacity=0.3, content=wrap),
                 content_feedback=feedback,
+                on_drag_start=self._on_selection_drag_start,
+                on_drag_complete=self._on_selection_drag_complete,
                 data=drag_data,
             ))
             matched_paths.add(f.name)
@@ -478,23 +545,20 @@ class ViewBuilder:
                 on_long_press=_on_orphan_long_press,
                 ink=True,
             )
+            self._card_refs[fpath_str] = wrap
             if g._selection_mode and fpath_str in g._selected_registry_ids:
                 orphan_data = {"all_paths": all_deletable_paths, "all_ids": all_deletable_ids, "all_lib_types": all_deletable_types, "item_type": "calculator_file"}
-                orphan_feedback = ft.Container(
-                    ft.Text(f"🗑️ {len(all_deletable_paths)}", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_ERROR),
-                    padding=10, bgcolor=ft.Colors.ERROR_CONTAINER, border_radius=8,
-                )
+                orphan_feedback = self._make_drag_feedback(_del_count, "", _del_breakdown, _del_local)
             else:
                 orphan_data = {"path": fpath_str, "item_type": "calculator_file"}
-                orphan_feedback = ft.Container(
-                    ft.Text(f"🗑️ {f.stem}", size=12, weight=ft.FontWeight.BOLD),
-                    padding=10, bgcolor=ft.Colors.ERROR_CONTAINER, border_radius=8,
-                )
+                orphan_feedback = self._make_drag_feedback(1, f.stem, card=wrap)
             rows.append(ft.Draggable(
                 group="all_items",
                 content=wrap,
                 content_when_dragging=ft.Container(opacity=0.3, content=wrap),
                 content_feedback=orphan_feedback,
+            on_drag_start=self._on_selection_drag_start,
+            on_drag_complete=self._on_selection_drag_complete,
                 data=orphan_data,
             ))
         for sub in ("fotos", "textos"):
@@ -542,23 +606,20 @@ class ViewBuilder:
                             on_long_press=_on_plong,
                             ink=True,
                         )
+                        self._card_refs[pfpath] = wrap
                         if g._selection_mode and pfpath in g._selected_registry_ids:
                             pdata = {"all_paths": all_deletable_paths, "all_ids": all_deletable_ids, "all_lib_types": all_deletable_types, "item_type": "calculator_file"}
-                            pfb = ft.Container(
-                                ft.Text(f"🗑️ {len(all_deletable_paths)}", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_ERROR),
-                                padding=10, bgcolor=ft.Colors.ERROR_CONTAINER, border_radius=8,
-                            )
+                            pfb = self._make_drag_feedback(_del_count, "", _del_breakdown, _del_local)
                         else:
                             pdata = {"path": pfpath, "item_type": "calculator_file"}
-                            pfb = ft.Container(
-                                ft.Text(f"🗑️ {f.name}", size=12, weight=ft.FontWeight.BOLD),
-                                padding=10, bgcolor=ft.Colors.ERROR_CONTAINER, border_radius=8,
-                            )
+                            pfb = self._make_drag_feedback(1, f.name, card=wrap)
                         rows.append(ft.Draggable(
                             group="all_items",
                             content=wrap,
                             content_when_dragging=ft.Container(opacity=0.3, content=wrap),
                             content_feedback=pfb,
+            on_drag_start=self._on_selection_drag_start,
+            on_drag_complete=self._on_selection_drag_complete,
                             data=pdata,
                         ))
         # ─── Local Library Section ───
@@ -629,17 +690,11 @@ class ViewBuilder:
                     on_long_press=_on_long_press,
                     ink=True,
                 )
+                self._card_refs[aid] = wrap
                 if g._selection_mode and aid in g._selected_registry_ids:
-                    count = len(g._selected_registry_ids)
-                    feedback = ft.Container(
-                        ft.Text(f"📥 {count}", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_PRIMARY),
-                        padding=10, bgcolor=ft.Colors.PRIMARY, border_radius=8,
-                    )
+                    feedback = self._make_drag_feedback(_del_count, "", _del_breakdown, _del_local)
                 else:
-                    feedback = ft.Container(
-                        ft.Text(f"🗑️ {name}", size=12, weight=ft.FontWeight.BOLD),
-                        padding=10, bgcolor=ft.Colors.ERROR_CONTAINER, border_radius=8,
-                    )
+                    feedback = self._make_drag_feedback(1, name, card=wrap)
                 drag_data = {"item_id": d["id"], "lib_type": item_type, "item_type": "local_library", "installable": True}
                 if g._selection_mode and aid in g._selected_registry_ids:
                     if all_deletable_ids:
@@ -652,6 +707,8 @@ class ViewBuilder:
                     content=wrap,
                     content_when_dragging=ft.Container(opacity=0.3, content=wrap),
                     content_feedback=feedback,
+                    on_drag_start=self._on_selection_drag_start,
+                    on_drag_complete=self._on_selection_drag_complete,
                     data=drag_data,
                 ))
         list_view = ft.ListView(
@@ -852,16 +909,7 @@ class ViewBuilder:
             group="all_items",
             content=clk,
             content_when_dragging=ft.Container(opacity=0.3, content=clk),
-            content_feedback=ft.Container(
-                ft.Row([
-                    ft.Icon(ft.Icons.FOLDER_OPEN, size=16, color=ft.Colors.ON_SURFACE),
-                    ft.Text(f"📦 {count}" if count > 1 else f"➡️ {ftype}: {f.name}",
-                            size=12, weight=ft.FontWeight.BOLD),
-                ], tight=True),
-                padding=10,
-                bgcolor=ft.Colors.PRIMARY_CONTAINER if count == 1 else ft.Colors.SECONDARY_CONTAINER,
-                border_radius=8,
-            ),
+            content_feedback=self._make_drag_feedback(count, f"{ftype}: {f.name}", {"files": count} if count > 1 else None, card=clk),
             data={"path": fpath, "all_paths": drag_all, "type": ftype,
                   "source_dir": str(source_dir), "item_type": "convert_input"},
         )
@@ -1056,16 +1104,7 @@ class ViewBuilder:
             group="all_items",
             content=clk,
             content_when_dragging=ft.Container(opacity=0.3, content=clk),
-            content_feedback=ft.Container(
-                ft.Row([
-                    ft.Icon(ft.Icons.FOLDER_OPEN, size=16, color=ft.Colors.ON_SURFACE),
-                    ft.Text(f"🗑️ {count} files" if count > 1 else f"🗑️ {f.name}",
-                            size=12, weight=ft.FontWeight.BOLD),
-                ], tight=True),
-                padding=10,
-                bgcolor=ft.Colors.ERROR_CONTAINER if count == 1 else ft.Colors.TERTIARY_CONTAINER,
-                border_radius=8,
-            ),
+            content_feedback=self._make_drag_feedback(count, f.name, {"files": count} if count > 1 else None, card=clk),
             data={"path": fpath, "all_paths": drag_all, "section": section_id, "item_type": "converted"},
         )
     def _build_converted_pair_card(self, g3p_f: Path, txt_f: Path) -> ft.Draggable:
@@ -1116,16 +1155,7 @@ class ViewBuilder:
             group="all_items",
             content=clk,
             content_when_dragging=ft.Container(opacity=0.3, content=clk),
-            content_feedback=ft.Container(
-                ft.Row([
-                    ft.Icon(ft.Icons.FOLDER_OPEN, size=16, color=ft.Colors.ON_SURFACE),
-                    ft.Text(f"🗑️ {count} files" if count > 1 else f"🗑️ {g3p_f.stem} (both)",
-                            size=12, weight=ft.FontWeight.BOLD),
-                ], tight=True),
-                padding=10,
-                bgcolor=ft.Colors.ERROR_CONTAINER if count == 1 else ft.Colors.TERTIARY_CONTAINER,
-                border_radius=8,
-            ),
+            content_feedback=self._make_drag_feedback(count, f"{g3p_f.stem} (both)", {"files": count} if count > 1 else None, card=clk),
             data={"path": g3p_path, "all_paths": drag_all, "section": "both", "item_type": "converted"},
         )
     def _on_will_accept(self, e, sec: dict):
@@ -1302,16 +1332,7 @@ class ViewBuilder:
             group="all_items",
             content=clk,
             content_when_dragging=ft.Container(opacity=0.3, content=clk),
-            content_feedback=ft.Container(
-                ft.Row([
-                    ft.Icon(ft.Icons.FOLDER_OPEN, size=16, color=ft.Colors.ON_SURFACE),
-                    ft.Text(f"🗑️ {drag_count} files" if drag_count > 1 else f"🗑️ {stem} ({count})",
-                            size=12, weight=ft.FontWeight.BOLD),
-                ], tight=True),
-                padding=10,
-                bgcolor=ft.Colors.ERROR_CONTAINER if drag_count == count else ft.Colors.TERTIARY_CONTAINER,
-                border_radius=8,
-            ),
+            content_feedback=self._make_drag_feedback(drag_count, f"{stem} ({count})", {"files": drag_count} if drag_count > 1 else None, card=clk),
             data={"path": first_g3p, "all_paths": drag_all, "section": section_id, "item_type": "converted"},
         )
     def _on_convert_hover(self, e: ft.HoverEvent):

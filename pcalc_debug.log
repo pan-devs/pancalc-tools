@@ -70,3 +70,35 @@
 [DEBUG] _dlg_close called with result=True
 [DEBUG] Loop finished, returning result=True
 [DEBUG] confirm result ok=True
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'installable': True, 'item_id': 'nesizm'}, item_type=unknown
+[DEBUG] all_paths=[], all_ids=None
+[DEBUG] No deletable items, aborting
+[DEBUG] _install_selected called with item_ids=['khicas']
+[DEBUG] ids_to_install=['khicas']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 1 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
+[DEBUG] _install_selected called with item_ids=None
+[DEBUG] ids_to_install=['khicas', '3dgraph', 'nesizm']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 3 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
+[DEBUG] _install_selected called with item_ids=None
+[DEBUG] ids_to_install=['3dgraph', 'nesizm', 'racing_v2']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 3 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'installable': True, 'item_id': 'racing_v2'}, item_type=unknown
+[DEBUG] all_paths=[], all_ids=None
+[DEBUG] No deletable items, aborting
