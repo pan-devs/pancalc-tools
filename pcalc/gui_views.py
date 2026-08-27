@@ -39,6 +39,23 @@ def _fmt_size(size: int) -> str:
             return f"{size:.1f} {unit}"
         size /= 1024
     return f"{size:.1f} TB"
+def _restore_overlay(overlay, state: dict):
+    """Repopulate a freshly-built overlay container from a saved conversion state."""
+    prog = getattr(overlay, "_prog", None)
+    if not prog:
+        return
+    try:
+        total = max(state.get("total", 1), 1)
+        done = max(state.get("done", 0), 0)
+        value = min(done / total, 1.0)
+        prog["ring"].value = value
+        prog["pct"].value = f"{round(value * 100)}%"
+        prog["time"].value = state.get("sub", "")
+        prog["log"].controls.clear()
+        for line in state.get("logs", [])[-30:]:
+            prog["log"].controls.append(ft.Text(line, size=10))
+    except Exception:
+        pass
 class ViewBuilder:
     def __init__(self, gui):
         self.gui = gui
@@ -50,6 +67,9 @@ class ViewBuilder:
         self._processing_section = None
         self._selected_push_paths: set[str] = set()
         self._card_refs: dict[str, ft.Control] = {}
+        self._processing_overlays: dict[str, ft.Container] = {}
+        self._converted_grids: dict[str, dict] = {}
+        self._conversion_state: dict[str, dict] = {}
 
     _CARD_HOVER_SHADOW = ft.BoxShadow(
         spread_radius=2, blur_radius=24,
@@ -1222,36 +1242,68 @@ class ViewBuilder:
                 else:
                     cards.append(self._build_converted_card(group_files[0], sec["ftype"], section_id))
         
-        # Processing overlay (hidden by default)
+        # Processing overlay (hidden by default) — % on the left, live log on the
+        # right. Fixed size so it lays out cleanly when shown inside the Stack.
+        _prog_ring = ft.ProgressRing(width=46, height=46, color=sec["color"], value=0)
+        _prog_pct = ft.Text("0%", size=22, color=sec["color"],
+                            weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
+        _prog_sub = ft.Text("", size=10, color=ft.Colors.ON_SURFACE,
+                            text_align=ft.TextAlign.CENTER)
+        _prog_log = ft.ListView(
+            spacing=1, padding=ft.Padding.symmetric(horizontal=6, vertical=4),
+            height=110, width=170, auto_scroll=True,
+        )
         processing_overlay = ft.Container(
-            ft.Column([
-                ft.ProgressRing(width=24, height=24, color=sec["color"]),
-                ft.Container(height=4),
-                ft.Text("Converting...", size=12, color=sec["color"]),
-            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, tight=True),
+            ft.Row([
+                ft.Column([
+                    _prog_ring,
+                    _prog_pct,
+                    _prog_sub,
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                   alignment=ft.MainAxisAlignment.CENTER, tight=True, spacing=2),
+                ft.VerticalDivider(width=1),
+                _prog_log,
+            ], alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             visible=False,
             alignment=ft.Alignment.CENTER,
+            width=330, height=130,
             bgcolor=ft.Colors.SURFACE_CONTAINER,
-            border_radius=8,
+            border=ft.Border.all(1, sec["color"]),
+            border_radius=10,
         )
+        # Stash progress widgets so the async converter can update them
+        processing_overlay._prog = {
+            "ring": _prog_ring, "file": _prog_pct,
+            "pct": _prog_pct, "time": _prog_sub, "log": _prog_log,
+        }
+        # Always a GridView so cards can be appended in real time (empty is fine)
+        grid_view = ft.GridView(
+            controls=cards,
+            max_extent=200, child_aspect_ratio=1.2, spacing=6, run_spacing=6,
+        )
+        self._converted_grids[section_id] = {
+            "grid": grid_view,
+            "sec": sec,
+            "is_both": is_both,
+            "ftype": sec["ftype"],
+        }
         
-        if cards:
-            grid_view = ft.GridView(
-                controls=cards,
-                max_extent=200, child_aspect_ratio=1.2, spacing=6, run_spacing=6,
-            )
-        else:
-            grid_view = ft.Container(
+        # Drop zone: only the grid / empty area — glow must be centred here.
+        # When empty, show a subtle hint behind the (transparent) GridView so it
+        # can still receive live cards without losing the "drop here" affordance.
+        _empty_hint = None
+        if not cards:
+            _empty_hint = ft.Container(
                 ft.Column([
                     ft.Icon(ft.Icons.ARROW_DOWNWARD, size=32, color=sec["color"]),
                     ft.Container(height=4),
                     ft.Text(f"Drop {sec['label'].split()[0].lower()} files here", color=sec["color"], size=11),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
-                height=100, border=ft.Border.all(2, sec["color"]), border_radius=8,
+                expand=True,
             )
-        
-        # Drop zone: only the grid / empty area — glow must be centred here
-        drop_zone_content = ft.Stack([grid_view, processing_overlay], expand=True)
+        _stack_parts = [_empty_hint] if _empty_hint else []
+        _stack_parts += [grid_view, processing_overlay]
+        drop_zone_content = ft.Stack(_stack_parts, expand=True)
         def _badge(g, sid=section_id):
             n = len(getattr(g, "_multi_selected", set()) or [])
             return (n or 1, f"input → {sid}")
@@ -1265,12 +1317,16 @@ class ViewBuilder:
         
         # Store reference to processing overlay for this section.
         # If this section is mid-conversion (user navigated away and back),
-        # keep the new overlay visible so the spinner doesn't vanish.
+        # keep the new overlay visible with current progress so the spinner
+        # doesn't vanish.
         if not hasattr(self, '_processing_overlays'):
             self._processing_overlays = {}
         self._processing_overlays[section_id] = processing_overlay
-        if getattr(self, '_processing_section', None) == section_id:
+        state = self._conversion_state.get(section_id)
+        if getattr(self, '_processing_section', None) == section_id or (state and state.get("active")):
             processing_overlay.visible = True
+            if state:
+                _restore_overlay(processing_overlay, state)
         
         # Full section: header row + DropZone (grid only)
         return ft.Container(
@@ -1524,25 +1580,129 @@ class ViewBuilder:
                     pass
             
             # Show processing overlay
-            if hasattr(self, '_processing_overlays') and section_id in self._processing_overlays:
-                overlay = self._processing_overlays[section_id]
+            overlay = self._processing_overlays.get(section_id)
+            prog = getattr(overlay, '_prog', None) if overlay else None
+            if overlay:
                 overlay.visible = True
+                if prog:
+                    prog["ring"].value = 0
+                    prog["pct"].value = "0%"
+                    prog["time"].value = "Preparing..."
+                    prog["file"].value = "0%"
+                    prog["log"].controls.clear()
                 overlay.update()
             
+            import time as _time
+            t0 = _time.monotonic()
+            total = len(to_convert)
+            # Keep conversion state so the overlay can be restored if the user
+            # navigates away and back mid-batch.
+            self._conversion_state[section_id] = {
+                "active": True, "total": total, "done": 0,
+                "sub": "Preparing...", "logs": [],
+            }
             try:
                 target_map = {"images": "images", "text": "text", "both": "both"}
                 target = target_map.get(target_section, "both")
-                for src_path, ftype in to_convert:
-                    await self.gui._convert_single(src_path, ftype, target)
+                loop = asyncio.get_running_loop()
+                for i, (src_path, ftype) in enumerate(to_convert, 1):
+                    # Update progress UI for frame start — single overlay.update()
+                    pct_val = (i - 1) / total
+                    elapsed = _time.monotonic() - t0
+                    if i > 1 and elapsed > 0:
+                        remaining = elapsed / (i - 1) * (total - i + 1)
+                        m, s = divmod(int(remaining), 60)
+                        time_left = f"~{m}m {s}s left" if m else f"~{s}s left"
+                    else:
+                        time_left = "calculating..."
+                    sub = f"{i}/{total} · {src_path.name} · {time_left}"
+                    if prog:
+                        prog["ring"].value = pct_val
+                        prog["pct"].value = f"{round(pct_val * 100)}%"
+                        prog["time"].value = sub
+                    state = self._conversion_state.get(section_id)
+                    if state:
+                        state["sub"] = sub
+
+                    def _file_progress(frac, idx=i, name=src_path.name):
+                        """Called from the worker thread — marshal UI update to the event loop."""
+                        gfrac = (idx - 1 + frac) / total
+                        def _apply(ff=gfrac, ii=idx, nn=name):
+                            if prog:
+                                prog["ring"].value = ff
+                                prog["pct"].value = f"{round(ff * 100)}%"
+                                prog["time"].value = f"{ii}/{total} · {nn}"
+                            if overlay:
+                                try:
+                                    overlay.update()
+                                except Exception:
+                                    pass
+                        try:
+                            loop.call_soon_threadsafe(_apply)
+                        except Exception:
+                            pass
+
+                    generated = await self.gui._convert_single(
+                        src_path, ftype, target, on_progress=_file_progress)
+
+                    # Live log line(s) per generated file + live cards in the grid
+                    if prog:
+                        prog["ring"].value = i / total
+                        prog["pct"].value = f"{round(i / total * 100)}%"
+                        prog["time"].value = f"{i}/{total} · done"
+                    self._live_append_converted(section_id, generated)
+                    for out in generated:
+                        line = f"✓ {out.name}"
+                        if prog:
+                            prog["log"].controls.append(ft.Text(line, size=10))
+                        if state:
+                            state["logs"].append(line)
+                    state["done"] = i
+                    if overlay:
+                        try:
+                            overlay.update()
+                        except Exception:
+                            pass
+                        # Let Flet flush the update to the client before the next
+                        # (possibly long, GIL-bound) conversion, so %/logs render live.
+                        try:
+                            await asyncio.sleep(0.02)
+                        except Exception:
+                            pass
             finally:
                 self._processing_section = None
-                if hasattr(self, '_processing_overlays') and section_id in self._processing_overlays:
-                    overlay = self._processing_overlays[section_id]
+                st = self._conversion_state.get(section_id)
+                if st:
+                    st["active"] = False
+                if overlay:
                     overlay.visible = False
                     try:
                         overlay.update()
                     except Exception:
                         pass
+                # Single rebuild reaggregates multi-page stacks and refreshes lists
+                self.gui._build_current_view()
+    def _live_append_converted(self, section_id: str, generated: list):
+        """Append freshly-generated files as cards to the live grid, no view rebuild."""
+        cmeta = self._converted_grids.get(section_id)
+        if not cmeta:
+            return
+        grid = cmeta["grid"]
+        if not generated:
+            return
+        g3p = [p for p in generated if p.suffix.lower() == ".g3p"]
+        txt = [p for p in generated if p.suffix.lower() == ".txt"]
+        try:
+            if section_id == "both" and g3p and txt:
+                grid.controls.append(self._build_converted_pair_card(g3p[0], txt[0]))
+            else:
+                for p in g3p:
+                    grid.controls.append(self._build_converted_card(p, "G3P", "images"))
+                for p in txt:
+                    grid.controls.append(self._build_converted_card(p, "TXT", "text"))
+            grid.update()
+        except Exception:
+            pass
     def _group_files_by_stem(self, files, is_both: bool) -> dict[str, list]:
         """Group files by stem prefix, stripping trailing _NNN groups (e.g., part_01_001 -> part)."""
         groups = {}

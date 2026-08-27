@@ -839,7 +839,10 @@ class PanCalcGUI:
         else:
             self._show_snackbar("No files added", type="warning")
         self._build_current_view()
-    async def _convert_single(self, f: Path, ftype: str, target_section: str = "both"):
+    async def _convert_single(self, f: Path, ftype: str, target_section: str = "both",
+                              on_progress=None) -> list:
+        """Convert a single file. Calls on_progress(file_frac) with 0.0..1.0 progress
+        for THIS file as strips/pages are produced (called from a worker thread)."""
         from pcalc import converter as pconverter
         base = self._data_root()
         g3p_dir = base / "converted/g3p"
@@ -847,24 +850,60 @@ class PanCalcGUI:
         g3p_dir.mkdir(parents=True, exist_ok=True)
         txt_dir.mkdir(parents=True, exist_ok=True)
         self._show_snackbar(f"Converting {f.name} → {target_section}...", type="info")
+
+        g3p_want = target_section in ("images", "both")
+        txt_want = target_section in ("text", "both")
+        units_total = int(g3p_want) + int(txt_want)
+        units_done = 0
+
+        def _report(unit_frac: float):
+            if not on_progress:
+                return
+            try:
+                ffrac = (units_done + unit_frac) / max(units_total, 1)
+                on_progress(min(max(ffrac, 0.0), 1.0))
+            except Exception:
+                pass
+
+        def _mk_cb():
+            def cb(done: int, total: int):
+                _report((done / total) if total else 1.0)
+            return cb
+
+        generated = []
         try:
             success = False
             if ftype == "IMG":
-                if target_section in ("images", "both"):
-                    await run_sync(pconverter.convert_image, str(f), str(g3p_dir / (f.stem + ".g3p")), 16)
+                if g3p_want:
+                    out = g3p_dir / (f.stem + ".g3p")
+                    await run_sync(pconverter.convert_image, str(f), str(out), 16, "auto", 16, _mk_cb())
+                    units_done += 1
+                    _report(1.0)
+                    generated.append(out)
                     success = True
-                if target_section in ("text", "both"):
-                    # Images to text: limited OCR, just create empty txt placeholder
-                    await run_sync(pconverter.convert_text, str(f), str(txt_dir / (f.stem + ".txt")))
+                if txt_want:
+                    out = txt_dir / (f.stem + ".txt")
+                    await run_sync(pconverter.convert_text, str(f), str(out), _mk_cb())
+                    units_done += 1
+                    _report(1.0)
+                    generated.append(out)
                     success = True
             elif ftype == "DOC":
-                if target_section in ("images", "both"):
-                    await run_sync(pconverter.convert_document_g3p, str(f), str(g3p_dir / f.stem))
+                if g3p_want:
+                    out = g3p_dir / f.stem
+                    await run_sync(pconverter.convert_document_g3p, str(f), str(out), 16, 16, _mk_cb())
+                    units_done += 1
+                    _report(1.0)
+                    generated.append(out)
                     success = True
-                if target_section in ("text", "both"):
-                    await run_sync(pconverter.convert_text, str(f), str(txt_dir / (f.stem + ".txt")))
+                if txt_want:
+                    out = txt_dir / (f.stem + ".txt")
+                    await run_sync(pconverter.convert_text, str(f), str(out), _mk_cb())
+                    units_done += 1
+                    _report(1.0)
+                    generated.append(out)
                     success = True
-            
+
             if success:
                 # Delete source file after successful conversion
                 try:
@@ -876,8 +915,7 @@ class PanCalcGUI:
                 self._show_snackbar(f"⚠️ {f.name}: no conversion for {target_section}", type="warning")
         except Exception as e:
             self._show_notification(f"Conversion failed: {e}", type="error")
-        finally:
-            self._build_current_view()
+        return generated
     async def _push_files(self):
         # Prevent concurrent pushes
         if getattr(self, '_pushing', False):
