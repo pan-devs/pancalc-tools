@@ -9,7 +9,6 @@ import shutil
 from collections import defaultdict
 from pathlib import Path
 import flet as ft
-from pcalc import theme as ptheme
 from pcalc import config as pconfig
 from pcalc import library as plibrary
 from pcalc.calculator import find_calculator
@@ -23,6 +22,7 @@ from pcalc.installer import (
 ADDIN_EXTS = {".g3a", ".g3e"}
 GAME_EXTS = {".rom", ".bin", ".gba", ".nes", ".sms", ".gg"}
 ALL_EXTS = ADDIN_EXTS | GAME_EXTS
+GLOW_COLOR = "#8D6E63"  # brown — unified glow for all drop zones
 def _icon_for_addin(d: dict) -> str:
     if d.get("emulator"):
         return ft.Icons.SPORTS_ESPORTS
@@ -50,7 +50,47 @@ class ViewBuilder:
         self._processing_section = None
         self._selected_push_paths: set[str] = set()
         self._card_refs: dict[str, ft.Control] = {}
-    
+
+    _CARD_HOVER_SHADOW = ft.BoxShadow(
+        spread_radius=2, blur_radius=24,
+        color=ft.Colors.BLACK38, offset=ft.Offset(0, 8),
+    )
+    _HOVER_TEXT_FACTOR = 1.15
+    _HOVER_BASE_ATTR = "_hover_base_size"
+
+    _CARD_WID = 320
+    _CARD_HGT = 145
+    _CONV_WID = 200
+    _CONV_HGT = 167
+
+    def _on_card_hover(self, e: ft.ControlEvent):
+        ctl = e.control
+        hovering = e.data == "true"
+        ctl.scale = 1.08 if hovering else 1.0
+        ctl.shadow = self._CARD_HOVER_SHADOW.copy() if hovering else None
+        self._scale_card_texts(ctl, self._HOVER_TEXT_FACTOR if hovering else 1.0)
+        ctl.update()
+
+    def _scale_card_texts(self, root, factor):
+        stack = [root]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, ft.Text):
+                base = getattr(node, self._HOVER_BASE_ATTR, None)
+                if base is None:
+                    base = node.size if node.size is not None else 14
+                    setattr(node, self._HOVER_BASE_ATTR, base)
+                node.size = round(base * factor)
+                continue
+            raw = getattr(node, "content", None)
+            if isinstance(raw, (list, tuple)):
+                stack.extend(raw)
+            elif raw is not None and not isinstance(raw, (str, int, float, bool)):
+                stack.append(raw)
+            controls = getattr(node, "controls", None)
+            if controls:
+                stack.extend(controls)
+
     def _on_selection_drag_start(self, e: ft.DragStartEvent):
         g = self.gui
         if not g._selection_mode:
@@ -338,7 +378,12 @@ class ViewBuilder:
             content=card,
             on_click=_on_click,
             on_long_press=_on_long_press,
+            width=self._CARD_WID, height=self._CARD_HGT,
             ink=True,
+            border_radius=12,
+            animate=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+            on_hover=self._on_card_hover,
         )
         if aid:
             self._card_refs[aid] = wrap
@@ -514,7 +559,12 @@ class ViewBuilder:
             content=list_tile,
             on_click=_on_group_click,
             on_long_press=_on_group_long_press,
+            width=self._CARD_WID, height=self._CARD_HGT,
             ink=True,
+            border_radius=12,
+            animate=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+            on_hover=self._on_card_hover,
         )
         for p in all_paths:
             self._card_refs[p] = wrap
@@ -660,7 +710,12 @@ class ViewBuilder:
                 content=list_tile,
                 on_click=_on_click,
                 on_long_press=_on_long_press,
+                width=self._CARD_WID, height=self._CARD_HGT,
                 ink=True,
+                border_radius=12,
+                animate=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                animate_scale=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                on_hover=self._on_card_hover,
             )
             if aid:
                 self._card_refs[aid] = wrap
@@ -731,7 +786,12 @@ class ViewBuilder:
                 content=list_tile,
                 on_click=_on_orphan_click,
                 on_long_press=_on_orphan_long_press,
+                width=self._CARD_WID, height=self._CARD_HGT,
                 ink=True,
+                border_radius=12,
+                animate=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                animate_scale=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                on_hover=self._on_card_hover,
             )
             self._card_refs[fpath_str] = wrap
             if g._selection_mode and fpath_str in g._selected_registry_ids:
@@ -800,7 +860,12 @@ class ViewBuilder:
                             content=list_tile,
                             on_click=_on_pclick,
                             on_long_press=_on_plong,
+                            width=self._CARD_WID, height=self._CARD_HGT,
                             ink=True,
+                            border_radius=12,
+                            animate=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                            animate_scale=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                            on_hover=self._on_card_hover,
                         )
                         self._card_refs[pfpath] = wrap
                         if g._selection_mode and pfpath in g._selected_registry_ids:
@@ -890,7 +955,12 @@ class ViewBuilder:
                     content=list_tile,
                     on_click=_on_click,
                     on_long_press=_on_long_press,
+                    width=self._CARD_WID, height=self._CARD_HGT,
                     ink=True,
+                    border_radius=12,
+                    animate=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                    animate_scale=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                    on_hover=self._on_card_hover,
                 )
                 self._card_refs[aid] = wrap
                 if g._selection_mode and aid in g._selected_registry_ids:
@@ -962,7 +1032,7 @@ class ViewBuilder:
             input_cards.append(self._build_input_card(f, "DOC", doc_dir))
         input_section = ft.Column([
             ft.Row([
-                ft.Text("INPUT FILES", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.OUTLINE),
+                ft.Text("INPUT FILES", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE),
                 ft.Container(expand=True),
                 ft.ElevatedButton("Select Files", icon=ft.Icons.FILE_OPEN,
                                   on_click=lambda _: asyncio_create(g._pick_convert_files())),
@@ -975,16 +1045,16 @@ class ViewBuilder:
                 expand=True, max_extent=200, child_aspect_ratio=1.2, spacing=8, run_spacing=8,
             ) if input_cards else ft.Container(
                 ft.Column([
-                    ft.Icon(ft.Icons.CLOUD_UPLOAD, size=48, color=ft.Colors.OUTLINE),
+                    ft.Icon(ft.Icons.CLOUD_UPLOAD, size=48, color=ft.Colors.ON_SURFACE),
                     ft.Container(height=8),
-                    ft.Text("No input files. Click 'Select Files' or drag & drop.", color=ft.Colors.OUTLINE),
+                    ft.Text("No input files. Click 'Select Files' or drag & drop.", color=ft.Colors.ON_SURFACE),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
-                height=120, border=ft.Border.all(2, ft.Colors.OUTLINE), border_radius=10,
+                height=120, border=ft.Border.all(2, GLOW_COLOR), border_radius=10,
                 alignment=ft.Alignment.CENTER, ink=True,
                 on_click=lambda _: asyncio_create(g._pick_convert_files()),
             ),
             ft.Container(height=4),
-            ft.Text("👇 Drag files below to convert", size=11, color=ft.Colors.OUTLINE, italic=True),
+            ft.Text("👇 Drag files below to convert", size=11, color=ft.Colors.ON_SURFACE, italic=True),
         ], tight=True)
         # ─── Converted Sections (3 Drop Targets) ───
         sections = [
@@ -1045,7 +1115,7 @@ class ViewBuilder:
                 ft.Divider(),
                 ft.Container(height=4),
                 ft.Row([
-                    ft.Text("CONVERTED", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.OUTLINE),
+                    ft.Text("CONVERTED", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE),
                     ft.Container(expand=True),
                     ft.Container(
                         ft.Row([
@@ -1056,7 +1126,7 @@ class ViewBuilder:
                         visible=g._selection_mode,
                     ),
                     select_all_btn,
-                    ft.Text("(drop here)", size=11, color=ft.Colors.OUTLINE),
+                    ft.Text("(drop here)", size=11, color=ft.Colors.ON_SURFACE),
                 ]),
                 ft.Container(height=4),
                 ft.Row(equal_sections, spacing=8, vertical_alignment=ft.CrossAxisAlignment.START),
@@ -1078,18 +1148,17 @@ class ViewBuilder:
                 ft.Row([
                     ft.Icon(ft.Icons.IMAGE if is_image else ft.Icons.DESCRIPTION,
                             size=20, color=color_map.get(ftype, ft.Colors.OUTLINE)),
-                    ft.Text(ftype, size=9, color=ft.Colors.ON_SURFACE,
-                            weight=ft.FontWeight.BOLD,
-                            bgcolor=color_map.get(ftype, ft.Colors.OUTLINE)),
+                    ft.Text(ftype, size=9, color=color_map.get(ftype, ft.Colors.ON_SURFACE),
+                            weight=ft.FontWeight.BOLD),
                     ft.Container(expand=True),
-                    ft.Text(_fmt_size(f.stat().st_size), size=9, color=ft.Colors.OUTLINE),
+                    ft.Text(_fmt_size(f.stat().st_size), size=9, color=ft.Colors.ON_SURFACE),
                 ], alignment=ft.MainAxisAlignment.START),
                 ft.Container(height=4),
                 ft.Text(f.name, size=11, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS,
                         weight=ft.FontWeight.BOLD),
                 ft.Container(height=4),
                 ft.Row([
-                    ft.Text(f"Drag to convert", size=9, color=ft.Colors.OUTLINE, italic=True),
+                    ft.Text(f"Drag to convert", size=9, color=ft.Colors.ON_SURFACE, italic=True),
                     ft.Container(expand=True),
                     ft.IconButton(
                         ft.Icons.DELETE, tooltip="Delete input file",
@@ -1106,12 +1175,21 @@ class ViewBuilder:
             on_click=lambda e: self._on_card_click(e, [fpath]),
             on_long_press=lambda e: self._on_card_long_press(e, [fpath]),
             ink=True,
+            width=self._CONV_WID, height=self._CONV_HGT,
+            border_radius=12,
+            animate=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+            on_hover=self._on_card_hover,
         )
         if multi_sel:
             clk = ft.Container(
                 content=clk,
                 border=ft.Border.all(2, ft.Colors.PRIMARY),
+                width=self._CONV_WID, height=self._CONV_HGT,
                 border_radius=12,
+                animate=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                animate_scale=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                on_hover=self._on_card_hover,
             )
         drag_all = self._get_multi_selected_drag_paths([fpath])
         count = len(drag_all)
@@ -1123,7 +1201,7 @@ class ViewBuilder:
             data={"path": fpath, "all_paths": drag_all, "type": ftype,
                   "source_dir": str(source_dir), "item_type": "convert_input"},
         )
-    def _build_converted_section(self, sec: dict) -> ft.DragTarget:
+    def _build_converted_section(self, sec: dict) -> ft.Control:
         files = sec["files"]
         is_both = sec["id"] == "both"
         section_id = sec["id"]
@@ -1165,46 +1243,47 @@ class ViewBuilder:
         else:
             grid_view = ft.Container(
                 ft.Column([
-                    ft.Icon(ft.Icons.ARROW_DOWNWARD, size=32, color=ft.Colors.OUTLINE),
+                    ft.Icon(ft.Icons.ARROW_DOWNWARD, size=32, color=sec["color"]),
                     ft.Container(height=4),
-                    ft.Text(f"Drop {sec['label'].split()[0].lower()} files here", color=ft.Colors.OUTLINE, size=11),
+                    ft.Text(f"Drop {sec['label'].split()[0].lower()} files here", color=sec["color"], size=11),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
                 height=100, border=ft.Border.all(2, sec["color"]), border_radius=8,
-                bgcolor=sec["color"] + "15",
             )
         
-        section_content = ft.Container(
-            ft.Stack([
-                ft.Column([
-                    ft.Row([
-                        ft.Icon(sec["icon"], size=18, color=sec["color"]),
-                        ft.Text(sec["label"], size=13, weight=ft.FontWeight.BOLD, color=sec["color"]),
-                        ft.Container(expand=True),
-                        ft.Text(f"{len(cards)} item(s)", size=10, color=ft.Colors.OUTLINE),
-                    ]),
-                    ft.Container(height=4),
-                    grid_view,
-                ], tight=True, spacing=4),
-                processing_overlay,
-            ]),
-            width=300,
-            padding=10,
-            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
-            border_radius=10,
-            bgcolor=ft.Colors.SURFACE_CONTAINER,
-        )
+        # Drop zone: only the grid / empty area — glow must be centred here
+        drop_zone_content = ft.Stack([grid_view, processing_overlay], expand=True)
+        def _badge(g, sid=section_id):
+            n = len(getattr(g, "_multi_selected", set()) or [])
+            return (n or 1, f"input → {sid}")
+        def _accept(e, s=sec):
+            asyncio_create(self._on_convert_drop_async(e, s))
+        drop_target = DropZone(
+            self.gui, drop_zone_content,
+            color=GLOW_COLOR, dest=f"converter ({'fotos' if sec['id']=='images' else 'textos' if sec['id']=='text' else 'both'})",
+            badge_fn=_badge, on_accept=_accept, border_radius=8,
+        ).build()
         
         # Store reference to processing overlay for this section
         if not hasattr(self, '_processing_overlays'):
             self._processing_overlays = {}
         self._processing_overlays[section_id] = processing_overlay
         
-        return ft.DragTarget(
-            group="all_items",
-            content=section_content,
-            on_accept=lambda e, s=sec: asyncio_create(self._on_convert_drop_async(e, s)),
-            on_will_accept=lambda e, s=sec: self._on_will_accept(e, s),
-            on_leave=lambda e, s=sec: self._on_drag_leave(e, s),
+        # Full section: header row + DropZone (grid only)
+        return ft.Container(
+            ft.Column([
+                ft.Row([
+                    ft.Icon(sec["icon"], size=18, color=sec["color"]),
+                    ft.Text(sec["label"], size=13, weight=ft.FontWeight.BOLD, color=sec["color"]),
+                    ft.Container(expand=True),
+                    ft.Text(f"{len(cards)} item(s)", size=10, color=ft.Colors.ON_SURFACE),
+                ]),
+                ft.Container(height=4),
+                drop_target,
+            ], tight=True, spacing=4),
+            expand=True,
+            padding=10,
+            border=ft.Border.all(1, sec["color"]),
+            border_radius=10,
         )
     def _build_checkbox(self, selected: bool, paths: list[str]):
         """Custom clickable checkbox with guaranteed visibility."""
@@ -1278,11 +1357,10 @@ class ViewBuilder:
                 ft.Row([
                     ft.Icon(ft.Icons.IMAGE if is_g3p else ft.Icons.DESCRIPTION,
                             size=20, color=color_map.get(ftype, ft.Colors.OUTLINE)),
-                    ft.Text(ftype, size=9, color=ft.Colors.ON_SURFACE,
-                            weight=ft.FontWeight.BOLD,
-                            bgcolor=color_map.get(ftype, ft.Colors.OUTLINE)),
+                    ft.Text(ftype, size=9, color=color_map.get(ftype, ft.Colors.ON_SURFACE),
+                            weight=ft.FontWeight.BOLD),
                     ft.Container(expand=True),
-                    ft.Text(_fmt_size(f.stat().st_size), size=9, color=ft.Colors.OUTLINE),
+                    ft.Text(_fmt_size(f.stat().st_size), size=9, color=ft.Colors.ON_SURFACE),
                 ]),
                 ft.Container(height=4),
                 ft.Text(f.name, size=11, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS,
@@ -1301,12 +1379,21 @@ class ViewBuilder:
             on_click=lambda e: self._on_card_click(e, [fpath]),
             on_long_press=lambda e: self._on_card_long_press(e, [fpath]),
             ink=True,
+            width=self._CONV_WID, height=self._CONV_HGT,
+            border_radius=12,
+            animate=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+            on_hover=self._on_card_hover,
         )
         if multi_sel:
             clk = ft.Container(
                 content=clk,
                 border=ft.Border.all(2, ft.Colors.PRIMARY),
+                width=self._CONV_WID, height=self._CONV_HGT,
                 border_radius=12,
+                animate=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                animate_scale=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                on_hover=self._on_card_hover,
             )
         drag_all = self._get_multi_selected_drag_paths([fpath])
         count = len(drag_all)
@@ -1329,11 +1416,11 @@ class ViewBuilder:
             ft.Column([
                 ft.Row([
                     ft.Icon(ft.Icons.LAYERS, size=20, color="#9C27B0"),
-                    ft.Text("BOTH", size=9, color=ft.Colors.ON_SURFACE,
-                            weight=ft.FontWeight.BOLD, bgcolor="#9C27B0"),
+                    ft.Text("BOTH", size=9, color="#9C27B0",
+                            weight=ft.FontWeight.BOLD),
                     ft.Container(expand=True),
                     ft.Text(f"G3P: {_fmt_size(g3p_f.stat().st_size)} / TXT: {_fmt_size(txt_f.stat().st_size)}",
-                            size=9, color=ft.Colors.OUTLINE),
+                            size=9, color=ft.Colors.ON_SURFACE),
                 ]),
                 ft.Container(height=4),
                 ft.Text(f"{g3p_f.stem}", size=11, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS,
@@ -1352,12 +1439,21 @@ class ViewBuilder:
             on_click=lambda e: self._on_card_click(e, both_paths),
             on_long_press=lambda e: self._on_card_long_press(e, both_paths),
             ink=True,
+            width=self._CONV_WID, height=self._CONV_HGT,
+            border_radius=12,
+            animate=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+            on_hover=self._on_card_hover,
         )
         if multi_sel:
             clk = ft.Container(
                 content=clk,
                 border=ft.Border.all(2, ft.Colors.PRIMARY),
+                width=self._CONV_WID, height=self._CONV_HGT,
                 border_radius=12,
+                animate=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                animate_scale=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                on_hover=self._on_card_hover,
             )
         drag_all = self._get_multi_selected_drag_paths(both_paths)
         count = len(drag_all)
@@ -1368,16 +1464,6 @@ class ViewBuilder:
             content_feedback=self._make_drag_feedback(count, f"{g3p_f.stem} (both)", {"files": count} if count > 1 else None, card=clk),
             data={"path": g3p_path, "all_paths": drag_all, "section": "both", "item_type": "converted"},
         )
-    def _on_will_accept(self, e, sec: dict):
-        section_id = sec["id"]
-        # Reject drop if section is currently processing
-        if self._processing_section == section_id:
-            return
-        e.control.content.bgcolor = sec["color"] + "30"
-        e.control.update()
-    def _on_drag_leave(self, e, sec: dict):
-        e.control.content.bgcolor = ft.Colors.SURFACE_CONTAINER
-        e.control.update()
     async def _on_convert_drop_async(self, e: ft.DragTargetEvent, sec: dict):
         """Async drop handler with locking to prevent concurrent conversions."""
         section_id = sec["id"]
@@ -1498,21 +1584,17 @@ class ViewBuilder:
             ft.Column([
                 ft.Row([
                     ft.Icon(icon, size=20, color=color),
-                    ft.Container(
-                        ft.Text(f"{ftype}", size=9, weight=ft.FontWeight.BOLD),
-                        bgcolor=color, border_radius=4,
-                        padding=ft.Padding.symmetric(horizontal=4, vertical=1),
-                    ),
+                    ft.Text(f"{ftype}", size=9, weight=ft.FontWeight.BOLD, color=color),
                     ft.Container(expand=True),
-                    ft.Text(f"{page_label} · {_fmt_size(sz)}", size=9, color=ft.Colors.OUTLINE),
+                    ft.Text(f"{page_label} · {_fmt_size(sz)}", size=9, color=ft.Colors.ON_SURFACE),
                 ]),
                 ft.Container(height=2),
                 ft.Row([
-                    ft.Icon(ft.Icons.FOLDER_OPEN, size=14, color=ft.Colors.OUTLINE),
+                    ft.Icon(ft.Icons.FOLDER_OPEN, size=14, color=ft.Colors.ON_SURFACE),
                     ft.Column([
                         ft.Text(f"{stem}", size=12, weight=ft.FontWeight.BOLD, expand=True),
                         ft.Text(f"{count} file(s) · original document",
-                                size=9, color=ft.Colors.OUTLINE),
+                                size=9, color=ft.Colors.ON_SURFACE),
                     ], spacing=1, tight=True, expand=True),
                 ]),
                 ft.Container(height=2),
@@ -1529,12 +1611,21 @@ class ViewBuilder:
             on_click=lambda e: self._on_card_click(e, all_paths),
             on_long_press=lambda e: self._on_card_long_press(e, all_paths),
             ink=True,
+            width=self._CONV_WID, height=self._CONV_HGT,
+            border_radius=12,
+            animate=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+            on_hover=self._on_card_hover,
         )
         if multi_sel:
             clk = ft.Container(
                 content=clk,
                 border=ft.Border.all(2, ft.Colors.PRIMARY),
+                width=self._CONV_WID, height=self._CONV_HGT,
                 border_radius=12,
+                animate=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                animate_scale=ft.Animation(160, ft.AnimationCurve.EASE_OUT),
+                on_hover=self._on_card_hover,
             )
         drag_all = self._get_multi_selected_drag_paths(all_paths)
         drag_count = len(drag_all)
@@ -1545,16 +1636,6 @@ class ViewBuilder:
             content_feedback=self._make_drag_feedback(drag_count, f"{stem} ({count})", {"files": drag_count} if drag_count > 1 else None, card=clk),
             data={"path": first_g3p, "all_paths": drag_all, "section": section_id, "item_type": "converted"},
         )
-    def _on_convert_hover(self, e: ft.HoverEvent):
-        if not hasattr(self, '_drop_zone_border'):
-            self._drop_zone_border = e.control.border
-        if e.data == "true":
-            e.control.border = ft.Border.all(3, ft.Colors.PRIMARY)
-            e.control.bgcolor = ft.Colors.PRIMARY_CONTAINER
-        else:
-            e.control.border = self._drop_zone_border
-            e.control.bgcolor = None
-        e.control.update()
     # ── 5. Catch View ──────────────────────────────────────────────
     def _build_catch_view(self):
         g = self.gui
@@ -1733,23 +1814,34 @@ class ViewBuilder:
             ], expand=True, scroll=ft.ScrollMode.AUTO)
         )
     # ── Install Drop Target ──────────────────────────────────────────
-    def _build_install_target(self) -> ft.DragTarget:
+    def _build_install_target(self) -> ft.Control:
         g = self.gui
-        return ft.DragTarget(
-            group="all_items",
-            content=ft.Container(
-                ft.Row([
-                    ft.Icon(ft.Icons.DOWNLOAD, size=24, color=ft.Colors.PRIMARY),
-                    ft.Text(" Drop selected addins/games here to install on calculator",
-                            size=14, color=ft.Colors.PRIMARY, weight=ft.FontWeight.BOLD),
-                ], alignment=ft.MainAxisAlignment.CENTER),
-                padding=16,
-                border=ft.Border.all(2, ft.Colors.PRIMARY),
-                border_radius=12,
-            ),
-            on_accept=self._on_install_accept,
-            on_will_accept=self._on_install_will_accept,
+        # Like trash (vertical column) + like convert (idle border/bgcolor)
+        content = ft.Container(
+            ft.Column([
+                ft.Icon(ft.Icons.DOWNLOAD, size=28, color=ft.Colors.PRIMARY),
+                ft.Container(height=4),
+                ft.Text("Drop here to install", size=14, color=ft.Colors.PRIMARY,
+                        weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
+                ft.Text("selected addins / games → calculator", size=11,
+                        color=ft.Colors.OUTLINE, text_align=ft.TextAlign.CENTER),
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+               alignment=ft.MainAxisAlignment.CENTER, tight=True, spacing=2),
+            padding=12,
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border_radius=10,
+            bgcolor=ft.Colors.SURFACE_CONTAINER,
+            alignment=ft.Alignment.CENTER,
         )
+        def _badge(gg):
+            n = len(getattr(gg, "_selected_registry_ids", set()))
+            return (n or 1, "registry/local selection")
+        return DropZone(
+            g, content,
+            color=GLOW_COLOR, dest="calculator",
+            badge_fn=_badge, on_accept=self._on_install_accept, border_radius=12,
+            expand=True,
+        ).build()
     def _on_install_accept(self, e):
         """Handle drop on install target — multi-selection or single item."""
         data = e.src.data if e.src else {}
@@ -1761,13 +1853,246 @@ class ViewBuilder:
             asyncio_create(g._install_selected(item_ids=[dragged_id]))
         else:
             g._show_snackbar("Nothing to install", type="warning")
-    def _on_install_will_accept(self, e):
-        if e.data:
-            e.control.content.bgcolor = ft.Colors.SECONDARY_CONTAINER
-        else:
-            e.control.content.bgcolor = None
-        e.control.update()
 # ── Helper to create tasks from lambda callbacks ────────────────────
 def asyncio_create(coro):
     import asyncio
     return asyncio.create_task(coro)
+
+
+class DropZone:
+    """Reusable drop target with 3-stage progressive feedback + copy-shift badge.
+
+    Stages (idle → hover → armed):
+      * idle   — resting state (thin outline, no glow, badge hidden)
+      * hover  — a drag is over the zone: colored border + soft glow
+      * armed  — after ~ARM_DELAY s over the zone: intense glow + copy-shift
+                 badge showing what will be dropped inside.
+
+    The drop logic is injected via `on_accept`; this class only manages the
+    pre-drop visual feedback. It wraps `content` in a Stack so an overlay and
+    a floating badge can be layered on top without disturbing the content.
+    """
+
+    IDLE, HOVER, ARMED = 0, 1, 2
+    ARM_DELAY = 0.24  # seconds held over the zone before arming
+
+    def __init__(
+        self,
+        gui,
+        content: ft.Control,
+        *,
+        color: str,
+        dest: str,
+        badge_fn=None,
+        on_accept=None,
+        group: str = "all_items",
+        border_radius: int = 10,
+        expand: bool = False,
+    ):
+        self._gui = gui
+        self._content = content
+        self._color = color
+        self._dest = dest
+        self._badge_fn = badge_fn or (lambda g: (1, ""))
+        self._accept_cb = on_accept
+        self._group = group
+        self._border_radius = border_radius
+        self._expand = expand
+        self._state = self.IDLE
+        self._timer = None
+
+        # Derived visuals held here so callbacks and rebuilds stay in sync.
+        self._overlay: ft.Container | None = None
+        self._badge: ft.Container | None = None
+        self._target: ft.DragTarget | None = None
+
+    # ── badge helpers ────────────────────────────────────────────────
+    def _resolve_badge(self) -> tuple[int, str]:
+        try:
+            count, label = self._badge_fn(self._gui)
+            return max(1, count or 1), label or ""
+        except Exception:
+            return 1, ""
+
+    def _badge_text(self) -> str:
+        count, _ = self._resolve_badge()
+        noun = "item" if count == 1 else "items"
+        return f"Copy {count} {noun} to {self._dest}"
+
+    # ── state application ────────────────────────────────────────────
+    def _set_state(self, state: int):
+        if state == self._state:
+            return
+        self._state = state
+        if self._gui.page is None or self._overlay is None:
+            return
+        self._apply_state()
+        try:
+            self._overlay.update()
+            if self._badge is not None:
+                self._badge.update()
+            self._target.update()
+        except Exception:
+            pass
+
+    def _apply_state(self):
+        base = self._color
+        # identical reactivity to trash — only base colour differs (light blue for install)
+        if self._state == self.ARMED:
+            self._overlay.bgcolor = self._with_alpha(base, 0.10)
+            self._overlay.border = ft.Border.all(3, base)
+            self._overlay.shadow = ft.BoxShadow(
+                blur_radius=28, spread_radius=4,
+                color=self._with_alpha(base, 0.85),
+                offset=ft.Offset(0, 0),
+            )
+            self._overlay.scale = 1.012
+        elif self._state == self.HOVER:
+            self._overlay.bgcolor = self._with_alpha(base, 0.14)
+            self._overlay.border = ft.Border.all(2, self._with_alpha(base, 0.70))
+            self._overlay.shadow = ft.BoxShadow(
+                blur_radius=14, spread_radius=1,
+                color=self._with_alpha(base, 0.35),
+                offset=ft.Offset(0, 0),
+            )
+            self._overlay.scale = 1.008
+        else:  # IDLE
+            self._overlay.bgcolor = None
+            self._overlay.border = None
+            self._overlay.shadow = None
+            self._overlay.scale = 1.0
+        # badge visibility
+        if self._badge is not None and self._badge.content is not None:
+            self._badge.visible = self._state == self.ARMED
+            self._badge.opacity = 1.0 if self._state == self.ARMED else 0.6
+
+    @staticmethod
+    def _hex_alpha(factor: float) -> str:
+        a = round(factor * 255)
+        return f"{a:02X}"
+
+    @staticmethod
+    def _with_alpha(color, factor: float):
+        """Apply an alpha component to a hex str, or a Colors value."""
+        if isinstance(color, str) and color.startswith("#"):
+            return color + DropZone._hex_alpha(factor)
+        value = getattr(color, "value", None)
+        if value is not None:
+            try:
+                return ft.Colors.with_opacity(factor, value)
+            except Exception:
+                pass
+        return color
+
+    # ── DragTarget callbacks ─────────────────────────────────────────
+    def _on_will_accept(self, e):
+        if e.data in (True, "true"):
+            self._set_state(self.HOVER)
+            self._arm_progress()
+        else:
+            self._set_state(self.HOVER)
+        self._gui.page.update()
+
+    def _on_move(self, e):
+        # hold hover while moving; the arm timer keeps running so the zone
+        # settles into ARM once the user lingers.
+        if self._state == self.IDLE:
+            self._set_state(self.HOVER)
+
+    def _on_leave(self, e):
+        self._cancel_timer()
+        self._set_state(self.IDLE)
+        try:
+            self._gui.page.update()
+        except Exception:
+            pass
+
+    def _arm_progress(self):
+        self._cancel_timer()
+        self._timer = asyncio.create_task(self._arm_after())
+
+    async def _arm_after(self):
+        try:
+            await asyncio.sleep(self.ARM_DELAY)
+            self._set_state(self.ARMED)
+            self._refresh_badge_text()
+            self._gui.page.update()
+        except asyncio.CancelledError:
+            pass
+
+    def _refresh_badge_text(self):
+        if self._badge is None:
+            return
+        try:
+            text = self._badge.content.controls[1]
+            text.value = self._badge_text()
+        except Exception:
+            pass
+
+    def _cancel_timer(self):
+        if self._timer is not None and not self._timer.done():
+            self._timer.cancel()
+        self._timer = None
+
+    # ── builder ──────────────────────────────────────────────────────
+    def build(self) -> ft.DragTarget:
+        radius = self._border_radius
+        # overlay (fills the zone) — decorative only, must not swallow the drop
+        self._overlay = ft.Container(
+            left=0, top=0, right=0, bottom=0,
+            border_radius=radius,
+            animate=ft.Animation(170, ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.Animation(170, ft.AnimationCurve.EASE_OUT),
+            ignore_interactions=True,
+        )
+        # badge (copy-shift) — centered pill floating near the top edge
+        icon = ft.Icon(ft.Icons.CONTENT_COPY, size=14, color=ft.Colors.ON_PRIMARY)
+        label = ft.Text(self._badge_text(), size=11, color=ft.Colors.ON_PRIMARY, weight=ft.FontWeight.BOLD)
+        self._badge = ft.Container(
+            ft.Row([icon, label], spacing=6, tight=True),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=6),
+            bgcolor=self._color,
+            border_radius=20,
+            shadow=ft.BoxShadow(blur_radius=12, spread_radius=1, color=self._with_alpha(self._color, 0.5), offset=ft.Offset(0, 2)),
+            visible=False,
+            opacity=0.0,
+            animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+            animate_opacity=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+        )
+        badge_wrapper = ft.Container(
+            ft.Row([self._badge], alignment=ft.MainAxisAlignment.CENTER),
+            left=0, right=0, top=0,
+            padding=ft.Padding.only(top=8),
+            ignore_interactions=True,
+        )
+        # expand=True → full-width bar (install) covering the zone length,
+        # with the same tight glow/reactivity as trash (overlay matches Stack).
+        content_layer = self._content
+        if self._expand:
+            # Let the content fill the full-width Stack; inner Container keeps
+            # its own alignment (centered Column like trash).
+            content_layer = ft.Container(content_layer, expand=True)
+        stack = ft.Stack(
+            [content_layer, self._overlay, badge_wrapper],
+            expand=self._expand,
+            clip_behavior=ft.ClipBehavior.NONE,
+        )
+        self._target = ft.DragTarget(
+            group=self._group,
+            content=stack,
+            on_will_accept=self._on_will_accept,
+            on_accept=self._on_accept,
+            on_leave=self._on_leave,
+            on_move=self._on_move,
+        )
+        return self._target
+
+    # ── accept callback wrapper ──────────────────────────────────────
+    def _on_accept(self, e):
+        # Always reset to idle first so a drop can never leave the zone stuck
+        # lit up, then run the injected business logic (may no-op for items
+        # that cannot actually be dropped here).
+        self._cancel_timer()
+        self._set_state(self.IDLE)
+        if self._accept_cb is not None:
+            self._accept_cb(e)

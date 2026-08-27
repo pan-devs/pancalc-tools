@@ -12,6 +12,7 @@ from pcalc import library as plibrary
 from pcalc import registry as pregistry
 from pcalc.calculator import find_calculator
 from pcalc.cli import _eject as eject_calc
+from pcalc.gui_views import GLOW_COLOR
 from pcalc.crypto import import_key as _import_key
 from pcalc.crypto import (
     list_keys,
@@ -19,7 +20,7 @@ from pcalc.crypto import (
     trust_key as _trust_key,
     untrust_key as _untrust_key,
 )
-from pcalc.gui_views import ViewBuilder
+from pcalc.gui_views import ViewBuilder, DropZone
 from pcalc.installer import (
     install,
     remove,
@@ -190,19 +191,25 @@ class PanCalcGUI:
             on_change=lambda e: self.switch_view(e.control.selected_index),
         )
         # Trash bin at bottom of sidebar
-        self.trash_target = ft.DragTarget(
-            group="all_items",
-            content=ft.Container(
-                ft.Column([
-                    ft.Icon(ft.Icons.DELETE, size=28, color=ft.Colors.ERROR),
-                    ft.Text("Trash", size=11, color=ft.Colors.ERROR),
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
-                padding=12, border_radius=8,
-                alignment=ft.Alignment.CENTER,
-            ),
-            on_accept=lambda e: asyncio_create(self._on_trash_drop(e)),
-            on_will_accept=lambda e: self._on_trash_will_accept(e),
+        trash_content = ft.Container(
+            ft.Column([
+                ft.Icon(ft.Icons.DELETE, size=28, color=ft.Colors.ERROR),
+                ft.Text("Trash", size=11, color=ft.Colors.ERROR),
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
+            padding=12, border_radius=8,
+            alignment=ft.Alignment.CENTER,
         )
+        def _trash_badge(g):
+            n = len(getattr(g, "_selected_registry_ids", set())) + len(getattr(g, "_multi_selected", set()))
+            return (n or 1, "marked for deletion")
+        self.trash_zone = DropZone(
+            self, trash_content,
+            color=GLOW_COLOR, dest="trash",
+            badge_fn=_trash_badge,
+            on_accept=lambda e: asyncio_create(self._on_trash_drop(e)),
+            border_radius=8,
+        )
+        self.trash_target = self.trash_zone.build()
         self.content_area = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
         page.add(ft.Row([
             ft.Container(
@@ -967,18 +974,9 @@ class PanCalcGUI:
         except Exception as e:
             self._show_notification(f"Failed to delete: {e}", type="error")
         self._build_current_view()
-    def _on_trash_will_accept(self, e):
-        """Highlight trash when dragging over it."""
-        if e.data:
-            e.control.content.bgcolor = ft.Colors.ERROR_CONTAINER
-        else:
-            e.control.content.bgcolor = None
-        e.control.update()
     async def _on_trash_drop(self, e: ft.DragTargetEvent):
         """Handle drop onto trash bin - delete item based on type."""
         debug_log("_on_trash_drop called")
-        e.control.content.bgcolor = None
-        e.control.update()
         if self._trashing:
             debug_log("Already trashing, ignoring duplicate call")
             return
