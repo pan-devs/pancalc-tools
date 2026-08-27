@@ -630,11 +630,6 @@ class PanCalcGUI:
             ok = await self._confirm("Install", f"Install {len(ids_to_install)} item(s) to calculator?")
             debug_log(f"confirm result ok={ok}")
             if not ok:
-                if item_ids is None:
-                    self._selected_registry_ids.clear()
-                self._selection_mode = False
-                if self.current_view_index in (0, 1):
-                    self._build_current_view()
                 return
         calc = await run_sync(find_calculator)
         if not calc:

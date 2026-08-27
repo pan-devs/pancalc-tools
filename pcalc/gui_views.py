@@ -6,9 +6,11 @@ from __future__ import annotations
 import asyncio
 import re
 import shutil
+from collections import defaultdict
 from pathlib import Path
 import flet as ft
 from pcalc import theme as ptheme
+from pcalc import config as pconfig
 from pcalc import library as plibrary
 from pcalc.calculator import find_calculator
 from pcalc.crypto import list_keys, official_key_info
@@ -53,51 +55,138 @@ class ViewBuilder:
         g = self.gui
         if not g._selection_mode:
             return
-        data = e.control.data
-        dragged_id = data.get("item_id") or data.get("path") if isinstance(data, dict) else None
-        changed = False
-        for sid in list(g._selected_registry_ids):
-            if dragged_id is not None and sid == dragged_id:
-                continue
-            c = self._card_refs.get(sid)
-            if c is not None:
-                c.opacity = 0.3
-                changed = True
-        if changed:
-            g.page.update()
-    
-    def _on_selection_drag_complete(self, e: ft.DragEndEvent):
-        g = self.gui
         for c in self._card_refs.values():
             c.opacity = 1.0
+        data = e.control.data
+        dragged_id = data.get("item_id") or data.get("path") if isinstance(data, dict) else None
+        if dragged_id is not None and dragged_id in g._selected_registry_ids:
+            for sid in list(g._selected_registry_ids):
+                if sid == dragged_id:
+                    continue
+                c = self._card_refs.get(sid)
+                if c is not None:
+                    c.opacity = 0.3
         g.page.update()
-        g._build_current_view()
+
+    def _on_selection_drag_complete(self, e: ft.DragEndEvent):
+        for c in self._card_refs.values():
+            c.opacity = 1.0
+        self.gui._build_current_view()
     
+    def _resolve_item_info(self, key: str) -> tuple[str, str]:
+        g = self.gui
+        from pathlib import Path
+        
+        # 1. Comprobar si es una ruta de archivo (local o en calculadora)
+        if "/" in key or "\\" in key or key.endswith((".g3p", ".txt", ".bin")):
+            path = Path(key)
+            name = path.name
+            ext = path.suffix.lower()
+            parts = [p.lower() for p in path.parts]
+            
+            if "fotos" in parts or ext in (".g3p", ".png", ".jpg", ".jpeg", ".bmp"):
+                section = "Fotos (Calc)" if "fotos" in parts else "Imágenes (Local)"
+            elif "textos" in parts or ext in (".txt", ".pdf", ".doc", ".docx"):
+                section = "Textos (Calc)" if "textos" in parts else "Docs (Local)"
+            else:
+                section = "Archivos (Calc)" if "pthings" in parts else "Archivos (Local)"
+            return name, section
+            
+        # 2. Comprobar si es un add-in en la librería local
+        lib = plibrary.get(key)
+        if lib:
+            name = lib.get("name") or lib.get("filename") or key
+            section = lib.get("type", "addin").capitalize()
+            if section == "Addin":
+                section = "Add-in"
+            return name, section
+            
+        # 3. Comprobar si es un add-in en el registro online
+        reg_item = next((item for item in g.registry_data if item.get("id") == key), None)
+        if reg_item:
+            name = reg_item.get("name") or reg_item.get("filename") or key
+            section = "Registry Add-in"
+            return name, section
+            
+        # 4. Fallback por defecto
+        return key, "Elemento"
+
     def _make_drag_feedback(self, count: int, name: str = "",
                             breakdown: dict[str, int] | None = None,
                             local_counts: dict[str, int] | None = None,
                             card: ft.Control | None = None) -> ft.Container | None:
         if count <= 1:
             if card is not None:
-                return ft.Container(content=card, opacity=1.0, offset=ft.Offset(-0.5, -0.5))
+                return ft.Container(content=card, opacity=1.0)
             return None
-        lines = [ft.Row([
-            ft.Icon(ft.Icons.DRAG_INDICATOR, size=16, color=ft.Colors.PRIMARY),
-            ft.Text(f"{count}", size=16, weight=ft.FontWeight.BOLD),
-        ], tight=True, spacing=4)]
-        if breakdown:
-            for label in sorted(breakdown):
-                cnt = breakdown[label]
-                loc = local_counts.get(label, 0) if local_counts else 0
-                txt = f"  {label}: {cnt}" + (f" ({loc} local)" if loc and loc < cnt else "")
-                lines.append(ft.Text(txt, size=11, color=ft.Colors.OUTLINE))
+
+        # Recopilar información de todos los elementos seleccionados
+        g = self.gui
+        items_info = []
+        
+        # Coleccionar de la selección de registro/librería local/calc
+        if g._selection_mode and g._selected_registry_ids:
+            for sid in g._selected_registry_ids:
+                items_info.append(self._resolve_item_info(sid))
+        # Coleccionar de la selección múltiple del convertidor
+        elif g._multi_selected:
+            for fpath in g._multi_selected:
+                items_info.append(self._resolve_item_info(fpath))
+                
+        # Fallback si no hay selección global activa pero se pasa un nombre en el argumento
+        if not items_info:
+            fallback_sec = "Archivos"
+            if breakdown:
+                fallback_sec = list(breakdown.keys())[0] if breakdown else "Archivos"
+            items_info.append((name or "Elemento", fallback_sec))
+            
+        # Construir contenido de la tarjeta de arrastre múltiple
+        card_content = [
+            ft.Row([
+                ft.Icon(ft.Icons.DRAG_INDICATOR, size=18, color=ft.Colors.PRIMARY),
+                ft.Text(f"Arrastrando {count} elementos", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.PRIMARY),
+            ], spacing=6),
+            ft.Container(height=4),
+        ]
+        
+        # Mostrar hasta 4 elementos con sus nombres y secciones
+        for item_name, item_section in items_info[:4]:
+            card_content.append(
+                ft.Row([
+                    ft.Icon(ft.Icons.LABEL_OUTLINE, size=14, color=ft.Colors.OUTLINE),
+                    ft.Text(item_name, size=11, weight=ft.FontWeight.BOLD, expand=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                    ft.Container(
+                        ft.Text(item_section, size=8, color=ft.Colors.ON_SECONDARY_CONTAINER, weight=ft.FontWeight.BOLD),
+                        bgcolor=ft.Colors.SECONDARY_CONTAINER,
+                        border_radius=4,
+                        padding=ft.Padding.symmetric(horizontal=4, vertical=1),
+                    )
+                ], spacing=4)
+            )
+            
+        # Si hay más de 4 elementos, añadir el indicador correspondiente
+        remaining = count - len(items_info[:4])
+        if remaining > 0:
+            card_content.append(
+                ft.Row([
+                    ft.Container(width=18),
+                    ft.Text(f"+ {remaining} elementos más...", size=10, color=ft.Colors.OUTLINE, italic=True),
+                ])
+            )
+            
+        feedback_card = ft.Card(
+            content=ft.Container(
+                content=ft.Column(card_content, spacing=3, tight=True),
+                padding=10,
+                width=280,
+                border_radius=8,
+                bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH,
+            )
+        )
+        
         return ft.Container(
-            content=ft.Column(lines, spacing=1, tight=True),
-            padding=ft.Padding(left=12, right=12, top=8, bottom=8),
-            border=ft.Border.all(2, ft.Colors.PRIMARY),
-            border_radius=8,
-            bgcolor=ft.Colors.SURFACE_CONTAINER,
-            offset=ft.Offset(-0.5, -0.5),
+            content=feedback_card,
+            opacity=0.9,
         )
     # ── 1. Registry View ───────────────────────────────────────────
     def _build_registry_view(self):
@@ -163,7 +252,7 @@ class ViewBuilder:
                         ft.Text("Long-press a card to select, then drop on the install zone",
                                 size=11, color=ft.Colors.PRIMARY),
                     ], tight=True),
-                    visible=g._selection_mode,
+                    visible=True,
                     padding=ft.Padding.only(top=4, bottom=4),
                 ),
                 ft.Container(height=4), grid,
@@ -360,7 +449,7 @@ class ViewBuilder:
                         ft.Text("Long-press a card to select, then drop on the install zone",
                                 size=11, color=ft.Colors.PRIMARY),
                     ], tight=True),
-                    visible=g._selection_mode,
+                    visible=True,
                     padding=ft.Padding.only(top=4, bottom=4),
                 ),
                 ft.Container(height=4),
@@ -369,6 +458,100 @@ class ViewBuilder:
                 grid,
             ], expand=True, scroll=ft.ScrollMode.AUTO)
         )
+    def _build_installed_group_tile(self, stem: str, group_files: list, sub: str,
+                                      all_del_paths: list, all_del_ids: list, all_del_types: list,
+                                      del_count: int, del_breakdown: dict, del_local: dict) -> ft.Draggable:
+        g = self.gui
+        count = len(group_files)
+        all_paths = [str(f) for f in group_files]
+        total_size = sum(f.stat().st_size for f in group_files)
+        icon = ft.Icons.IMAGE if sub == "fotos" else ft.Icons.DESCRIPTION
+        color = "#00BCD4" if sub == "fotos" else "#E91E63"
+        first_name = group_files[0].name
+        last_name = group_files[-1].name
+        any_selected = any(p in g._selected_registry_ids for p in all_paths)
+
+        label = f"{count} archivos" if count != 1 else "1 archivo"
+        list_tile = ft.ListTile(
+            leading=ft.Icon(ft.Icons.LAYERS, size=20, color=color),
+            title=ft.Text(f"{stem} [{label}]", size=14, weight=ft.FontWeight.BOLD if any_selected else None),
+            subtitle=ft.Text(f"{first_name} → {last_name} • {_fmt_size(total_size)}", size=11, color=ft.Colors.OUTLINE),
+            trailing=ft.IconButton(ft.Icons.DELETE, tooltip=f"Delete all {count} files",
+                                   on_click=lambda _: asyncio_create(self._remove_group_files(group_files))),
+        )
+        if any_selected:
+            list_tile = ft.Container(
+                content=list_tile,
+                border=ft.Border.all(2, ft.Colors.PRIMARY),
+                border_radius=8,
+                padding=2,
+            )
+
+        def _on_group_click(e):
+            if g._selection_mode:
+                if any_selected:
+                    for p in all_paths:
+                        g._selected_registry_ids.discard(p)
+                else:
+                    for p in all_paths:
+                        g._selected_registry_ids.add(p)
+                if not g._selected_registry_ids:
+                    g._selection_mode = False
+                g._build_current_view()
+
+        def _on_group_long_press(e):
+            if g._selection_mode:
+                g._selection_mode = False
+                g._selected_registry_ids.clear()
+            else:
+                g._selection_mode = True
+                g._selected_registry_ids.clear()
+                for p in all_paths:
+                    g._selected_registry_ids.add(p)
+            g._build_current_view()
+
+        wrap = ft.Container(
+            content=list_tile,
+            on_click=_on_group_click,
+            on_long_press=_on_group_long_press,
+            ink=True,
+        )
+        for p in all_paths:
+            self._card_refs[p] = wrap
+        if g._selection_mode and any_selected:
+            gdata = {"all_paths": all_del_paths, "all_ids": all_del_ids, "all_lib_types": all_del_types, "item_type": "calculator_file"}
+            gfb = self._make_drag_feedback(del_count, "", del_breakdown, del_local)
+        else:
+            gdata = {"all_paths": all_paths, "item_type": "calculator_file"}
+            gfb = self._make_drag_feedback(count, f"{stem} ({count})", {"files": count} if count > 1 else None, card=wrap)
+        return ft.Draggable(
+            group="all_items",
+            content=wrap,
+            content_when_dragging=ft.Container(opacity=0.3, content=wrap),
+            content_feedback=gfb,
+            on_drag_start=self._on_selection_drag_start,
+            on_drag_complete=self._on_selection_drag_complete,
+            data=gdata,
+        )
+
+    async def _remove_group_files(self, files: list):
+        g = self.gui
+        names = [f.name for f in files]
+        if pconfig.get("confirm_remove"):
+            ok = await g._confirm("Delete", f"Delete {len(files)} file(s)?\n" + "\n".join(names))
+            if not ok:
+                return
+        deleted = 0
+        for f in files:
+            try:
+                f.unlink()
+                deleted += 1
+            except OSError:
+                pass
+        if deleted:
+            g._show_snackbar(f"🗑️ {deleted} file(s) deleted", type="success")
+            g._build_current_view()
+
     # ── 3. Installed View ──────────────────────────────────────────
     def _build_installed_view(self):
         self._card_refs.clear()
@@ -391,7 +574,8 @@ class ViewBuilder:
         known = sum(1 for f in iter_calc_files(entries) if f.addin is not None)
         g.installed_addin_ids = {e.addin.get("id") for e in iter_calc_files(entries) if e.addin}
         matched_paths: set[str] = set()
-        rows: list[ft.Control] = []
+        calc_rows: list[ft.Control] = []
+        pthings_rows: list[ft.Control] = []
         # Build ID-to-path mapping for multi-delete via selection
         id_to_path: dict[str, str] = {}
         for fe in iter_calc_files(entries):
@@ -430,16 +614,20 @@ class ViewBuilder:
             name = f.addin.get("name", f.addin.get("id", "?"))
             aid = f.addin.get("id", "")
             icon = _icon_for_addin(f.addin)
+            is_game = bool(f.addin.get("emulator") or f.addin.get("category") == "games")
+            game_color = "#ed55a1" if is_game else None
             is_selected = aid in g._selected_registry_ids
             full_path = str(calc.mount_path / f.name)
             list_tile = ft.ListTile(
-                leading=ft.Icon(icon),
-                title=ft.Text(name, size=14),
+                leading=ft.Icon(icon, color=game_color),
+                title=ft.Text(name, size=14, color=game_color),
                 subtitle=ft.Text(f.name, size=11, color=ft.Colors.OUTLINE),
                 trailing=ft.Row([
                     ft.IconButton(ft.Icons.VERIFIED, tooltip="Verify",
+                                  color=game_color,
                                   on_click=lambda _, a=f.addin, n=name: asyncio_create(g._verify_item(a, n))),
                     ft.IconButton(ft.Icons.DELETE, tooltip="Remove",
+                                  color=game_color,
                                   on_click=lambda _, a=f.addin, n=name: asyncio_create(g._remove_item(a, n))),
                 ], tight=True),
             )
@@ -484,7 +672,7 @@ class ViewBuilder:
                 drag_data = {"all_paths": all_deletable_paths, "all_ids": all_deletable_ids, "all_lib_types": all_deletable_types, "item_type": "calculator_file"}
             else:
                 drag_data = {"path": full_path, "item_type": "calculator_file"}
-            rows.append(ft.Draggable(
+            calc_rows.append(ft.Draggable(
                 group="all_items",
                 content=wrap,
                 content_when_dragging=ft.Container(opacity=0.3, content=wrap),
@@ -552,7 +740,7 @@ class ViewBuilder:
             else:
                 orphan_data = {"path": fpath_str, "item_type": "calculator_file"}
                 orphan_feedback = self._make_drag_feedback(1, f.stem, card=wrap)
-            rows.append(ft.Draggable(
+            calc_rows.append(ft.Draggable(
                 group="all_items",
                 content=wrap,
                 content_when_dragging=ft.Container(opacity=0.3, content=wrap),
@@ -564,8 +752,16 @@ class ViewBuilder:
         for sub in ("fotos", "textos"):
             d = calc.mount_path / "pthings" / sub
             if d.exists():
-                for f in sorted(d.iterdir()):
-                    if f.is_file():
+                pfiles = [f for f in sorted(d.iterdir()) if f.is_file()]
+                if not pfiles:
+                    continue
+                groups: dict[str, list] = defaultdict(list)
+                for f in pfiles:
+                    stem = re.sub(r'(?:_\d+)+$', '', f.stem)
+                    groups[stem].append(f)
+                for stem, gfiles in groups.items():
+                    if len(gfiles) == 1:
+                        f = gfiles[0]
                         list_tile = ft.ListTile(
                             leading=ft.Icon(ft.Icons.IMAGE if sub == "fotos" else ft.Icons.DESCRIPTION, size=20),
                             title=ft.Text(f.name, size=14),
@@ -613,14 +809,20 @@ class ViewBuilder:
                         else:
                             pdata = {"path": pfpath, "item_type": "calculator_file"}
                             pfb = self._make_drag_feedback(1, f.name, card=wrap)
-                        rows.append(ft.Draggable(
+                        pthings_rows.append(ft.Draggable(
                             group="all_items",
                             content=wrap,
                             content_when_dragging=ft.Container(opacity=0.3, content=wrap),
                             content_feedback=pfb,
-            on_drag_start=self._on_selection_drag_start,
-            on_drag_complete=self._on_selection_drag_complete,
+                            on_drag_start=self._on_selection_drag_start,
+                            on_drag_complete=self._on_selection_drag_complete,
                             data=pdata,
+                        ))
+                    else:
+                        pthings_rows.append(self._build_installed_group_tile(
+                            stem, gfiles, sub,
+                            all_deletable_paths, all_deletable_ids, all_deletable_types,
+                            _del_count, _del_breakdown, _del_local,
                         ))
         # ─── Local Library Section ───
         local_addins = plibrary.get_all("addin")
@@ -640,8 +842,8 @@ class ViewBuilder:
         local_not_on_calc = [d for d in local_items if d.get("id") not in calc_ids]
         
         if local_not_on_calc:
-            rows.append(ft.Divider())
-            rows.append(ft.Text("🏷️ Local Library (not on calculator)", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.OUTLINE))
+            calc_rows.append(ft.Divider())
+            calc_rows.append(ft.Text("🏷️ Local Library (not on calculator)", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.OUTLINE))
             for d in local_not_on_calc:
                 name = d.get("name", d.get("id", "?"))
                 aid = d.get("id", "?")
@@ -702,7 +904,7 @@ class ViewBuilder:
                         drag_data["all_lib_types"] = all_deletable_types
                     if all_deletable_paths:
                         drag_data["all_paths"] = all_deletable_paths
-                rows.append(ft.Draggable(
+                calc_rows.append(ft.Draggable(
                     group="all_items",
                     content=wrap,
                     content_when_dragging=ft.Container(opacity=0.3, content=wrap),
@@ -711,9 +913,17 @@ class ViewBuilder:
                     on_drag_complete=self._on_selection_drag_complete,
                     data=drag_data,
                 ))
-        list_view = ft.ListView(
-            controls=rows if rows else [ft.Text("No files found on calculator", color=ft.Colors.OUTLINE)],
-            expand=True, spacing=2, padding=ft.Padding.only(right=8),
+        left_col = ft.Column(
+            controls=calc_rows if calc_rows else [ft.Text("No files found on calculator", color=ft.Colors.OUTLINE)],
+            expand=True, spacing=2,
+        )
+        right_controls: list[ft.Control] = []
+        if pthings_rows:
+            right_controls.append(ft.Text("Pthings", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.OUTLINE))
+            right_controls.extend(pthings_rows)
+        right_col = ft.Column(
+            controls=right_controls if right_controls else [ft.Text("No pthings", color=ft.Colors.OUTLINE)],
+            expand=True, spacing=2,
         )
         g._set_content(
             ft.Column([
@@ -725,7 +935,7 @@ class ViewBuilder:
                                       on_click=lambda _: asyncio_create(g._scan_calculator())),
                 ]),
                 ft.Container(height=4),
-                list_view,
+                ft.Row([left_col, right_col], expand=True, vertical_alignment=ft.CrossAxisAlignment.START),
             ], expand=True)
         )
     # ── 4. Convert View ────────────────────────────────────────────
@@ -1542,16 +1752,15 @@ class ViewBuilder:
         )
     def _on_install_accept(self, e):
         """Handle drop on install target — multi-selection or single item."""
-        if self.gui._selected_registry_ids:
-            asyncio_create(self.gui._install_selected())
+        data = e.src.data if e.src else {}
+        dragged_id = data.get("item_id", "")
+        g = self.gui
+        if dragged_id and dragged_id in g._selected_registry_ids:
+            asyncio_create(g._install_selected())
+        elif dragged_id:
+            asyncio_create(g._install_selected(item_ids=[dragged_id]))
         else:
-            # Single item drag: extract item_id from draggable data
-            data = e.src.data if e.src else {}
-            item_id = data.get("item_id", "")
-            if item_id:
-                asyncio_create(self.gui._install_selected(item_ids=[item_id]))
-            else:
-                self.gui._show_snackbar("Nothing to install", type="warning")
+            g._show_snackbar("Nothing to install", type="warning")
     def _on_install_will_accept(self, e):
         if e.data:
             e.control.content.bgcolor = ft.Colors.SECONDARY_CONTAINER

@@ -102,3 +102,284 @@
 [DEBUG] Trash drop data={'installable': True, 'item_id': 'racing_v2'}, item_type=unknown
 [DEBUG] all_paths=[], all_ids=None
 [DEBUG] No deletable items, aborting
+[DEBUG] _install_selected called with item_ids=None
+[DEBUG] ids_to_install=['racing_v2', 'nesizm', '3dgraph']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 3 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=False
+[DEBUG] Loop finished, returning result=False
+[DEBUG] confirm result ok=False
+[DEBUG] _install_selected called with item_ids=['khicas']
+[DEBUG] ids_to_install=['khicas']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 1 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=False
+[DEBUG] Loop finished, returning result=False
+[DEBUG] confirm result ok=False
+[DEBUG] _install_selected called with item_ids=['khicas']
+[DEBUG] ids_to_install=['khicas']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 1 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'installable': True, 'item_id': 'khicas'}, item_type=unknown
+[DEBUG] all_paths=[], all_ids=None
+[DEBUG] No deletable items, aborting
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'installable': True, 'item_id': 'khicas'}, item_type=unknown
+[DEBUG] all_paths=[], all_ids=None
+[DEBUG] No deletable items, aborting
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'installable': True, 'item_id': 'racing_v2'}, item_type=unknown
+[DEBUG] all_paths=[], all_ids=None
+[DEBUG] No deletable items, aborting
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'installable': True, 'item_id': 'racing_v2'}, item_type=unknown
+[DEBUG] all_paths=[], all_ids=None
+[DEBUG] No deletable items, aborting
+[DEBUG] _install_selected called with item_ids=None
+[DEBUG] ids_to_install=['racing_v2', '3dgraph', 'nesizm']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 3 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=False
+[DEBUG] Loop finished, returning result=False
+[DEBUG] confirm result ok=False
+[DEBUG] _install_selected called with item_ids=None
+[DEBUG] ids_to_install=['nesizm', 'racing_v2', '3dgraph']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 3 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=False
+[DEBUG] Loop finished, returning result=False
+[DEBUG] confirm result ok=False
+[DEBUG] _install_selected called with item_ids=['pictplot']
+[DEBUG] ids_to_install=['pictplot']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 1 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=False
+[DEBUG] Loop finished, returning result=False
+[DEBUG] confirm result ok=False
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'installable': True, 'item_id': 'pictplot'}, item_type=unknown
+[DEBUG] all_paths=[], all_ids=None
+[DEBUG] No deletable items, aborting
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'installable': True, 'item_id': 'khicas'}, item_type=unknown
+[DEBUG] all_paths=[], all_ids=None
+[DEBUG] No deletable items, aborting
+[DEBUG] _install_selected called with item_ids=None
+[DEBUG] ids_to_install=['racing_v2', '3dgraph', 'nesizm']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 3 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=False
+[DEBUG] Loop finished, returning result=False
+[DEBUG] confirm result ok=False
+[DEBUG] _install_selected called with item_ids=None
+[DEBUG] ids_to_install=['utilities', 'khicas', 'test', 'probsim']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 4 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=False
+[DEBUG] Loop finished, returning result=False
+[DEBUG] confirm result ok=False
+[DEBUG] _install_selected called with item_ids=['legend-of-zelda-the-usa-rev-1']
+[DEBUG] ids_to_install=['legend-of-zelda-the-usa-rev-1']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 1 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=False
+[DEBUG] Loop finished, returning result=False
+[DEBUG] confirm result ok=False
+[DEBUG] _install_selected called with item_ids=['legend-of-zelda-the-usa-rev-1']
+[DEBUG] ids_to_install=['legend-of-zelda-the-usa-rev-1']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 1 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'item_id': 'legend-of-zelda-the-usa-rev-1', 'lib_type': 'game', 'item_type': 'local_library', 'installable': True}, item_type=local_library
+[DEBUG] all_paths=[], all_ids=None
+[DEBUG] No deletable items, aborting
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'item_id': 'legend-of-zelda-the-usa-rev-1', 'lib_type': 'game', 'item_type': 'local_library', 'installable': True}, item_type=local_library
+[DEBUG] all_paths=[], all_ids=None
+[DEBUG] No deletable items, aborting
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'item_id': 'legend-of-zelda-the-usa-rev-1', 'lib_type': 'game', 'item_type': 'local_library', 'installable': True, 'all_ids': ['legend-of-zelda-the-usa-rev-1'], 'all_lib_types': ['game']}, item_type=local_library
+[DEBUG] all_paths=[], all_ids=['legend-of-zelda-the-usa-rev-1']
+[DEBUG] confirm_remove is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Delete Local', message='Delete 1 item(s) from local library?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'path': '/run/media/goduserr/disk/racing_v2.g3a', 'item_type': 'calculator_file'}, item_type=calculator_file
+[DEBUG] all_paths=['/run/media/goduserr/disk/racing_v2.g3a'], all_ids=None
+[DEBUG] confirm_remove is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Delete', message='Delete 1 file(s)?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=False
+[DEBUG] Loop finished, returning result=False
+[DEBUG] confirm result ok=False
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'path': '/run/media/goduserr/disk/racing_v2.g3a', 'item_type': 'calculator_file'}, item_type=calculator_file
+[DEBUG] all_paths=['/run/media/goduserr/disk/racing_v2.g3a'], all_ids=None
+[DEBUG] confirm_remove is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Delete', message='Delete 1 file(s)?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
+[DEBUG] _install_selected called with item_ids=['racing_v2']
+[DEBUG] ids_to_install=['racing_v2']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 1 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=False
+[DEBUG] Loop finished, returning result=False
+[DEBUG] confirm result ok=False
+[DEBUG] _install_selected called with item_ids=None
+[DEBUG] ids_to_install=['racing_v2', 'khicas', 'nesizm']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 3 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'path': '/run/media/goduserr/disk/pthings/fotos/OIP-3584822961.g3p', 'item_type': 'calculator_file'}, item_type=calculator_file
+[DEBUG] all_paths=['/run/media/goduserr/disk/pthings/fotos/OIP-3584822961.g3p'], all_ids=None
+[DEBUG] confirm_remove is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Delete', message='Delete 1 file(s)?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=False
+[DEBUG] Loop finished, returning result=False
+[DEBUG] confirm result ok=False
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'path': '/run/media/goduserr/disk/pthings/fotos/OIP-3584822961.g3p', 'item_type': 'calculator_file'}, item_type=calculator_file
+[DEBUG] all_paths=['/run/media/goduserr/disk/pthings/fotos/OIP-3584822961.g3p'], all_ids=None
+[DEBUG] confirm_remove is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Delete', message='Delete 1 file(s)?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=False
+[DEBUG] Loop finished, returning result=False
+[DEBUG] confirm result ok=False
+[DEBUG] Entering _confirm with title='Delete', message='Delete 'OIP-3584822961.g3p' from calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'path': '/run/media/goduserr/disk/pthings/fotos/PanOS_prompt_003_002.g3p', 'item_type': 'calculator_file'}, item_type=calculator_file
+[DEBUG] all_paths=['/run/media/goduserr/disk/pthings/fotos/PanOS_prompt_003_002.g3p'], all_ids=None
+[DEBUG] confirm_remove is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Delete', message='Delete 1 file(s)?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
+[DEBUG] _on_trash_drop called
+[DEBUG] Trash drop data={'path': '/run/media/goduserr/disk/pthings/fotos/PanOS_prompt_004_001.g3p', 'item_type': 'calculator_file'}, item_type=calculator_file
+[DEBUG] all_paths=['/run/media/goduserr/disk/pthings/fotos/PanOS_prompt_004_001.g3p'], all_ids=None
+[DEBUG] confirm_remove is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Delete', message='Delete 1 file(s)?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
+[DEBUG] Entering _confirm with title='Delete', message='Delete 58 file(s)?
+PanOS_prompt_001_001.g3p
+PanOS_prompt_001_002.g3p
+PanOS_prompt_001_003.g3p
+PanOS_prompt_002_001.g3p
+PanOS_prompt_002_002.g3p
+PanOS_prompt_002_003.g3p
+PanOS_prompt_003_001.g3p
+PanOS_prompt_003_003.g3p
+PanOS_prompt_004_002.g3p
+PanOS_prompt_004_003.g3p
+PanOS_prompt_005_001.g3p
+PanOS_prompt_005_002.g3p
+PanOS_prompt_005_003.g3p
+PanOS_prompt_006_001.g3p
+PanOS_prompt_006_002.g3p
+PanOS_prompt_006_003.g3p
+PanOS_prompt_007_001.g3p
+PanOS_prompt_007_002.g3p
+PanOS_prompt_007_003.g3p
+PanOS_prompt_008_001.g3p
+PanOS_prompt_008_002.g3p
+PanOS_prompt_008_003.g3p
+PanOS_prompt_009_001.g3p
+PanOS_prompt_009_002.g3p
+PanOS_prompt_009_003.g3p
+PanOS_prompt_010_001.g3p
+PanOS_prompt_010_002.g3p
+PanOS_prompt_010_003.g3p
+PanOS_prompt_011_001.g3p
+PanOS_prompt_011_002.g3p
+PanOS_prompt_011_003.g3p
+PanOS_prompt_012_001.g3p
+PanOS_prompt_012_002.g3p
+PanOS_prompt_012_003.g3p
+PanOS_prompt_013_001.g3p
+PanOS_prompt_013_002.g3p
+PanOS_prompt_013_003.g3p
+PanOS_prompt_014_001.g3p
+PanOS_prompt_014_002.g3p
+PanOS_prompt_014_003.g3p
+PanOS_prompt_015_001.g3p
+PanOS_prompt_015_002.g3p
+PanOS_prompt_015_003.g3p
+PanOS_prompt_016_001.g3p
+PanOS_prompt_016_002.g3p
+PanOS_prompt_016_003.g3p
+PanOS_prompt_017_001.g3p
+PanOS_prompt_017_002.g3p
+PanOS_prompt_017_003.g3p
+PanOS_prompt_018_001.g3p
+PanOS_prompt_018_002.g3p
+PanOS_prompt_018_003.g3p
+PanOS_prompt_019_001.g3p
+PanOS_prompt_019_002.g3p
+PanOS_prompt_019_003.g3p
+PanOS_prompt_020_001.g3p
+PanOS_prompt_020_002.g3p
+PanOS_prompt_020_003.g3p'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] Entering _confirm with title='Delete', message='Delete 'manos-sosteniendo-corazon-png-aislado-fondo-transparente_645927-11091-4153271918.g3p' from calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] Entering _confirm with title='Delete', message='Delete 'PanOS_prompt.txt' from calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] _install_selected called with item_ids=None
+[DEBUG] ids_to_install=['pictplot', 'racing_v2', 'khicas']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 3 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
+[DEBUG] _install_selected called with item_ids=None
+[DEBUG] ids_to_install=['pictplot', 'racing_v2', 'khicas']
+[DEBUG] confirm_install is enabled, showing confirmation...
+[DEBUG] Entering _confirm with title='Install', message='Install 3 item(s) to calculator?'
+[DEBUG] Confirm dialog shown, entering loop...
+[DEBUG] _dlg_close called with result=True
+[DEBUG] Loop finished, returning result=True
+[DEBUG] confirm result ok=True
