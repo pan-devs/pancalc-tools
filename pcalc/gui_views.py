@@ -118,12 +118,22 @@ class ViewBuilder:
         for c in self._card_refs.values():
             c.opacity = 1.0
         data = e.control.data
-        dragged_id = data.get("item_id") or data.get("path") if isinstance(data, dict) else None
-        if dragged_id is not None and dragged_id in g._selected_registry_ids:
-            for sid in list(g._selected_registry_ids):
-                if sid == dragged_id:
+        if not isinstance(data, dict):
+            g.page.update()
+            return
+        # Convert cards are keyed by path and selected via _multi_selected;
+        # addin/registry cards are keyed by item_id and selected via _selected_registry_ids.
+        if "all_paths" in data:
+            dragged = data.get("path")
+            sel = g._multi_selected
+        else:
+            dragged = data.get("item_id") or data.get("aid")
+            sel = g._selected_registry_ids
+        if dragged is not None and dragged in sel:
+            for key in list(sel):
+                if key == dragged:
                     continue
-                c = self._card_refs.get(sid)
+                c = self._card_refs.get(key)
                 if c is not None:
                     c.opacity = 0.3
         g.page.update()
@@ -1031,6 +1041,7 @@ class ViewBuilder:
     # ── 4. Convert View ────────────────────────────────────────────
     def _build_convert_view(self):
         g = self.gui
+        self._card_refs.clear()
         base = g._data_root()
         img_dir = base / "convert/images"
         doc_dir = base / "convert/documents"
@@ -1213,6 +1224,7 @@ class ViewBuilder:
             )
         drag_all = self._get_multi_selected_drag_paths([fpath])
         count = len(drag_all)
+        self._card_refs[fpath] = clk
         return ft.Draggable(
             group="all_items",
             content=clk,
@@ -1220,6 +1232,8 @@ class ViewBuilder:
             content_feedback=self._make_drag_feedback(count, f"{ftype}: {f.name}", {"files": count} if count > 1 else None, card=clk),
             data={"path": fpath, "all_paths": drag_all, "type": ftype,
                   "source_dir": str(source_dir), "item_type": "convert_input"},
+            on_drag_start=self._on_selection_drag_start,
+            on_drag_complete=self._on_selection_drag_complete,
         )
     def _build_converted_section(self, sec: dict) -> ft.Control:
         files = sec["files"]
@@ -1457,12 +1471,15 @@ class ViewBuilder:
             )
         drag_all = self._get_multi_selected_drag_paths([fpath])
         count = len(drag_all)
+        self._card_refs[fpath] = clk
         return ft.Draggable(
             group="all_items",
             content=clk,
             content_when_dragging=ft.Container(opacity=0.3, content=clk),
             content_feedback=self._make_drag_feedback(count, f.name, {"files": count} if count > 1 else None, card=clk),
             data={"path": fpath, "all_paths": drag_all, "section": section_id, "item_type": "converted"},
+            on_drag_start=self._on_selection_drag_start,
+            on_drag_complete=self._on_selection_drag_complete,
         )
     def _build_converted_pair_card(self, g3p_f: Path, txt_f: Path) -> ft.Draggable:
         g3p_path = str(g3p_f)
@@ -1517,12 +1534,16 @@ class ViewBuilder:
             )
         drag_all = self._get_multi_selected_drag_paths(both_paths)
         count = len(drag_all)
+        self._card_refs[g3p_path] = clk
+        self._card_refs[txt_path] = clk
         return ft.Draggable(
             group="all_items",
             content=clk,
             content_when_dragging=ft.Container(opacity=0.3, content=clk),
             content_feedback=self._make_drag_feedback(count, f"{g3p_f.stem} (both)", {"files": count} if count > 1 else None, card=clk),
             data={"path": g3p_path, "all_paths": drag_all, "section": "both", "item_type": "converted"},
+            on_drag_start=self._on_selection_drag_start,
+            on_drag_complete=self._on_selection_drag_complete,
         )
     async def _on_convert_drop_async(self, e: ft.DragTargetEvent, sec: dict):
         """Async drop handler with locking to prevent concurrent conversions."""
@@ -1793,12 +1814,16 @@ class ViewBuilder:
             )
         drag_all = self._get_multi_selected_drag_paths(all_paths)
         drag_count = len(drag_all)
+        for _p in all_paths:
+            self._card_refs[_p] = clk
         return ft.Draggable(
             group="all_items",
             content=clk,
             content_when_dragging=ft.Container(opacity=0.3, content=clk),
             content_feedback=self._make_drag_feedback(drag_count, f"{stem} ({count})", {"files": drag_count} if drag_count > 1 else None, card=clk),
             data={"path": first_g3p, "all_paths": drag_all, "section": section_id, "item_type": "converted"},
+            on_drag_start=self._on_selection_drag_start,
+            on_drag_complete=self._on_selection_drag_complete,
         )
     # ── 5. Catch View ──────────────────────────────────────────────
     def _build_catch_view(self):
