@@ -1263,10 +1263,14 @@ class ViewBuilder:
             badge_fn=_badge, on_accept=_accept, border_radius=8,
         ).build()
         
-        # Store reference to processing overlay for this section
+        # Store reference to processing overlay for this section.
+        # If this section is mid-conversion (user navigated away and back),
+        # keep the new overlay visible so the spinner doesn't vanish.
         if not hasattr(self, '_processing_overlays'):
             self._processing_overlays = {}
         self._processing_overlays[section_id] = processing_overlay
+        if getattr(self, '_processing_section', None) == section_id:
+            processing_overlay.visible = True
         
         # Full section: header row + DropZone (grid only)
         return ft.Container(
