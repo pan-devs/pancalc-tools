@@ -290,59 +290,67 @@ class PanCalcGUI:
     def _show_snackbar(self, text: str, type: str = "info"):
         if not self.page:
             return
-        colors = {
-            "info": ft.Colors.BLUE,
-            "success": ft.Colors.GREEN,
-            "warning": ft.Colors.ORANGE,
-            "error": ft.Colors.RED,
+        # Accent colors aligned with the Pan Devs palette
+        accent_colors = {
+            "info":    ptheme.PRIMARY,    # olive green
+            "success": ptheme.SUCCESS,    # sage green
+            "warning": ptheme.ACCENT,     # amber gold
+            "error":   "#C62828",         # deep red (legible)
         }
         icons = {
-            "info": ft.Icons.INFO_OUTLINE,
+            "info":    ft.Icons.INFO_OUTLINE,
             "success": ft.Icons.CHECK_CIRCLE_OUTLINE,
             "warning": ft.Icons.WARNING_AMBER_OUTLINED,
-            "error": ft.Icons.ERROR_OUTLINE,
+            "error":   ft.Icons.ERROR_OUTLINE,
         }
-        c = colors.get(type, ft.Colors.BLUE)
+        accent = accent_colors.get(type, ptheme.PRIMARY)
         icon = icons.get(type, ft.Icons.INFO_OUTLINE)
         
         self.page.show_dialog(
             ft.SnackBar(
                 content=ft.Row([
-                    ft.Icon(icon, color=ft.Colors.ON_SURFACE, size=20),
-                    ft.Text(text, color=ft.Colors.ON_SURFACE, expand=True),
-                ], spacing=12, tight=True),
-                bgcolor=c,
+                    ft.Container(
+                        width=4, height=32,
+                        bgcolor=accent, border_radius=2,
+                    ),
+                    ft.Icon(icon, color=accent, size=20),
+                    ft.Text(text, color=ft.Colors.ON_SURFACE, expand=True, size=13),
+                ], spacing=10, tight=True),
+                bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH,
                 duration=4000,
                 behavior=ft.SnackBarBehavior.FLOATING,
                 show_close_icon=True,
+                close_icon_color=ft.Colors.OUTLINE,
             )
         )
     def _show_notification(self, text: str, type: str = "info", action_text: str | None = None, action_cb=None):
         """Show a persistent Banner notification (for errors/warnings that need attention)."""
         if not self.page:
             return
-        colors = {
-            "info": ft.Colors.BLUE,
-            "success": ft.Colors.GREEN,
-            "warning": ft.Colors.ORANGE,
-            "error": ft.Colors.RED,
+        accent_colors = {
+            "info":    ptheme.PRIMARY,
+            "success": ptheme.SUCCESS,
+            "warning": ptheme.ACCENT,
+            "error":   "#C62828",
         }
         icons = {
-            "info": ft.Icons.INFO,
+            "info":    ft.Icons.INFO,
             "success": ft.Icons.CHECK_CIRCLE,
             "warning": ft.Icons.WARNING,
-            "error": ft.Icons.ERROR,
+            "error":   ft.Icons.ERROR,
         }
-        c = colors.get(type, ft.Colors.BLUE)
+        accent = accent_colors.get(type, ptheme.PRIMARY)
         icon = icons.get(type, ft.Icons.INFO)
         
-        actions = [ft.TextButton("Dismiss", on_click=lambda _: self._dismiss_banner(banner))]
+        actions = [ft.TextButton("Dismiss", on_click=lambda _: self._dismiss_banner(banner),
+                                 style=ft.ButtonStyle(color=accent))]
         if action_text and action_cb:
-            actions.insert(0, ft.TextButton(action_text, on_click=action_cb))
+            actions.insert(0, ft.TextButton(action_text, on_click=action_cb,
+                                            style=ft.ButtonStyle(color=accent)))
         
         banner = ft.Banner(
-            bgcolor=c,
-            leading=ft.Icon(icon, color=ft.Colors.ON_SURFACE, size=40),
+            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH,
+            leading=ft.Icon(icon, color=accent, size=40),
             content=ft.Text(text, color=ft.Colors.ON_SURFACE, size=14),
             actions=actions,
             force_actions_below=True,
