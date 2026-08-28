@@ -20,6 +20,7 @@ DEFAULTS = {
     "auto_update":     True,   # check for registry updates on launch
     "confirm_install": True,   # ask before installing
     "confirm_remove":  True,   # ask before removing
+    "confirm_push":    True,   # ask before pushing converted files (on by default, like dark mode)
     "theme_mode":      "dark", # default to dark mode
 }
 

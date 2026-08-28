@@ -34,6 +34,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Convert: the percentage now also advances **within a single file** when a document/tall image produces many outputs (`.g3p` strips from image splits or PDF/DOCX pages, `.txt` pages). `converter` functions (`convert_image`, `convert_document_g3p`, `convert_text`) accept an optional `on_progress(done, total)` callback; the GUI marshals it thread-safely onto the event loop to update the ring/percentage live in all three zones (Fotos, Texto, BOTH).
 - GUI: multi-selecting input/converted cards in Convert and then dragging one dims (opacity 0.3) the other selected cards — same behaviour as the addin/registry cards. Convert cards register in `_card_refs` (keyed by path) and share the `_on_selection_drag_start/_complete` handlers, which now also consider `_multi_selected`.
 - GUI: the Trash zone now covers the **whole sidebar** instead of just the small icon at the bottom. The `NavigationRail` + trash visual become the `content` of a full-height `DropZone` (`expand=True`), so dragging any item onto the bar — no matter where (over the labels/Settings) — arms the delete state. The rail remains tappable. The zone uses a **bright red** glow/border/badge (`#FF3B30`) so it clearly reads as a delete/trash area instead of the unified brown `GLOW_COLOR`.
+- Convert view now follows the same pattern as Games/Install: the per-card **Push checkboxes**, the **Select All/Deselect All** toggle and the **Delete Selected** button were removed. Instead there is a compact **"Drop here to Push"** zone (`_build_push_target`, like `_build_install_target`) at the bottom of the Convert view. Long-press a converted card to select it (highlighted border), then drop it on the Push zone to copy the converted g3p/txt to the calculator `pthings/`, or on the Trash to delete it (with UNDO) — the Trash now handles all deletion.
+- Push is resolved from the **dropped cards' paths**, not the global selection; `_on_push_accept` filters `all_paths` to only existing `converted` `.g3p`/`.txt` files, so leftovers selected in other views (registry/games/installed) are never pushed. `_push_files(paths=None)` now accepts explicit paths (falls back to the legacy set when omitted).
+- Removed `_build_checkbox`/`_toggle_push_selection` (gui_views) and `_delete_converted_selection` (gui) which became unused.
+- GUI: dropping on the **Push zone** now asks for confirmation **"Push N file(s) to calculator?"** before copying (same confirmation pattern as Install, timed before looking up the calculator). Controlled by the new `confirm_push` config (default **on**, like dark mode), with a matching **"Confirm before pushing"** switch in Settings > Behavior.
+- Trash: deleting **converted/convert_input** cards now also asks **"Delete N converted file(s)?"** before removing them (it previously deleted instantly). It shares the existing `confirm_remove` setting so it stays consistent with the rest of the Trash.
 
 ### Fixed
 - GUI: Convert no longer rebuilds the whole view after **every** file (which reset the overlay to 0% and made it look broken/cut off). `_convert_single` no longer calls `_build_current_view`; the batch refreshes once at the end and updates the overlay + grid live instead.
@@ -45,6 +50,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Verify for local games: `Path("").name` → empty string crash (LOGSTOREAD.md)
 - Remove fallback: used addins-only registry, now includes games
 - Boolean expression bug: `and/or` short-circuit pushed first file to `invalid` list
+- GUI: pushing with **no calculator connected** now shows the same warning snackbar ("No calculator connected") as Addins/Games/Install — it previously used a different error notification with a different message.
 
 ## [0.2.3] - 2026-05-25
 

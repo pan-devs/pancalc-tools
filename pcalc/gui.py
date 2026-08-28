@@ -927,21 +927,29 @@ class PanCalcGUI:
         except Exception as e:
             self._show_notification(f"Conversion failed: {e}", type="error")
         return generated
-    async def _push_files(self):
+    async def _push_files(self, paths: list[str] | None = None):
         # Prevent concurrent pushes
         if getattr(self, '_pushing', False):
             self._show_snackbar("Push already in progress", type="warning")
             return
-        self._pushing = True
-        selected = self.views._selected_push_paths
+        if paths is not None:
+            selected = list(paths)
+        else:
+            selected = sorted(self.views._selected_push_paths)
         if not selected:
-            self._pushing = False
             self._show_snackbar("No files selected. Check the files you want to push.", type="warning")
             return
+        if pconfig.get("confirm_push"):
+            debug_log("confirm_push is enabled, showing confirmation...")
+            ok = await self._confirm("Push", f"Push {len(selected)} file(s) to calculator?")
+            debug_log(f"confirm result ok={ok}")
+            if not ok:
+                return
+        self._pushing = True
         calc = await run_sync(find_calculator)
         if not calc:
             self._pushing = False
-            self._show_notification("No calculator connected. Connect via USB and press F1.", type="error")
+            self._show_snackbar("No calculator connected", type="warning")
             return
         # Show "Pushing..." state on button
         self.views._push_active = True
@@ -957,7 +965,7 @@ class PanCalcGUI:
         self._pushing = False
         self.views._push_active = False
         self._selection_mode = False
-        self._multi_selected.clear()
+        self._multi_selected.difference_update(pushed_paths)
         self._build_current_view()
         if errors:
             self._show_notification("Errors: " + "; ".join(errors), type="error")
@@ -965,29 +973,6 @@ class PanCalcGUI:
             self._show_snackbar(f"✅ {len(pushed_paths)} file(s) pushed and deleted", type="success")
         elif not errors:
             self._show_snackbar("No valid selected files found.", type="warning")
-    async def _delete_converted_selection(self):
-        """Delete selected converted files from converted/ folders."""
-        selected = self.views._selected_push_paths
-        if not selected:
-            self._show_snackbar("No files selected to delete.", type="warning")
-            return
-        deleted = 0
-        for fpath in list(selected):
-            src = Path(fpath)
-            if src.exists():
-                try:
-                    src.unlink()
-                    deleted += 1
-                except OSError:
-                    pass
-        self.views._selected_push_paths.clear()
-        self._multi_selected.clear()
-        self._selection_mode = False
-        if deleted:
-            self._show_snackbar(f"✅ {deleted} file(s) deleted", type="success")
-        else:
-            self._show_snackbar("No files found to delete.", type="warning")
-        self._build_current_view()
     async def _toggle_dark(self, dark: bool):
         self.page.theme_mode = ft.ThemeMode.DARK if dark else ft.ThemeMode.LIGHT
         self.page.theme = _create_theme()
@@ -1131,6 +1116,11 @@ class PanCalcGUI:
         
         # Handle convert_input/converted first (different cleanup logic)
         if item_type in ("convert_input", "converted"):
+            deletable = [p for p in all_paths if Path(p).exists()]
+            if pconfig.get("confirm_remove"):
+                ok = await self._confirm("Delete", f"Delete {len(deletable)} converted file(s)?")
+                if not ok:
+                    return
             deleted = 0
             for p in all_paths:
                 pp = Path(p)

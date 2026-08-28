@@ -1121,42 +1121,6 @@ class ViewBuilder:
         converted_sections = []
         for sec in sections:
             converted_sections.append(self._build_converted_section(sec))
-        # ─── Bottom Actions ───
-        is_pushing = getattr(self, '_push_active', False)
-        bottom_actions = ft.Row([
-            ft.ElevatedButton(
-                "Pushing..." if is_pushing else "Push Selected to Calculator",
-                icon=ft.Icons.HOURGLASS_TOP if is_pushing else ft.Icons.UPLOAD_FILE,
-                disabled=is_pushing,
-                on_click=lambda _: asyncio_create(g._push_files()),
-            ),
-            ft.OutlinedButton("Delete Selected", icon=ft.Icons.DELETE,
-                              disabled=is_pushing,
-                              on_click=lambda _: asyncio_create(g._delete_converted_selection())),
-            ft.Container(expand=True),
-        ], alignment=ft.MainAxisAlignment.START)
-        # Collect all converted paths for Select All
-        all_conv_paths = [str(p) for p in conv_g3p] + [str(p) for p in conv_txt]
-        all_selected = all(p in self._selected_push_paths for p in all_conv_paths) if all_conv_paths else False
-        # Select All toggle
-        def _on_select_all(e):
-            if all_selected:
-                self._selected_push_paths.difference_update(all_conv_paths)
-            else:
-                self._selected_push_paths.update(all_conv_paths)
-            self._build_convert_view()
-        select_all_btn = ft.Container(
-            content=ft.Row([
-                ft.Icon(
-                    ft.Icons.CHECK_BOX if all_selected else ft.Icons.CHECK_BOX_OUTLINE_BLANK,
-                    size=16, color=ft.Colors.PRIMARY,
-                ),
-                ft.Text("Select All" if not all_selected else "Deselect All",
-                        size=11, color=ft.Colors.PRIMARY),
-            ], tight=True),
-            on_click=_on_select_all,
-            ink=True,
-        ) if all_conv_paths else ft.Container()
         # Equal width wrappers — each section grows downward naturally
         equal_sections = [ft.Container(content=s, expand=1) for s in converted_sections]
         g._set_content(
@@ -1170,23 +1134,18 @@ class ViewBuilder:
                 ft.Row([
                     ft.Text("CONVERTED", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE),
                     ft.Container(expand=True),
-                    ft.Container(
-                        ft.Row([
-                            ft.Icon(ft.Icons.TOUCH_APP, size=14, color=ft.Colors.PRIMARY),
-                            ft.Text("Selection mode: tap to toggle, long-press to exit",
-                                    size=11, color=ft.Colors.PRIMARY),
-                        ], tight=True),
-                        visible=g._selection_mode,
-                    ),
-                    select_all_btn,
-                    ft.Text("(drop here)", size=11, color=ft.Colors.ON_SURFACE),
+                    ft.Row([
+                        ft.Icon(ft.Icons.TOUCH_APP, size=14, color=ft.Colors.PRIMARY),
+                        ft.Text("Long-press a card to select, then drop on Push or Trash",
+                                size=11, color=ft.Colors.PRIMARY),
+                    ], tight=True),
                 ]),
                 ft.Container(height=4),
                 ft.Row(equal_sections, spacing=8, vertical_alignment=ft.CrossAxisAlignment.START),
                 ft.Container(height=8),
                 ft.Divider(),
                 ft.Container(height=4),
-                bottom_actions,
+                self._build_push_target(),
             ], expand=True, scroll=ft.ScrollMode.AUTO)
         )
     def _build_input_card(self, f: Path, ftype: str, source_dir: Path) -> ft.Draggable:
@@ -1381,32 +1340,6 @@ class ViewBuilder:
             border=ft.Border.all(1, sec["color"]),
             border_radius=10,
         )
-    def _build_checkbox(self, selected: bool, paths: list[str]):
-        """Custom clickable checkbox with guaranteed visibility."""
-        def _make_content(sel: bool):
-            return ft.Row([
-                ft.Icon(
-                    ft.Icons.CHECK_BOX if sel else ft.Icons.CHECK_BOX_OUTLINE_BLANK,
-                    size=14, color=ft.Colors.PRIMARY,
-                ),
-                ft.Text("✓" if sel else "", size=12, color=ft.Colors.PRIMARY,
-                        weight=ft.FontWeight.BOLD),
-            ], tight=True)
-        def _on_click(e):
-            new_val = not e.control.data
-            self._toggle_push_selection(paths, new_val)
-            self._build_convert_view()
-        return ft.Container(
-            content=_make_content(selected),
-            on_click=_on_click,
-            data=selected,
-            ink=True,
-        )
-    def _toggle_push_selection(self, paths: list[str], selected: bool):
-        if selected:
-            self._selected_push_paths.update(paths)
-        else:
-            self._selected_push_paths.difference_update(paths)
     def _on_card_click(self, e, paths: list[str]):
         """Click toggles multi-selection only when in selection mode."""
         g = self.gui
@@ -1445,7 +1378,6 @@ class ViewBuilder:
         is_g3p = ftype == "G3P"
         g = self.gui
         fpath = str(f)
-        push_selected = fpath in self._selected_push_paths
         multi_sel = fpath in g._multi_selected
         
         inner = ft.Container(
@@ -1461,11 +1393,6 @@ class ViewBuilder:
                 ft.Container(height=4),
                 ft.Text(f.name, size=11, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS,
                         weight=ft.FontWeight.BOLD),
-                ft.Container(height=4),
-                ft.Row([
-                    self._build_checkbox(push_selected, [fpath]),
-                    ft.Text("Push", size=10, color=ft.Colors.OUTLINE),
-                ]),
             ], spacing=2, tight=True),
             padding=10,
         )
@@ -1508,7 +1435,6 @@ class ViewBuilder:
         txt_path = str(txt_f)
         both_paths = [g3p_path, txt_path]
         g = self.gui
-        push_selected = all(p in self._selected_push_paths for p in both_paths)
         multi_sel = any(p in g._multi_selected for p in both_paths)
         
         inner = ft.Container(
@@ -1526,8 +1452,7 @@ class ViewBuilder:
                         weight=ft.FontWeight.BOLD),
                 ft.Container(height=4),
                 ft.Row([
-                    self._build_checkbox(push_selected, both_paths),
-                    ft.Text("Push Both", size=10, color=ft.Colors.OUTLINE),
+                    ft.Text("Drag to Push / Trash", size=10, color=ft.Colors.OUTLINE),
                 ]),
             ], spacing=2, tight=True),
             padding=10,
@@ -1783,7 +1708,6 @@ class ViewBuilder:
             for f in group_files:
                 sz += f.stat().st_size
         
-        push_selected = all(p in self._selected_push_paths for p in all_paths)
         multi_sel = any(p in g._multi_selected for p in all_paths)
         
         page_label = f"{count} pages" if count > 1 else "1 page"
@@ -1806,8 +1730,7 @@ class ViewBuilder:
                 ]),
                 ft.Container(height=2),
                 ft.Row([
-                    self._build_checkbox(push_selected, all_paths),
-                    ft.Text(f"Push All ({count})", size=10, color=ft.Colors.OUTLINE),
+                    ft.Text(f"Drag to Push / Trash ({count})", size=10, color=ft.Colors.OUTLINE),
                 ]),
             ], spacing=2, tight=True),
             padding=10,
@@ -1977,6 +1900,8 @@ class ViewBuilder:
                                     value=config_data.get("confirm_install", True))
         confirm_remove = ft.Switch(label="Confirm before removing",
                                    value=config_data.get("confirm_remove", True))
+        confirm_push = ft.Switch(label="Confirm before pushing",
+                                 value=config_data.get("confirm_push", True))
         dark_mode = ft.Switch(
             label="Dark mode",
             value=__import__("pcalc.config", fromlist=["get"]).get("theme_mode") == "dark",
@@ -1991,6 +1916,7 @@ class ViewBuilder:
             __import__("pcalc.config", fromlist=["set"]).set("auto_update", auto_update.value)
             __import__("pcalc.config", fromlist=["set"]).set("confirm_install", confirm_install.value)
             __import__("pcalc.config", fromlist=["set"]).set("confirm_remove", confirm_remove.value)
+            __import__("pcalc.config", fromlist=["set"]).set("confirm_push", confirm_push.value)
             g._show_snackbar("Settings saved", type="success")
         async def reset_all():
             ok = await g._confirm("Reset", "Reset all settings to defaults?")
@@ -2013,7 +1939,7 @@ class ViewBuilder:
                 ft.Text("Registry", size=16, weight=ft.FontWeight.BOLD),
                 registry_url, ft.Container(height=8), cache_ttl, auto_update, ft.Divider(),
                 ft.Text("Behavior", size=16, weight=ft.FontWeight.BOLD),
-                confirm_install, confirm_remove, ft.Divider(),
+                confirm_install, confirm_remove, confirm_push, ft.Divider(),
                 ft.Row([
                     ft.FilledButton("Save", icon=ft.Icons.SAVE,
                                     on_click=lambda _: asyncio_create(save())),
@@ -2064,6 +1990,52 @@ class ViewBuilder:
             asyncio_create(g._install_selected(item_ids=[dragged_id]))
         else:
             g._show_snackbar("Nothing to install", type="warning")
+    def _build_push_target(self) -> ft.Control:
+        """Drop zone for pushing converted files (g3p/txt) to the calculator."""
+        g = self.gui
+        content = ft.Container(
+            ft.Column([
+                ft.Icon(ft.Icons.UPLOAD_FILE, size=28, color=ft.Colors.PRIMARY),
+                ft.Container(height=4),
+                ft.Text("Drop here to Push to calculator", size=14, color=ft.Colors.PRIMARY,
+                        weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
+                ft.Text("converted g3p / txt → calculator pthings", size=11,
+                        color=ft.Colors.OUTLINE, text_align=ft.TextAlign.CENTER),
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+               alignment=ft.MainAxisAlignment.CENTER, tight=True, spacing=2),
+            padding=12,
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
+            border_radius=10,
+            bgcolor=ft.Colors.SURFACE_CONTAINER,
+            alignment=ft.Alignment.CENTER,
+        )
+        def _badge(gg):
+            n = len(getattr(gg, "_multi_selected", set()))
+            return (n or 1, "converted → calculator")
+        return DropZone(
+            g, content,
+            color=GLOW_COLOR, dest="calculator (push)",
+            badge_fn=_badge, on_accept=self._on_push_accept, border_radius=12,
+            expand=True,
+        ).build()
+    def _on_push_accept(self, e):
+        """Push converted files dropped on the zone. Only g3p/txt converted paths."""
+        data = e.src.data if e.src else {}
+        paths = data.get("all_paths") or []
+        if not paths and data.get("path"):
+            paths = [data["path"]]
+        item_type = data.get("item_type")
+        allowed_exts = {".g3p", ".txt"}
+        converted = [
+            p for p in paths
+            if item_type == "converted"
+            and Path(p).suffix.lower() in allowed_exts
+            and Path(p).exists()
+        ]
+        if not converted:
+            self.gui._show_snackbar("Nothing to push (drop a converted g3p/txt here)", type="warning")
+            return
+        asyncio_create(self.gui._push_files(converted))
 # ── Helper to create tasks from lambda callbacks ────────────────────
 def asyncio_create(coro):
     import asyncio
