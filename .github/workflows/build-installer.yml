@@ -45,18 +45,16 @@ jobs:
       - name: Download and bundle standalone GnuPG
         shell: pwsh
         run: |
-          $gnupgFile = "gnupg-w32-2.5.21_20260702.exe"
-          $gnupgPath = Join-Path $env:TEMP $gnupgFile
-          Invoke-WebRequest -Uri "https://www.gnupg.org/ftp/gcrypt/binary/$gnupgFile" -OutFile $gnupgPath
-          if (!(Test-Path $gnupgPath)) {
-            Write-Error "GnuPG installer not found"
-            exit 1
-          }
-          # Install to a temp prefix, then copy the GnuPG binaries into the bundle
-          Start-Process -FilePath $gnupgPath -ArgumentList "/S","/D=$env:TEMP\gpgprefix" -Wait
-          $gpgSrc = Join-Path $env:TEMP "gpgprefix\GnuPG\bin"
+          # Install GnuPG via Chocolatey (avoids the flaky silent NSIS installer that
+          # hangs the CI on UAC elevation), then copy its binaries into the bundle.
+          choco install gnupg -y --no-progress --limit-output
+          $gpgSrc = "C:\Program Files (x86)\GnuPG\bin"
           if (!(Test-Path $gpgSrc)) {
-            $gpgSrc = "C:\Program Files (x86)\GnuPG\bin"
+            $gpgSrc = "C:\Program Files\GnuPG\bin"
+          }
+          if (!(Test-Path $gpgSrc)) {
+            Write-Error "GnuPG binaries not found after choco install"
+            exit 1
           }
           $gpgDst = "dist\pancalc-tools-gui\gpg\bin"
           New-Item -ItemType Directory -Force -Path $gpgDst | Out-Null
