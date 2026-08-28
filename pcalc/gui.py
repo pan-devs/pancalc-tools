@@ -117,6 +117,7 @@ class PanCalcGUI:
         self._confirm_busy = False
         self._installing = False
         self._trashing = False
+        self._undo_snapshot: list[dict] = []
         self.views = ViewBuilder(self)
     def build(self, page: ft.Page) -> None:
         self.page = page
@@ -202,24 +203,29 @@ class PanCalcGUI:
         def _trash_badge(g):
             n = len(getattr(g, "_selected_registry_ids", set())) + len(getattr(g, "_multi_selected", set()))
             return (n or 1, "marked for deletion")
+        # The whole sidebar is the trash drop zone: dropping anywhere on the
+        # bar (not just the icon at the bottom) arms the "delete" state, while
+        # the nav rail stays tappable.
+        side_column = ft.Column([
+            self.nav_rail,
+            ft.Container(
+                content=trash_content,
+                padding=ft.Padding.only(top=8, bottom=8, left=8, right=8),
+            ),
+        ], expand=True)
         self.trash_zone = DropZone(
-            self, trash_content,
-            color=GLOW_COLOR, dest="trash",
+            self, side_column,
+            color="#FF3B30", dest="trash",
             badge_fn=_trash_badge,
             on_accept=lambda e: asyncio_create(self._on_trash_drop(e)),
             border_radius=8,
+            expand=True,
         )
         self.trash_target = self.trash_zone.build()
         self.content_area = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
         page.add(ft.Row([
             ft.Container(
-                content=ft.Column([
-                    self.nav_rail,
-                    ft.Container(
-                        content=self.trash_target,
-                        padding=ft.Padding.only(top=8, bottom=8, left=8, right=8),
-                    ),
-                ]),
+                content=self.trash_target,
                 width=73,
             ),
             ft.VerticalDivider(),
@@ -294,7 +300,8 @@ class PanCalcGUI:
         if self.page:
             self.page.update()
     # ── Helpers ─────────────────────────────────────────────────────
-    def _show_snackbar(self, text: str, type: str = "info"):
+    def _show_snackbar(self, text: str, type: str = "info",
+                       action_text: str | None = None, action_cb=None):
         if not self.page:
             return
         # Accent colors aligned with the Pan Devs palette
@@ -313,23 +320,27 @@ class PanCalcGUI:
         accent = accent_colors.get(type, ptheme.PRIMARY)
         icon = icons.get(type, ft.Icons.INFO_OUTLINE)
         
-        self.page.show_dialog(
-            ft.SnackBar(
-                content=ft.Row([
-                    ft.Container(
-                        width=4, height=32,
-                        bgcolor=accent, border_radius=2,
-                    ),
-                    ft.Icon(icon, color=accent, size=20),
-                    ft.Text(text, color=ft.Colors.ON_SURFACE, expand=True, size=13),
-                ], spacing=10, tight=True),
-                bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH,
-                duration=4000,
-                behavior=ft.SnackBarBehavior.FLOATING,
-                show_close_icon=True,
-                close_icon_color=ft.Colors.OUTLINE,
-            )
+        snack = ft.SnackBar(
+            content=ft.Row([
+                ft.Container(
+                    width=4, height=32,
+                    bgcolor=accent, border_radius=2,
+                ),
+                ft.Icon(icon, color=accent, size=20),
+                ft.Text(text, color=ft.Colors.ON_SURFACE, expand=True, size=13),
+            ], spacing=10, tight=True),
+            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH,
+            duration=6000 if action_text else 4000,
+            behavior=ft.SnackBarBehavior.FLOATING,
+            show_close_icon=True,
+            close_icon_color=ft.Colors.OUTLINE,
         )
+        if action_text:
+            snack.action = action_text
+            snack.action_color = accent
+            if action_cb:
+                snack.on_action = lambda e: action_cb()
+        self.page.show_dialog(snack)
     def _show_notification(self, text: str, type: str = "info", action_text: str | None = None, action_cb=None):
         """Show a persistent Banner notification (for errors/warnings that need attention)."""
         if not self.page:
@@ -1012,6 +1023,78 @@ class PanCalcGUI:
         except Exception as e:
             self._show_notification(f"Failed to delete: {e}", type="error")
         self._build_current_view()
+    # ── Undo helpers ────────────────────────────────────────────────
+    def _reset_undo(self):
+        self._undo_snapshot = []
+
+    def _snap_file(self, path: Path):
+        """Snapshot a file that is about to be deleted so it can be restored."""
+        try:
+            if path.exists() and path.is_file():
+                self._undo_snapshot.append({"kind": "file", "path": str(path), "data": path.read_bytes()})
+        except OSError:
+            pass
+
+    def _snap_save_companions(self, rom_path: Path):
+        """Snapshot companion save/state files that _clean_save_files will delete."""
+        from pcalc.installer import SAVE_EXTS
+        stem = rom_path.stem
+        parent = rom_path.parent
+        candidates = []
+        for ext in SAVE_EXTS:
+            candidates.append(rom_path.with_suffix(ext))
+            candidates.append(Path(str(rom_path) + ext))
+        try:
+            for f in parent.iterdir():
+                if f.is_file() and f.suffix.lower() in SAVE_EXTS and f.stem.lower() == stem.lower():
+                    candidates.append(f)
+        except OSError:
+            pass
+        for p in candidates:
+            self._snap_file(p)
+
+    def _snap_library(self, entry: dict):
+        """Snapshot a local library entry + its physical file before removal."""
+        data = None
+        lp = entry.get("local_path", "")
+        if lp:
+            try:
+                p = Path(lp)
+                if p.exists() and p.is_file():
+                    data = p.read_bytes()
+            except OSError:
+                data = None
+        self._undo_snapshot.append({"kind": "lib", "entry": entry, "data": data})
+
+    async def _undo_trash(self):
+        """Restore every file/library item captured during the last trash action."""
+        from pcalc import library as plibrary
+        snapshot = list(reversed(self._undo_snapshot))
+        self._reset_undo()
+        restored_files = 0
+        restored_lib = 0
+        try:
+            for op in snapshot:
+                try:
+                    if op["kind"] == "file":
+                        p = Path(op["path"])
+                        p.parent.mkdir(parents=True, exist_ok=True)
+                        p.write_bytes(op["data"] or b"")
+                        restored_files += 1
+                    elif op["kind"] == "lib":
+                        ok = plibrary.restore(op["entry"], op["data"])
+                        if ok:
+                            restored_lib += 1
+                except OSError:
+                    pass
+            if self.page:
+                self._show_snackbar(f"Undid: restored {restored_files} file(s), {restored_lib} library item(s)",
+                                    type="success")
+        except Exception:
+            pass
+        if restored_files or restored_lib:
+            await self._load_registry_data()
+        self._build_current_view()
     async def _on_trash_drop(self, e: ft.DragTargetEvent):
         """Handle drop onto trash bin - delete item based on type."""
         debug_log("_on_trash_drop called")
@@ -1030,6 +1113,7 @@ class PanCalcGUI:
         
         data = e.src.data
         item_type = data.get("item_type", "unknown")
+        self._reset_undo()
         debug_log(f"Trash drop data={data}, item_type={item_type}")
         
         # Extract ALL types of deletable items from drag data
@@ -1051,12 +1135,17 @@ class PanCalcGUI:
             for p in all_paths:
                 pp = Path(p)
                 if pp.exists():
+                    self._snap_file(pp)
                     pp.unlink()
                     deleted += 1
             if deleted:
                 self.views._selected_push_paths.difference_update(all_paths)
                 self._multi_selected.difference_update(all_paths)
-                self._show_snackbar(f"Deleted {deleted} file(s)", type="success")
+                self._show_snackbar(
+                    f"Deleted {deleted} file(s)", type="success",
+                    action_text="UNDO",
+                    action_cb=lambda: asyncio_create(self._undo_trash()),
+                )
             else:
                 self._show_snackbar("No files found to delete.", type="warning")
             self._selection_mode = False
@@ -1078,39 +1167,59 @@ class PanCalcGUI:
         
         need_registry_reload = False
         
+        # Capture local library entries first so their physical files aren't
+        # double-snapshotted when they also appear in all_paths.
+        lib_snapshot_paths = set()
+        if all_ids:
+            for item_id in all_ids:
+                entry = plibrary.get(item_id)
+                if entry:
+                    self._snap_library(entry)
+                    lp = entry.get("local_path", "")
+                    if lp:
+                        lib_snapshot_paths.add(str(Path(lp)))
+        
         # Delete calculator files (matched addins, orphans, pthings)
         if all_paths:
             from pcalc.installer import _clean_save_files
             for p in all_paths:
                 pp = Path(p)
+                if str(pp) in lib_snapshot_paths:
+                    continue
                 if pp.exists():
+                    self._snap_file(pp)
                     try:
                         pp.unlink()
                     except OSError:
                         pass
+                self._snap_save_companions(pp)
                 await run_sync(_clean_save_files, pp)
             self._multi_selected.difference_update(all_paths)
             self._selected_registry_ids.clear()
         
         # Delete local library items
         if all_ids:
-            all_lib_types = data.get("all_lib_types", [])
             count = 0
-            for item_id, lib_type in zip(all_ids, all_lib_types):
+            for item_id in all_ids:
                 ok = plibrary.remove(item_id)
                 if ok:
                     count += 1
                 self._multi_selected.discard(item_id)
                 self._selected_registry_ids.discard(item_id)
             if count:
-                self._show_snackbar(f"Deleted {count} item(s) from local library", type="success")
-            need_registry_reload = True
+                need_registry_reload = True
         
         self._selection_mode = False
         if need_registry_reload:
             await self._load_registry_data()
         if all_ids or all_paths:
             self._build_current_view()
+        if self._undo_snapshot:
+            self._show_snackbar(
+                f"Deleted {len(self._undo_snapshot)} item(s)", type="success",
+                action_text="UNDO",
+                action_cb=lambda: asyncio_create(self._undo_trash()),
+            )
     async def _refresh_installed_view(self):
         self._build_current_view()
     async def _background_scanner_loop(self):

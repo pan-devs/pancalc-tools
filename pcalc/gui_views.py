@@ -419,14 +419,29 @@ class ViewBuilder:
             self._card_refs[aid] = wrap
         is_local = source == "local"
         if is_local:
+            if g._selection_mode and aid in g._selected_registry_ids:
+                all_ids = []
+                all_lib_types = []
+                for sid in g._selected_registry_ids:
+                    lib = plibrary.get(sid)
+                    if lib:
+                        all_ids.append(sid)
+                        all_lib_types.append(lib.get("type", "addin"))
+            else:
+                all_ids = [aid]
+                all_lib_types = [d.get("_type", "addin")]
             drag_data = {
                 "item_id": aid,
                 "lib_type": d.get("_type", "addin"),
                 "item_type": "local_library",
                 "installable": True,
+                "all_ids": all_ids,
+                "all_lib_types": all_lib_types,
             }
         else:
             drag_data = {"installable": True, "item_id": aid}
+            all_ids = []
+            all_lib_types = []
 
         if g._selection_mode and aid in g._selected_registry_ids:
             all_ids = []
@@ -997,11 +1012,18 @@ class ViewBuilder:
                     feedback = self._make_drag_feedback(_del_count, "", _del_breakdown, _del_local)
                 else:
                     feedback = self._make_drag_feedback(1, name, card=wrap)
-                drag_data = {"item_id": d["id"], "lib_type": item_type, "item_type": "local_library", "installable": True}
                 if g._selection_mode and aid in g._selected_registry_ids:
-                    if all_deletable_ids:
-                        drag_data["all_ids"] = all_deletable_ids
-                        drag_data["all_lib_types"] = all_deletable_types
+                    _all_ids = all_deletable_ids or [aid]
+                    _all_types = all_deletable_types or [item_type]
+                else:
+                    _all_ids = [aid]
+                    _all_types = [item_type]
+                drag_data = {
+                    "item_id": d["id"], "lib_type": item_type,
+                    "item_type": "local_library", "installable": True,
+                    "all_ids": _all_ids, "all_lib_types": _all_types,
+                }
+                if g._selection_mode and aid in g._selected_registry_ids:
                     if all_deletable_paths:
                         drag_data["all_paths"] = all_deletable_paths
                 calc_rows.append(ft.Draggable(
@@ -2162,9 +2184,10 @@ class DropZone:
 
     @staticmethod
     def _with_alpha(color, factor: float):
-        """Apply an alpha component to a hex str, or a Colors value."""
-        if isinstance(color, str) and color.startswith("#"):
-            return color + DropZone._hex_alpha(factor)
+        """Apply alpha to a color for Flet/Flutter, which parses hex as #AARRGGBB."""
+        if isinstance(color, str) and color.startswith("#") and len(color) == 7:
+            a = DropZone._hex_alpha(factor)
+            return f"#{a}{color[1:]}"
         value = getattr(color, "value", None)
         if value is not None:
             try:
