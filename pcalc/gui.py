@@ -503,10 +503,10 @@ class PanCalcGUI:
                         content.append(ft.Container(height=10))
                         if calc:
                             content.append(ft.Icon(ft.Icons.CHECK_CIRCLE, size=64, color=ft.Colors.GREEN))
-                            content.append(ft.Text(f"✅ {calc.model} detected!", weight=ft.FontWeight.BOLD))
+                            content.append(ft.Text(f"{calc.model} detected!", weight=ft.FontWeight.BOLD))
                         else:
                             content.append(ft.Icon(ft.Icons.ERROR_OUTLINE, size=64, color=ft.Colors.RED))
-                            content.append(ft.Text("❌ No calculator detected"))
+                            content.append(ft.Text("No calculator detected"))
                             content.append(ft.Text("Make sure it's connected and in F1 mode."))
                         content.append(ft.Container(height=10))
                         content.append(ft.Row(
@@ -626,7 +626,7 @@ class PanCalcGUI:
         self._show_snackbar(f"Installing {d.get('name', '?')}...", type="info")
         try:
             await run_sync(install, d, calc)
-            self._show_snackbar(f"✅ {d.get('name', '?')} installed", type="success")
+            self._show_snackbar(f"{d.get('name', '?')} installed", type="success")
             if self.current_view_index in (0, 1):
                 self._build_current_view()
         except RuntimeError as e:
@@ -699,7 +699,7 @@ class PanCalcGUI:
             except RuntimeError as exc:
                 self._show_snackbar(f"Failed {name}: {exc}", type="error")
         if ok_count:
-            self._show_snackbar(f"✅ Installed {ok_count} item(s)", type="success")
+            self._show_snackbar(f"Installed {ok_count} item(s)", type="success")
         elif ids_to_install:
             self._show_snackbar("No installable items in selection", type="info")
         if item_ids is None:
@@ -747,7 +747,7 @@ class PanCalcGUI:
             return
         try:
             ok = await run_sync(verify_addin, addin, calc)
-            self._show_snackbar(f"{'✅' if ok else '❌'} {name} {'OK' if ok else 'FAILED'}", type="success" if ok else "error")
+            self._show_snackbar(f"{name} {'OK' if ok else 'FAILED'}", type="success" if ok else "error")
         except RuntimeError as e:
             self._show_snackbar(f"Verify failed: {e}", type="error")
     async def _remove_item(self, addin: dict, name: str):
@@ -921,7 +921,7 @@ class PanCalcGUI:
                     f.unlink()
                 except OSError:
                     pass
-                self._show_snackbar(f"✅ {f.name} → {target_section}", type="success")
+                self._show_snackbar(f"{f.name} → {target_section}", type="success")
             else:
                 self._show_snackbar(f"⚠️ {f.name}: no conversion for {target_section}", type="warning")
         except Exception as e:
@@ -970,7 +970,7 @@ class PanCalcGUI:
         if errors:
             self._show_notification("Errors: " + "; ".join(errors), type="error")
         if pushed_paths:
-            self._show_snackbar(f"✅ {len(pushed_paths)} file(s) pushed and deleted", type="success")
+            self._show_snackbar(f"{len(pushed_paths)} file(s) pushed and deleted", type="success")
         elif not errors:
             self._show_snackbar("No valid selected files found.", type="warning")
     async def _toggle_dark(self, dark: bool):

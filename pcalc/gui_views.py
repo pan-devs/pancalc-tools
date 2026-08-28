@@ -1858,7 +1858,7 @@ class ViewBuilder:
                     title=ft.Text(uid, size=13),
                     subtitle=ft.Column([
                         ft.Text(f"Key ID: {k['keyid']}", size=10, color=ft.Colors.OUTLINE),
-                        ft.Text(f"Status: {'✅ Trusted' if k['trusted'] else '❌ Untrusted'}", size=10),
+                        ft.Text(f"Status: {'Trusted' if k['trusted'] else 'Untrusted'}", size=10),
                     ], spacing=1, tight=True),
                     trailing=ft.FilledTonalButton(
                         "Trust" if not k["trusted"] else "Untrust",
