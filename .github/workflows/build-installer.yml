@@ -45,20 +45,19 @@ jobs:
       - name: Download and bundle standalone GnuPG
         shell: pwsh
         run: |
-          # Install GnuPG via Chocolatey (avoids the flaky silent NSIS installer that
-          # hangs the CI on UAC elevation), then copy its binaries into the bundle.
-          choco install gnupg -y --no-progress --limit-output
-          $gpgSrc = "C:\Program Files (x86)\GnuPG\bin"
-          if (!(Test-Path $gpgSrc)) {
-            $gpgSrc = "C:\Program Files\GnuPG\bin"
-          }
-          if (!(Test-Path $gpgSrc)) {
-            Write-Error "GnuPG binaries not found after choco install"
+          # Install GnuPG PORTABLE via Scoop (extracts binaries, no silent NSIS
+          # installer / UAC elevation, so it can't hang the CI), then copy into bundle.
+          Set-ExecutionPolicy RemoteSigned -Scope Process -Force
+          Invoke-RestMethod -Uri get.scoop.sh | Invoke-Expression
+          scoop install gnupg --no-cache
+          $scoopBin = Join-Path $env:USERPROFILE "scoop\apps\gnupg\current\bin"
+          if (!(Test-Path $scoopBin)) {
+            Write-Error "GnuPG scoop bin not found"
             exit 1
           }
           $gpgDst = "dist\pancalc-tools-gui\gpg\bin"
           New-Item -ItemType Directory -Force -Path $gpgDst | Out-Null
-          Copy-Item -Path "$gpgSrc\*" -Destination $gpgDst -Recurse -Force
+          Copy-Item -Path "$scoopBin\*" -Destination $gpgDst -Recurse -Force
           Write-Output "Bundled GnuPG contents:"
           Get-ChildItem -Path $gpgDst | Select-Object -First 20
 
