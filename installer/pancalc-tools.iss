@@ -7,9 +7,7 @@
 #define MyAppPublisher "Pan Devs"
 #define MyAppPublisherURL "https://github.com/pan-devs"
 #define MyAppURL "https://github.com/pan-devs/pancalc-tools"
-#define MyAppExeName "pancalc-tools.exe"
-#define MyAppGuiExeName "pancalc-tools-gui.exe"
-#define GPG4WIN_FILE "gnupg-w32-2.5.20_20260513.exe"
+#define MyAppExeName "pancalc-tools-gui.exe"
 
 [Setup]
 AppName={#MyAppName}
@@ -39,32 +37,23 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"
-Name: "addtopath"; Description: "Add PanCalc Tools to your system &PATH (lets you run 'pcalc' from any terminal)"; GroupDescription: "Other tasks:"
 
 [Files]
 Source: "..\dist\pancalc-tools\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\dist\pancalc-tools\{#MyAppGuiExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\pancalc-tools\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\ARCHITECTURE.md"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Prerequisite installers (placed in temp directory during install)
+; NOTE: GnuPG is bundled INSIDE the app (dist\pancalc-tools\gpg) — not installed system-wide.
 Source: "prereqs\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: ignoreversion
-Source: "prereqs\{#GPG4WIN_FILE}"; DestDir: "{tmp}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\PanCalc Tools (GUI)"; Filename: "{app}\{#MyAppGuiExeName}"; WorkingDir: "{app}"; Comment: "Graphical user interface for managing calculator add-ins, converting files, and more"
-Name: "{group}\PanCalc Tools (CLI)"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Comment: "Command-line interface for managing calculator add-ins, converting files, and more"
-Name: "{group}\PanCalc Tools (TUI)"; Filename: "{app}\{#MyAppExeName}"; Parameters: "tui"; WorkingDir: "{app}"; Comment: "Graphical terminal interface — easier for browsing and installing add-ins"
+Name: "{group}\PanCalc Tools"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Comment: "Graphical user interface for managing calculator add-ins, converting files, and more"
 Name: "{group}\Documentation"; Filename: "{app}\README.md"; Comment: "Open the README documentation file"
 Name: "{group}\Uninstall PanCalc Tools"; Filename: "{uninstallexe}"
-Name: "{commondesktop}\PanCalc Tools"; Filename: "{app}\{#MyAppGuiExeName}"; WorkingDir: "{app}"; Tasks: desktopicon; Comment: "Launch PanCalc Tools GUI"
-
-[Registry]
-Root: HKA; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; \
-    ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}"; \
-    Tasks: addtopath; Check: NeedsAddPath
+Name: "{commondesktop}\PanCalc Tools"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon; Comment: "Launch PanCalc Tools GUI"
 
 [Run]
 ; Install VC++ Redistributable if needed (64-bit)
@@ -73,31 +62,10 @@ Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; \
     Flags: waituntilterminated runhidden; \
     Check: VCRedistNeedsInstall
 
-; Install GnuPG if needed  
-Filename: "{tmp}\{#GPG4WIN_FILE}"; Parameters: "/S"; \
-    StatusMsg: "Installing GnuPG for add-in verification..."; \
-    Flags: waituntilterminated runhidden; \
-    Check: Gpg4winNeedsInstall
-
-; Launch application after install (GUI by default)
-Filename: "{app}\{#MyAppGuiExeName}"; Description: "Launch PanCalc Tools GUI"; Flags: nowait postinstall skipifsilent unchecked
-Filename: "{app}\{#MyAppExeName}"; Description: "Launch PanCalc Tools CLI/TUI (advanced)"; Flags: nowait postinstall skipifsilent unchecked
+; Launch the GUI after install
+Filename: "{app}\{#MyAppExeName}"; Description: "Launch PanCalc Tools"; Flags: nowait postinstall skipifsilent unchecked
 
 [Code]
-function NeedsAddPath: Boolean;
-var
-  OrigPath: string;
-  AppDir: string;
-begin
-  AppDir := ExpandConstant('{app}');
-  if not RegQueryStringValue(HKA, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'PATH', OrigPath) then
-  begin
-    Result := True;
-    Exit;
-  end;
-  Result := Pos(';' + UpperCase(AppDir) + ';', ';' + UpperCase(OrigPath) + ';') = 0;
-end;
-
 // Check if VC++ Redistributable needs to be installed
 function VCRedistNeedsInstall: Boolean;
 var
@@ -118,24 +86,3 @@ begin
             not FileExists(ExpandConstant('{sys}\vcruntime140_2.dll'));
 end;
 
-  // Check if GnuPG needs to be installed (paths must match crypto.py)
-  function Gpg4winNeedsInstall: Boolean;
-  var
-    ExePath: string;
-  begin
-    ExePath := ExpandConstant('{pf}\GnuPG\bin\gpg.exe');
-    if not FileExists(ExePath) then
-    begin
-      ExePath := ExpandConstant('{pf32}\GnuPG\bin\gpg.exe');
-      if not FileExists(ExePath) then
-      begin
-        ExePath := ExpandConstant('{pf}\Gpg4win\bin\gpg.exe');
-        if not FileExists(ExePath) then
-        begin
-          Result := True;
-          Exit;
-        end;
-      end;
-    end;
-    Result := False;
-  end;

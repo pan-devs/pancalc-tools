@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Windows installer with Inno Setup
+    name: Build Windows GUI installer (self-contained, GnuPG bundled)
     runs-on: windows-latest
 
     steps:
@@ -22,53 +22,46 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Create prerequisites directory
-        run: mkdir -p installer/prereqs
-
-      - name: Download VC++ Redistributable
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -Uri https://aka.ms/vs/17/release/vc_redist.x64.exe -OutFile installer/prereqs/vc_redist.x64.exe
-
-      - name: Download GnuPG
-        shell: pwsh
-        run: |
-          # Using a specific version of GnuPG standalone installer
-          # Update this version periodically as needed
-          $gnupgFile = "gnupg-w32-2.5.20_20260513.exe"
-          Invoke-WebRequest -Uri https://www.gnupg.org/ftp/gcrypt/binary/$gnupgFile -OutFile installer/prereqs/$gnupgFile
-          echo "GPG4WIN_FILE=$gnupgFile" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Verify prerequisites downloaded
-        shell: pwsh
-        run: |
-          if (!(Test-Path installer\prereqs\vc_redist.x64.exe)) {
-            Write-Error "VC++ Redistributable not found"
-            exit 1
-          }
-          if (!(Test-Path installer\prereqs\$env:GPG4WIN_FILE)) {
-            Write-Error "Gpg4win not found"
-            exit 1
-          }
-
-      - name: Install Python dependencies
+      - name: Install Python dependencies (GUI)
         shell: pwsh
         run: |
           pip install --upgrade pip
-          pip install -e .[windows]
+          pip install -e .[windows,gui]
           pip install pyinstaller
-          
-      - name: Build standalone executable with PyInstaller
+
+      - name: Build standalone GUI executable with PyInstaller
         shell: pwsh
         run: |
-          pyinstaller --onedir --noconfirm --name pancalc-tools `
-            --collect-all pcalc --collect-all textual --collect-all fitz --collect-all gnupg `
+          pyinstaller --onedir --windowed --noconfirm --name pancalc-tools-gui `
+            --collect-all flet --collect-all pcalc --collect-all fitz --collect-all gnupg `
+            --hidden-import pcalc.gui --hidden-import pcalc.gui_views `
             --hidden-import pcalc.cli --hidden-import pcalc.tui --hidden-import pcalc.installer `
             --hidden-import pcalc.converter --hidden-import pcalc.registry --hidden-import pcalc.crypto `
             --hidden-import pcalc.config --hidden-import pcalc.banner --hidden-import pcalc.theme `
-            --hidden-import pcalc.calculator `
+            --hidden-import pcalc.calculator --hidden-import pcalc.library `
             --icon installer/favicon.ico `
-            pcalc/__main__.py
+            main_gui.py
+
+      - name: Download and bundle standalone GnuPG
+        shell: pwsh
+        run: |
+          $gnupgFile = "gnupg-w32-2.5.21_20260702.exe"
+          Invoke-WebRequest -Uri https://www.gnupg.org/ftp/gcrypt/binary/$gnupgFile -OutFile installer/prereqs/$gnupgFile
+          if (!(Test-Path installer\prereqs\$gnupgFile)) {
+            Write-Error "GnuPG installer not found"
+            exit 1
+          }
+          # Install to a temp prefix, then copy the GnuPG binaries into the bundle
+          Start-Process -FilePath installer\prereqs\$gnupgFile -ArgumentList "/S","/D=$env:TEMP\gpgprefix" -Wait
+          $gpgSrc = Join-Path $env:TEMP "gpgprefix\GnuPG\bin"
+          if (!(Test-Path $gpgSrc)) {
+            $gpgSrc = "C:\Program Files (x86)\GnuPG\bin"
+          }
+          $gpgDst = "dist\pancalc-tools-gui\gpg\bin"
+          New-Item -ItemType Directory -Force -Path $gpgDst | Out-Null
+          Copy-Item -Path "$gpgSrc\*" -Destination $gpgDst -Recurse -Force
+          Write-Output "Bundled GnuPG contents:"
+          Get-ChildItem -Path $gpgDst | Select-Object -First 20
 
       - name: Extract version from tag
         shell: pwsh
@@ -82,7 +75,7 @@ jobs:
 
       - name: Compile Inno Setup installer
         shell: cmd
-        run: iscc installer\pancalc-tools.iss /DMyAppVersion=%APP_VERSION% /DGPG4WIN_FILE=%GPG4WIN_FILE%
+        run: iscc installer\pancalc-tools.iss /DMyAppVersion=%APP_VERSION%
 
       - name: Upload installer to release
         if: github.event_name == 'release'
