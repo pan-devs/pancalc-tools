@@ -1210,6 +1210,10 @@ class PanCalcGUI:
                 need_registry_reload = True
         
         self._selection_mode = False
+        # Always clear selection state so surviving (non-deleted) items never
+        # render with the leftover "selected" border after a trash action.
+        self._selected_registry_ids.clear()
+        self._multi_selected.clear()
         if need_registry_reload:
             await self._load_registry_data()
         if all_ids or all_paths:
