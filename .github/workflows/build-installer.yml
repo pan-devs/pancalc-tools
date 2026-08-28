@@ -46,13 +46,14 @@ jobs:
         shell: pwsh
         run: |
           $gnupgFile = "gnupg-w32-2.5.21_20260702.exe"
-          Invoke-WebRequest -Uri https://www.gnupg.org/ftp/gcrypt/binary/$gnupgFile -OutFile installer/prereqs/$gnupgFile
-          if (!(Test-Path installer\prereqs\$gnupgFile)) {
+          $gnupgPath = Join-Path $env:TEMP $gnupgFile
+          Invoke-WebRequest -Uri "https://www.gnupg.org/ftp/gcrypt/binary/$gnupgFile" -OutFile $gnupgPath
+          if (!(Test-Path $gnupgPath)) {
             Write-Error "GnuPG installer not found"
             exit 1
           }
           # Install to a temp prefix, then copy the GnuPG binaries into the bundle
-          Start-Process -FilePath installer\prereqs\$gnupgFile -ArgumentList "/S","/D=$env:TEMP\gpgprefix" -Wait
+          Start-Process -FilePath $gnupgPath -ArgumentList "/S","/D=$env:TEMP\gpgprefix" -Wait
           $gpgSrc = Join-Path $env:TEMP "gpgprefix\GnuPG\bin"
           if (!(Test-Path $gpgSrc)) {
             $gpgSrc = "C:\Program Files (x86)\GnuPG\bin"
@@ -68,6 +69,17 @@ jobs:
         run: |
           $version = "${{ github.ref_name }}" -replace '^v', ''
           echo "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Download VC++ Redistributable prerequisite
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path installer\prereqs | Out-Null
+          $vcUrl = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+          Invoke-WebRequest -Uri $vcUrl -OutFile installer\prereqs\vc_redist.x64.exe
+          if (!(Test-Path installer\prereqs\vc_redist.x64.exe)) {
+            Write-Error "VC++ redistributable not found"
+            exit 1
+          }
 
       - name: Install Inno Setup
         shell: pwsh
