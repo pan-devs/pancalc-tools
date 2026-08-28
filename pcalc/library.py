@@ -194,6 +194,36 @@ def get_all(item_type: str | None = None) -> list[dict]:
     return items
 
 
+def restore(entry: dict, data: bytes | None = None) -> bool:
+    """
+    Restore a previously removed library entry and its physical file.
+
+    Used for trash undo. Re-creates the file at the entry's local_path and
+    re-inserts the entry into library.json.
+
+    Args:
+        entry: The original library entry dict captured before removal.
+        data: Bytes to write back to the physical file (or None to skip).
+
+    Returns:
+        True if the entry was restored, False if it already exists.
+    """
+    items = _load()
+    if any(e.get("id") == entry.get("id") for e in items):
+        return False
+    local_path = entry.get("local_path", "")
+    if local_path and data is not None:
+        p = Path(local_path)
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(data)
+        except OSError:
+            pass
+    items.insert(0, entry)
+    _save(items)
+    return True
+
+
 def get(item_id: str) -> dict | None:
     """Return a single library item by ID, or None."""
     for e in _load():

@@ -8,6 +8,7 @@
 #define MyAppPublisherURL "https://github.com/pan-devs"
 #define MyAppURL "https://github.com/pan-devs/pancalc-tools"
 #define MyAppExeName "pancalc-tools.exe"
+#define MyAppGuiExeName "pancalc-tools-gui.exe"
 #define GPG4WIN_FILE "gnupg-w32-2.5.20_20260513.exe"
 
 [Setup]
@@ -42,6 +43,7 @@ Name: "addtopath"; Description: "Add PanCalc Tools to your system &PATH (lets yo
 
 [Files]
 Source: "..\dist\pancalc-tools\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\pancalc-tools\{#MyAppGuiExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\pancalc-tools\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE.md"; DestDir: "{app}"; Flags: ignoreversion
@@ -52,11 +54,12 @@ Source: "prereqs\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: ignoreversion
 Source: "prereqs\{#GPG4WIN_FILE}"; DestDir: "{tmp}"; Flags: ignoreversion
 
 [Icons]
+Name: "{group}\PanCalc Tools (GUI)"; Filename: "{app}\{#MyAppGuiExeName}"; WorkingDir: "{app}"; Comment: "Graphical user interface for managing calculator add-ins, converting files, and more"
 Name: "{group}\PanCalc Tools (CLI)"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Comment: "Command-line interface for managing calculator add-ins, converting files, and more"
 Name: "{group}\PanCalc Tools (TUI)"; Filename: "{app}\{#MyAppExeName}"; Parameters: "tui"; WorkingDir: "{app}"; Comment: "Graphical terminal interface — easier for browsing and installing add-ins"
 Name: "{group}\Documentation"; Filename: "{app}\README.md"; Comment: "Open the README documentation file"
 Name: "{group}\Uninstall PanCalc Tools"; Filename: "{uninstallexe}"
-Name: "{commondesktop}\PanCalc Tools"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon; Comment: "Launch PanCalc Tools"
+Name: "{commondesktop}\PanCalc Tools"; Filename: "{app}\{#MyAppGuiExeName}"; WorkingDir: "{app}"; Tasks: desktopicon; Comment: "Launch PanCalc Tools GUI"
 
 [Registry]
 Root: HKA; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; \
@@ -76,8 +79,9 @@ Filename: "{tmp}\{#GPG4WIN_FILE}"; Parameters: "/S"; \
     Flags: waituntilterminated runhidden; \
     Check: Gpg4winNeedsInstall
 
-; Launch application after install
-Filename: "{app}\{#MyAppExeName}"; Description: "Launch PanCalc Tools"; Flags: nowait postinstall skipifsilent unchecked
+; Launch application after install (GUI by default)
+Filename: "{app}\{#MyAppGuiExeName}"; Description: "Launch PanCalc Tools GUI"; Flags: nowait postinstall skipifsilent unchecked
+Filename: "{app}\{#MyAppExeName}"; Description: "Launch PanCalc Tools CLI/TUI (advanced)"; Flags: nowait postinstall skipifsilent unchecked
 
 [Code]
 function NeedsAddPath: Boolean;

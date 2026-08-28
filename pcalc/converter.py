@@ -131,9 +131,17 @@ def _nearest_color(pixel):
     return best_idx
 
 
+def _report_progress(on_progress, done, total):
+    if on_progress:
+        try:
+            on_progress(done, total)
+        except Exception:
+            pass
+
+
 def _process_image_to_g3p(img: Image.Image, output_path: str, bit_depth: int = 16,
                            split: str = "auto", overlap: int = 16,
-                           input_name: str = "") -> None:
+                           input_name: str = "", on_progress=None) -> None:
     """Encode a PIL Image to .g3p file(s), handling split and letterbox."""
     src_w, src_h = img.size
     scale_w = WIDTH / src_w
@@ -165,6 +173,8 @@ def _process_image_to_g3p(img: Image.Image, output_path: str, bit_depth: int = 1
             with open(strip_name, 'wb') as f:
                 f.write(g3p_bytes)
 
+            _report_progress(on_progress, i + 1, n_strips)
+
             label = input_name or os.path.basename(output_path)
             print(f"OK: {label} -> {os.path.basename(strip_name)}")
             print(f"    Strip {i+1}/{n_strips}, {len(g3p_bytes)} bytes, {bit_depth}-bit, {WIDTH}x{HEIGHT}")
@@ -186,39 +196,43 @@ def _process_image_to_g3p(img: Image.Image, output_path: str, bit_depth: int = 1
         with open(output_path, 'wb') as f:
             f.write(g3p_bytes)
 
+        _report_progress(on_progress, 1, 1)
+
         label = input_name or output_path
         print(f"OK: {label} -> {output_path}")
         print(f"    {len(g3p_bytes)} bytes, {bit_depth}-bit, {WIDTH}x{HEIGHT}")
 
 
-def convert_image(input_path, output_path, bit_depth=16, split="auto", overlap=16):
+def convert_image(input_path, output_path, bit_depth=16, split="auto", overlap=16, on_progress=None):
     img = Image.open(input_path)
     img = ImageOps.exif_transpose(img) or img
     if img.mode != 'RGB':
         img = img.convert('RGB')
     _process_image_to_g3p(img, output_path, bit_depth, split, overlap,
-                          os.path.basename(input_path))
+                          os.path.basename(input_path), on_progress)
 
 
 RENDER_SCALE = 20.0
 
 
-def convert_document_g3p(input_path, output_path, bit_depth=16, overlap=16):
+def convert_document_g3p(input_path, output_path, bit_depth=16, overlap=16, on_progress=None):
     """Render each page of a PDF/DOCX to 384px-wide images and convert to .g3p strips."""
     import fitz
 
     doc = fitz.open(input_path)
     base_name = os.path.splitext(os.path.basename(input_path))[0]
     out_base  = os.path.splitext(output_path)[0]
+    n_pages = len(doc)
 
-    for i, page in enumerate(doc):
+    for i, page in enumerate(doc, 1):
         zoom = WIDTH * RENDER_SCALE / page.rect.width
         mat = fitz.Matrix(zoom, zoom)
         pix = page.get_pixmap(matrix=mat, colorspace=fitz.csRGB)
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
-        page_path = f"{out_base}_{i+1:03d}.g3p"
-        label = f"{base_name} (p.{i+1})"
+        page_path = f"{out_base}_{i:03d}.g3p"
+        label = f"{base_name} (p.{i})"
+        _report_progress(on_progress, i, n_pages)
         _process_image_to_g3p(img, page_path, bit_depth, "on", overlap, label)
 
     doc.close()
@@ -316,20 +330,22 @@ def _clean_text(text: str) -> str:
     return text.strip()
 
 
-def convert_text(input_path: str, output_path: str):
+def convert_text(input_path: str, output_path: str, on_progress=None):
     """Extract text from a PDF or DOCX file and save as plain text."""
     import fitz  # pymupdf
 
     doc = fitz.open(input_path)
     total_chars = 0
     lines: list[str] = []
-    for page in doc:
+    n_pages = len(doc)
+    for idx, page in enumerate(doc, 1):
         text = page.get_text().strip()
         if text:
             cleaned = _clean_text(text)
             if cleaned:
                 lines.append(cleaned)
                 total_chars += len(cleaned)
+        _report_progress(on_progress, idx, n_pages)
     doc.close()
 
     if total_chars < 10 * len(lines) if lines else 1:
