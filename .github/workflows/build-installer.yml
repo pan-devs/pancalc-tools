@@ -49,7 +49,8 @@ jobs:
         shell: pwsh
         run: |
           # ensure_client_cached() downloads the Flet client and returns its cache dir.
-          $fletCache = (python -c "from flet_desktop import ensure_client_cached; print(ensure_client_cached())").Trim()
+          # Suppress its "Preparing..." stdout message to capture only the path.
+          $fletCache = (python -c "import sys,io;o=sys.stdout;sys.stdout=io.StringIO();from flet_desktop import ensure_client_cached;r=ensure_client_cached();sys.stdout=o;print(r)").Trim()
           Write-Output "Flet cache dir returned: '$fletCache'"
           if (!(Test-Path $fletCache)) {
             Write-Error "Flet client cache path does not exist: $fletCache"
