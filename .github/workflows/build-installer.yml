@@ -61,6 +61,14 @@ jobs:
           Copy-Item -Path "$fletCache\*" -Destination $fletDst -Recurse -Force
           Write-Output "Bundled Flet client contents:"
           Get-ChildItem -Path $fletDst | Select-Object -First 20
+          # main_gui.py sets FLET_VIEW_PATH to <app>/flet_client/flet expecting
+          # flet.exe inside it. Verify that layout survived the copy.
+          $fletExe = "dist\pancalc-tools-gui\flet_client\flet\flet.exe"
+          if (!(Test-Path $fletExe)) {
+            Write-Error "Expected client exe not found at $fletExe"
+            exit 1
+          }
+          Write-Output "Flet client exe found at $fletExe"
 
       - name: Download and bundle standalone GnuPG
         shell: pwsh
