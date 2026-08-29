@@ -27,13 +27,15 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -e .[windows,gui]
-          pip install pyinstaller
+          pip install flet-desktop pyinstaller
+          pip list | findstr -i flet
 
       - name: Build standalone GUI executable with PyInstaller
         shell: pwsh
         run: |
           pyinstaller --onedir --windowed --noconfirm --name pancalc-tools-gui `
             --collect-all flet --collect-all flet_desktop --collect-all pcalc --collect-all fitz --collect-all gnupg `
+            --hidden-import flet_desktop --hidden-import flet_desktop.version `
             --hidden-import pcalc.gui --hidden-import pcalc.gui_views `
             --hidden-import pcalc.cli --hidden-import pcalc.tui --hidden-import pcalc.installer `
             --hidden-import pcalc.converter --hidden-import pcalc.registry --hidden-import pcalc.crypto `
