@@ -34,7 +34,8 @@ jobs:
         shell: pwsh
         run: |
           pyinstaller --onedir --windowed --noconfirm --name pancalc-tools-gui `
-            --collect-all flet --collect-all flet_desktop --collect-all pcalc --collect-all fitz --collect-all gnupg `
+            --collect-all flet --collect-all flet_desktop --collect-all certifi `
+            --collect-all pcalc --collect-all fitz --collect-all gnupg `
             --hidden-import flet_desktop --hidden-import flet_desktop.version `
             --hidden-import pcalc.gui --hidden-import pcalc.gui_views `
             --hidden-import pcalc.cli --hidden-import pcalc.tui --hidden-import pcalc.installer `
@@ -43,6 +44,28 @@ jobs:
             --hidden-import pcalc.calculator --hidden-import pcalc.library `
             --icon installer/favicon.ico `
             main_gui.py
+
+      - name: Pre-download and bundle Flet desktop client
+        shell: pwsh
+        run: |
+          # Trigger flet_desktop to download its client binary so we can bundle it.
+          python -c "from flet_desktop import ensure_client_cached; ensure_client_cached()"
+          $fletCache = "$env:LOCALAPPDATA\flet\flet"
+          Write-Output "Flet cache dir: $fletCache"
+          if (!(Test-Path $fletCache)) {
+            # Fallback: try alternative cache locations
+            $alt = "$env:APPDATA\flet\flet"
+            if (Test-Path $alt) { $fletCache = $alt }
+          }
+          if (!(Test-Path $fletCache)) {
+            Write-Error "Flet client cache not found at $fletCache"
+            exit 1
+          }
+          $fletDst = "dist\pancalc-tools-gui\flet_client"
+          New-Item -ItemType Directory -Force -Path $fletDst | Out-Null
+          Copy-Item -Path "$fletCache\*" -Destination $fletDst -Recurse -Force
+          Write-Output "Bundled Flet client contents:"
+          Get-ChildItem -Path $fletDst | Select-Object -First 20
 
       - name: Download and bundle standalone GnuPG
         shell: pwsh
