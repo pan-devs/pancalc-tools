@@ -48,17 +48,11 @@ jobs:
       - name: Pre-download and bundle Flet desktop client
         shell: pwsh
         run: |
-          # Trigger flet_desktop to download its client binary so we can bundle it.
-          python -c "from flet_desktop import ensure_client_cached; ensure_client_cached()"
-          $fletCache = "$env:LOCALAPPDATA\flet\flet"
-          Write-Output "Flet cache dir: $fletCache"
+          # ensure_client_cached() downloads the Flet client and returns its cache dir.
+          $fletCache = (python -c "from flet_desktop import ensure_client_cached; print(ensure_client_cached())").Trim()
+          Write-Output "Flet cache dir returned: '$fletCache'"
           if (!(Test-Path $fletCache)) {
-            # Fallback: try alternative cache locations
-            $alt = "$env:APPDATA\flet\flet"
-            if (Test-Path $alt) { $fletCache = $alt }
-          }
-          if (!(Test-Path $fletCache)) {
-            Write-Error "Flet client cache not found at $fletCache"
+            Write-Error "Flet client cache path does not exist: $fletCache"
             exit 1
           }
           $fletDst = "dist\pancalc-tools-gui\flet_client"
