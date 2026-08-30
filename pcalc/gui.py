@@ -5,6 +5,7 @@ View builders live in gui_views.py.
 from __future__ import annotations
 import asyncio
 import shutil
+import sys
 from pathlib import Path
 import flet as ft
 from pcalc import __version__, config as pconfig, theme as ptheme
@@ -25,6 +26,8 @@ from pcalc.installer import (
     install,
     remove,
     verify_addin,
+    walk_calc as _walk_calc,
+    iter_calc_files as _iter_calc_files,
 )
 # ── Helpers ─────────────────────────────────────────────────────────
 def _fmt_size(size: int) -> str:
@@ -127,6 +130,12 @@ class PanCalcGUI:
         page.window.min_width = 900
         page.window.min_height = 600
         page.theme = _create_theme()
+        # Window/taskbar icon (prefer the bundled favicon). Flet client may not
+        # honor it on all platforms, but it's the only in-app way to try.
+        for _icon_cand in self._window_icon_candidates():
+            if _icon_cand.is_file():
+                page.window.icon = str(_icon_cand)
+                break
         page.theme_mode = ft.ThemeMode.LIGHT
         page.scroll = None
         page.on_window_event = self._on_window_event
@@ -276,6 +285,13 @@ class PanCalcGUI:
             pconfig.set("window_height", self.page.window.height)
     def _on_keyboard(self, e: ft.KeyboardEvent):
         self._ctrl_held = e.ctrl
+    def _window_icon_candidates(self) -> list[Path]:
+        stream: list[Path] = []
+        if getattr(sys, "frozen", False):
+            stream.append(Path(sys.executable).parent / "favicon.ico")
+        else:
+            stream.append(Path(__file__).resolve().parent.parent / "installer" / "favicon.ico")
+        return stream
     def _build_current_view(self):
         builders = [
             self.views._build_registry_view,
@@ -413,6 +429,26 @@ class PanCalcGUI:
         dlg.open = False
         dlg.update()
     # ── Async ops ───────────────────────────────────────────────────
+    async def _refresh_installed_ids(self):
+        """Recompute installed_addin_ids from the connected calculator.
+
+        This drives the "installed" badge (✅) shown on Registry/Games cards,
+        so it must run on scan/connect, not only when building the Installed view.
+        """
+        calc = await run_sync(find_calculator)
+        if not calc:
+            self.installed_addin_ids = set()
+            return
+        try:
+            entries = await run_sync(_walk_calc, calc, self.registry_data + self.games_data)
+            ids = {
+                e.addin.get("id")
+                for e in _iter_calc_files(entries)
+                if e.addin and e.addin.get("id")
+            }
+            self.installed_addin_ids = ids
+        except Exception:
+            self.installed_addin_ids = set()
     async def _scan_calculator(self):
         try:
             self.status_leading.content = ft.ProgressRing(width=14, height=14, stroke_width=2)
@@ -431,7 +467,8 @@ class PanCalcGUI:
             self.page.update()
         except Exception:
             pass
-        if self.current_view_index == 2:
+        await self._refresh_installed_ids()
+        if self.current_view_index in (0, 1, 2):
             self._build_current_view()
         return calc
     async def _update_registry(self):
@@ -532,23 +569,45 @@ class PanCalcGUI:
                 _do_scan()
                 return
             else:
+                status_text = ft.Text("Downloading add-in catalog...", size=13)
+                spinner = ft.ProgressRing(width=32, height=32)
+                update_row = ft.Row(
+                    [ft.TextButton("Later", on_click=lambda _: _finish()),
+                     ft.FilledButton("Update", on_click=lambda _: _do_update())],
+                    alignment=ft.MainAxisAlignment.END,
+                )
                 content = [
                     ft.Text("Update Registry", size=22, weight=ft.FontWeight.BOLD),
                     ft.Container(height=10),
                     ft.Text("Download the latest add-in and game catalogs?"),
                     ft.Container(height=10),
-                    ft.Row(
-                        [ft.TextButton("Later", on_click=lambda _: _finish()),
-                         ft.FilledButton("Update", on_click=lambda _: _do_update())],
-                        alignment=ft.MainAxisAlignment.END,
-                    ),
+                    spinner,
+                    ft.Container(height=10),
+                    status_text,
+                    ft.Container(height=10),
+                    update_row,
                 ]
+                spinner.visible = False
                 async def _do_update():
+                    update_row.controls[1].disabled = True
+                    update_row.controls[0].disabled = True
+                    spinner.visible = True
+                    status_text.value = "Downloading add-in and game catalogs..."
+                    wizard_container.controls = content
+                    dlg.update()
+                    await asyncio.sleep(0.05)
+                    errors = 0
                     try:
                         await run_sync(lambda: pregistry.get_registry(force=True))
+                        status_text.value = "Downloading game catalog..."
+                        dlg.update()
                         await run_sync(lambda: pregistry.get_games(force=True))
-                    except RuntimeError:
-                        pass
+                    except RuntimeError as _e:
+                        errors += 1
+                    if errors:
+                        status_text.value = "Update failed — continuing with cached data."
+                        dlg.update()
+                        await asyncio.sleep(1.5)
                     _finish()
             wizard_container.controls = content
             if not dlg.open:
@@ -623,19 +682,64 @@ class PanCalcGUI:
         if not calc:
             self._show_snackbar("No calculator connected", type="warning")
             return
-        self._show_snackbar(f"Installing {d.get('name', '?')}...", type="info")
+        name = d.get("name", d.get("id", "?"))
+        state: dict = {"msg": f"Installing {name}...", "frac": 0.0}
+        prog = ft.ProgressBar(value=0, width=320)
+        status = ft.Text(state["msg"], size=12)
+        dlg = ft.AlertDialog(
+            modal=True,
+            content=ft.Container(
+                ft.Column([
+                    ft.Text(f"Installing {name}", weight=ft.FontWeight.BOLD),
+                    ft.Container(height=8),
+                    prog,
+                    ft.Container(height=6),
+                    status,
+                ], width=340, tight=True),
+                padding=8,
+            ),
+        )
+        self.page.show_dialog(dlg)
         try:
-            await run_sync(install, d, calc)
-            self._show_snackbar(f"{d.get('name', '?')} installed", type="success")
-            if self.current_view_index in (0, 1):
+            def _set(frac, msg):
+                state["frac"] = max(0.0, min(1.0, frac))
+                if msg:
+                    state["msg"] = msg
+            def _on_dl(cb_cur, cb_total, cb_label=""):
+                _set(cb_cur / cb_total if cb_total else 0.0, f"Downloading {cb_label}...")
+            def _on_wr(cb_label, cb_cur, cb_total):
+                _set(cb_cur / cb_total if cb_total else 0.0, f"Writing {cb_label}...")
+            task = asyncio.create_task(
+                run_sync(install, d, calc,
+                         progress_callback=_on_dl, write_callback=_on_wr)
+            )
+            while not task.done():
+                try:
+                    prog.value = state["frac"]
+                    status.value = state["msg"]
+                    dlg.update()
+                except Exception:
+                    pass
+                await asyncio.sleep(0.1)
+            await task
+            self._show_snackbar(f"{name} installed", type="success")
+            await self._refresh_installed_ids()
+            if self.current_view_index in (0, 1, 2):
                 self._build_current_view()
         except RuntimeError as e:
             self._show_snackbar(f"Failed: {e}", type="error")
+        finally:
+            dlg.open = False
+            try:
+                dlg.update()
+            except Exception:
+                pass
     async def _install_selected(self, _e=None, item_ids: list[str] | None = None):
         """Install all items in _selected_registry_ids, or given item_ids."""
         debug_log(f"_install_selected called with item_ids={item_ids}")
         if self._installing:
             debug_log("Already installing, ignoring duplicate call")
+            self._show_snackbar("Another install is already in progress", type="info")
             return
         self._installing = True
         try:
@@ -661,43 +765,92 @@ class PanCalcGUI:
         if not calc:
             self._show_snackbar("No calculator connected", type="warning")
             return
+        # Progress dialog for the whole batch (like the Convert overlay).
+        state: dict = {"msg": "Starting...", "frac": 0.0}
+        prog = ft.ProgressBar(value=0, width=320)
+        status = ft.Text(state["msg"], size=12)
+        dlg = ft.AlertDialog(
+            modal=True,
+            content=ft.Container(
+                ft.Column([
+                    ft.Text("Installing to calculator", weight=ft.FontWeight.BOLD),
+                    ft.Container(height=8),
+                    prog,
+                    ft.Container(height=6),
+                    status,
+                ], width=340, tight=True),
+                padding=8,
+            ),
+        )
+        self.page.show_dialog(dlg)
         ok_count = 0
-        for item_id in ids_to_install:
-            # Resolve from registry_data, games_data, or local library
-            d = None
-            for rd in self.registry_data:
-                if rd.get("id") == item_id:
-                    d = rd.copy()
-                    d["_source"] = "registry"
-                    break
-            if d is None:
-                for gd in self.games_data:
-                    if gd.get("id") == item_id:
-                        d = gd.copy()
-                        d["_source"] = "game"
+        try:
+            for item_id in ids_to_install:
+                # Resolve from registry_data, games_data, or local library
+                d = None
+                for rd in self.registry_data:
+                    if rd.get("id") == item_id:
+                        d = rd.copy()
+                        d["_source"] = "registry"
                         break
-            if d is None:
-                lib = plibrary.get("addin", item_id)
-                if lib:
-                    d = lib.copy()
-                    d["local_path"] = lib.get("local_path")
-                    d["_source"] = "local"
-            if d is None:
-                lib = plibrary.get("game", item_id)
-                if lib:
-                    d = lib.copy()
-                    d["local_path"] = lib.get("local_path")
-                    d["_source"] = "local"
-            if d is None:
-                continue
-            try:
-                from pcalc.installer import install
+                if d is None:
+                    for gd in self.games_data:
+                        if gd.get("id") == item_id:
+                            d = gd.copy()
+                            d["_source"] = "game"
+                            break
+                if d is None:
+                    lib = plibrary.get("addin", item_id)
+                    if lib:
+                        d = lib.copy()
+                        d["local_path"] = lib.get("local_path")
+                        d["_source"] = "local"
+                if d is None:
+                    lib = plibrary.get("game", item_id)
+                    if lib:
+                        d = lib.copy()
+                        d["local_path"] = lib.get("local_path")
+                        d["_source"] = "local"
+                if d is None:
+                    continue
                 name = d.get("name", item_id)
-                self._show_snackbar(f"Installing {name}...", type="info")
-                await run_sync(install, d, calc)
-                ok_count += 1
-            except RuntimeError as exc:
-                self._show_snackbar(f"Failed {name}: {exc}", type="error")
+                already = self.installed_addin_ids and item_id in self.installed_addin_ids
+                state["msg"] = f"{name}: {'reinstalling' if already else 'installing'}..."
+                state["frac"] = 0.0
+                prog.value = 0.0
+                status.value = state["msg"]
+                dlg.update()
+                def _set(frac, msg):
+                    state["frac"] = max(0.0, min(1.0, frac))
+                    if msg:
+                        state["msg"] = msg
+                def _on_dl(cb_cur, cb_total, cb_label=""):
+                    _set(cb_cur / cb_total if cb_total else 0.0, f"Downloading {cb_label}...")
+                def _on_wr(cb_label, cb_cur, cb_total):
+                    _set(cb_cur / cb_total if cb_total else 0.0, f"Writing {cb_label}...")
+                try:
+                    task = asyncio.create_task(
+                        run_sync(install, d, calc,
+                                 progress_callback=_on_dl, write_callback=_on_wr)
+                    )
+                    while not task.done():
+                        try:
+                            prog.value = state["frac"]
+                            status.value = state["msg"]
+                            dlg.update()
+                        except Exception:
+                            pass
+                        await asyncio.sleep(0.1)
+                    await task
+                    ok_count += 1
+                except RuntimeError as exc:
+                    self._show_snackbar(f"Failed {name}: {exc}", type="error")
+        finally:
+            dlg.open = False
+            try:
+                dlg.update()
+            except Exception:
+                pass
         if ok_count:
             self._show_snackbar(f"Installed {ok_count} item(s)", type="success")
         elif ids_to_install:
@@ -705,7 +858,9 @@ class PanCalcGUI:
         if item_ids is None:
             self._selected_registry_ids.clear()
         self._selection_mode = False
-        if self.current_view_index in (0, 1):
+        if ok_count:
+            await self._refresh_installed_ids()
+        if self.current_view_index in (0, 1, 2):
             self._build_current_view()
     async def _pick_file_for_import(self, item_type: str):
         exts = ["g3a", "g3e"] if item_type == "addin" else ["rom", "bin", "gba", "nes", "sms", "gg"]
@@ -762,6 +917,7 @@ class PanCalcGUI:
         try:
             await run_sync(remove, addin["id"], calc)
             self._show_snackbar(f"🗑️ {name} removed", type="success")
+            await self._refresh_installed_ids()
             self._build_current_view()
         except RuntimeError as e:
             self._show_snackbar(f"Failed: {e}", type="error")
@@ -775,6 +931,7 @@ class PanCalcGUI:
             from pcalc.installer import _clean_save_files
             await run_sync(_clean_save_files, path)
             self._show_snackbar(f"🗑️ {path.name} removed", type="success")
+            await self._refresh_installed_ids()
             self._build_current_view()
         except OSError as e:
             self._show_snackbar(f"Failed: {e}", type="error")
@@ -786,6 +943,7 @@ class PanCalcGUI:
         try:
             path.unlink()
             self._show_snackbar(f"🗑️ {path.name} deleted", type="success")
+            await self._refresh_installed_ids()
             self._build_current_view()
         except OSError as e:
             self._show_snackbar(f"Failed: {e}", type="error")
@@ -1244,9 +1402,10 @@ class PanCalcGUI:
                     else:
                         self.status_leading.content = ft.Icon(ft.Icons.ERROR_OUTLINE, color=ft.Colors.RED, size=16)
                         self.status_label.value = "No calculator"
-                    
-                    # Auto-refresh if currently on Installed (index 2) or Convert (index 3) view
-                    if self.current_view_index in (2, 3):
+                    await self._refresh_installed_ids()
+                    # Rebuild Installed (2), Convert (3), and Registry/Games (0,1) so
+                    # installed ticks reflect the freshly scanned state.
+                    if self.current_view_index in (0, 1, 2, 3):
                         self._build_current_view()
                     else:
                         self.page.update()

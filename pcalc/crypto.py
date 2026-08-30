@@ -70,6 +70,10 @@ def _ensure_gpg() -> bool:
     """
     if shutil.which("gpg"):
         return True
+    if _bundled_gpg():
+        # A GnuPG binary is bundled next to the app — no system install needed,
+        # so we must NOT attempt winget/brew/apt (which would pop a terminal).
+        return True
 
     print()
     print("  ⚠  GPG (GnuPG) not found")

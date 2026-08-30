@@ -44,6 +44,8 @@ jobs:
             --hidden-import pcalc.calculator --hidden-import pcalc.library `
             --icon installer/favicon.ico `
             main_gui.py
+          # Ship favicon.ico next to the exe so page.window.icon can use it.
+          Copy-Item -Path installer\favicon.ico -Destination dist\pancalc-tools-gui\favicon.ico -Force
 
       - name: Pre-download and bundle Flet desktop client
         shell: pwsh
