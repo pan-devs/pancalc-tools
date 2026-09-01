@@ -719,10 +719,10 @@ class ViewBuilder:
                 subtitle=ft.Text(f.name, size=11, color=ft.Colors.OUTLINE),
                 trailing=ft.Row([
                     ft.IconButton(ft.Icons.VERIFIED, tooltip="Verify",
-                                  color=game_color,
+                                  icon_color=game_color,
                                   on_click=lambda _, a=f.addin, n=name: asyncio_create(g._verify_item(a, n))),
                     ft.IconButton(ft.Icons.DELETE, tooltip="Remove",
-                                  color=game_color,
+                                  icon_color=game_color,
                                   on_click=lambda _, a=f.addin, n=name: asyncio_create(g._remove_item(a, n))),
                 ], tight=True),
             )

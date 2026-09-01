@@ -12,6 +12,7 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from platformdirs import user_cache_dir
@@ -69,6 +70,10 @@ def _ensure_gpg() -> bool:
     """
     if shutil.which("gpg"):
         return True
+    if _bundled_gpg():
+        # A GnuPG binary is bundled next to the app — no system install needed,
+        # so we must NOT attempt winget/brew/apt (which would pop a terminal).
+        return True
 
     print()
     print("  ⚠  GPG (GnuPG) not found")
@@ -125,6 +130,30 @@ def _ensure_gpg() -> bool:
     return False
 
 
+def _bundled_gpg() -> str | None:
+    """Locate a GnuPG bundled next to the app (self-contained builds).
+
+    Priority:
+      1. <app_dir>/gpg/bin/gpg.exe  (Windows PyInstaller --onedir bundle)
+      2. <app_dir>/gpg/gpg          (macOS/Linux bundle)
+      3. _MEIPASS/gpg/bin/gpg.exe   (PyInstaller --onefile extraction dir)
+    """
+    candidates = []
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        meipass = Path(sys._MEIPASS)
+        candidates.append(meipass / "gpg" / "bin" / "gpg.exe")
+        candidates.append(meipass / "gpg" / "bin" / "gpg")
+        candidates.append(meipass / "gpg" / "gpg")
+    app_dir = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).parent
+    candidates.append(app_dir / "gpg" / "bin" / "gpg.exe")
+    candidates.append(app_dir / "gpg" / "bin" / "gpg")
+    candidates.append(app_dir / "gpg" / "gpg")
+    for c in candidates:
+        if c.exists():
+            return str(c)
+    return None
+
+
 def _gpg():
     GNUPG_DIR.mkdir(parents=True, exist_ok=True)
     global _GPG_CHECKED
@@ -132,7 +161,9 @@ def _gpg():
         _GPG_CHECKED = True
         _ensure_gpg()
 
-    gpgbinary = shutil.which("gpg")
+    gpgbinary = _bundled_gpg()
+    if gpgbinary is None:
+        gpgbinary = shutil.which("gpg")
     if gpgbinary is None and platform.system() == "Windows":
         common_paths = [
             "C:\\Program Files\\GnuPG\\bin\\gpg.exe",

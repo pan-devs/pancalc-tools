@@ -8,15 +8,18 @@ Part of the [Pan Devs](https://github.com/pan-devs) project.
 ---
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/pan-devs/pancalc-tools)
 
-## 📖 Quick Start (for Windows only)
+## 📖 Quick Start (for Windows — recommended)
 
-Download the PanCalc-Tools-Setup-XX.XX.XX.exe file in the latest [release](https://github.com/pan-devs/pancalc-tools/releases) by clicking it to install PanCalc Tools.
+Download the `PanCalc-Tools-Setup-XX.XX.XX.exe` file from the latest [release](https://github.com/pan-devs/pancalc-tools/releases) and double-click it to install PanCalc Tools.
 
-Windows may not install it sying that it just protected you from the exe file, but click on the three dots in the download section, click on "conserve" (or something like that), then down in the "Eliminate" button click on the small arrow and click again on conserve. The installation should continue. 
+> The installer is **fully self-contained**: it includes everything the app needs
+> (file conversion, PDF/DOCX support and GnuPG signature verification), so you
+> don't need to install Python, GnuPG or anything else. Just install and open the
+> PanCalc Tools window.
 
-Then, accept that it can change your settings/device (when the pop-up window appear, click "yes"), and continue the installation. 
+Windows may warn you that the file could be dangerous ("Windows protected your PC"). This is normal for a brand-new program — click on **More info** → **Run anyway**. If it appears in the download bar as "not commonly downloaded", click the three dots, choose **Keep**, then **Keep anyway**. The installation will continue.
 
-It is highly recomended to click/select every box.
+Then, accept that it can change your settings/device (when the pop-up window appears, click **Yes**), and the installer will finish. Leave the "Create a desktop shortcut" box checked to open it easily later.
 
 And no worries, it is safe.
 
@@ -56,8 +59,9 @@ _Click the image below to watch the tutorial (it will be downloaded)_
 - **🔐 Cryptographic verification** — SHA256 checksums on every download and
   PGP signature verification against the official Pan Devs key (auto-downloaded,
   no manual setup required).
-- **🖥️ Dual interface** — Full-featured **Terminal UI** (Textual) and a
-  complete **CLI** (click) for scripting.
+- **🖥️ Graphical app** — The main, end-user **GUI** (built with Flet). A
+  **Terminal UI** (Textual) and **CLI** (click) are also available for
+  developers who run the source directly.
 - **🔑 PGP key management** — Import, trust, list, and untrust additional keys
   for advanced users.
 
@@ -70,7 +74,12 @@ _Click the image below to watch the tutorial (it will be downloaded)_
 
 
 
-## Expanded start guide (for other OS and developers/advanced users)
+## For developers and advanced users (CLI / TUI / other OS)
+
+> ⚠️ **End users don't need this section.** If you installed the GUI from the
+> release above, everything is already set up. The instructions below are for
+> developers who want to run the **CLI/TUI** directly with Python on the command
+> line instead of the packaged GUI.
 
 ### 1. Install dependencies
 
@@ -168,8 +177,11 @@ If not found:
 Open a terminal (search for "cmd" in Windows) and run:
 
 ```bash
-python -m pip install pancalc-tools
+python -m pip install "pancalc-tools[gui]"
 ```
+
+> `[gui]` installs the extra dependencies needed for the **graphical interface**
+> (Flet). Omit `[gui]` if you only want the command-line / terminal interfaces.
 
 > On Linux/macOS, use `python3 -m pip` if `python` is not found.
 
@@ -181,7 +193,7 @@ python -m pip install "pancalc-tools[windows]"
 
 > **Linux users:** if you get an `externally-managed-environment` error, use:
 > ```bash
-> python -m pip install --user pancalc-tools
+> python -m pip install --user "pancalc-tools[gui]"
 > ```
 
 ---
@@ -298,7 +310,11 @@ pip install -e .
 
 #### 🪟 Windows
 
-The installer bundles a standalone GnuPG component. If installing via pip:
+> ✅ **The released installer already bundles a standalone GnuPG** inside the app,
+> so end users don't need to install anything. The steps below are only for
+> developers running from source or via pip.
+
+If installing via pip (not the release installer):
 
 1. Download **GnuPG binary** from [gnupg.org/download](https://www.gnupg.org/download/)
 2. Extract and place `gpg.exe` in your `PATH` (e.g. `C:\Program Files\GnuPG\bin\`)
