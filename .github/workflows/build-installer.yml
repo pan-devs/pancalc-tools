@@ -100,7 +100,7 @@ jobs:
           if ($ref -match '^v?[0-9]+\.[0-9]+\.[0-9]+') {
             $version = $ref -replace '^v', ''
           } else {
-            $version = "0.2.6-dev"
+            $version = "0.2.7-dev"
           }
           echo "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 

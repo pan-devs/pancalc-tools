@@ -157,7 +157,7 @@ end;
 
 procedure CreateCustomUninstallPage;
 var
-  PageTitle: TNewStaticText;
+  PageTitle, Note: TNewStaticText;
   CancelButton: TNewButton;
   ListWidth, ListHeight: Integer;
 begin
@@ -174,25 +174,39 @@ begin
   PageTitle.Caption := 'Choose what to remove:';
 
   ListWidth := UninstallProgressForm.InnerNotebook.ClientWidth - ScaleX(24);
-  ListHeight := UninstallProgressForm.InnerNotebook.ClientHeight - PageTitle.Top - PageTitle.Height - ScaleY(20);
+
+  // TNewCheckListBox subitems are drawn on a single clipped line, so the
+  // Visual C++ explanation lives here as a wrapping note instead.
+  Note := TNewStaticText.Create(UninstallCustomPage);
+  Note.Parent := UninstallCustomPage;
+  Note.Left := ScaleX(12);
+  Note.Top := PageTitle.Top + PageTitle.Height + ScaleY(6);
+  Note.Width := ListWidth;
+  Note.Height := ScaleY(42);
+  Note.WordWrap := True;
+  Note.AutoSize := False;
+  Note.Caption := 'The "Remove everything" option keeps the Microsoft Visual C++ Redistributable because other programs may need it. Tick the last box only if you are sure you no longer need it.';
+
+  ListHeight := UninstallProgressForm.InnerNotebook.ClientHeight - Note.Top - Note.Height - ScaleY(20);
   if ListHeight < ScaleY(120) then
     ListHeight := ScaleY(120);
 
   UninstallCheckList := TNewCheckListBox.Create(UninstallCustomPage);
   UninstallCheckList.Parent := UninstallCustomPage;
   UninstallCheckList.Left := ScaleX(12);
-  UninstallCheckList.Top := PageTitle.Top + PageTitle.Height + ScaleY(6);
+  UninstallCheckList.Top := Note.Top + Note.Height + ScaleY(6);
   UninstallCheckList.Width := ListWidth;
   UninstallCheckList.Height := ListHeight;
+  // All boxes sit at the same level (siblings). A higher ALevel would make
+  // each one a parent of the next, so checking one cascaded to all of them.
   UninstallCheckList.AddCheckBox('Remove everything installed by PanCalc Tools (recommended)', '',
       0, True, True, False, True, nil);
   UninstallCheckList.AddCheckBox('Settings and configuration', '%APPDATA%\pancalc\pancalc',
-      1, True, True, False, True, nil);
+      0, True, True, False, True, nil);
   UninstallCheckList.AddCheckBox('Data, cache, Local Library and GnuPG keys', '%LOCALAPPDATA%\pancalc\pancalc',
-      2, True, True, False, True, nil);
+      0, True, True, False, True, nil);
   UninstallCheckList.AddCheckBox('Microsoft Visual C++ Redistributable 2015-2022 (x64)',
-      'This setup installs it when your system does not have it. Removing it can break other programs that depend on the Visual C++ runtime, so it is not selected by "Remove everything".',
-      3, False, True, False, True, nil);
+      '', 0, False, True, False, True, nil);
   UninstallCheckList.OnClick := @UninstallCheckListOnClick;
 
   // Add an "Uninstall" button next to the standard Cancel button and make
