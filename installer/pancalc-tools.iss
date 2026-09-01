@@ -132,19 +132,16 @@ var
   I: Integer;
 begin
   // The master box toggles the two data boxes; it never touches the VC++ one.
-  if UninstallCheckList.State[0] = cbChecked then
+  if UninstallCheckList.Checked[0] then
     for I := 1 to 2 do
-      UninstallCheckList.State[I] := cbChecked
+      UninstallCheckList.Checked[I] := True
   else
     for I := 1 to 2 do
-      UninstallCheckList.State[I] := cbUnchecked;
+      UninstallCheckList.Checked[I] := False;
 
   // Keep the master box truthful when the user flips a data box directly.
-  if (UninstallCheckList.State[1] = cbChecked) and
-     (UninstallCheckList.State[2] = cbChecked) then
-    UninstallCheckList.State[0] := cbChecked
-  else
-    UninstallCheckList.State[0] := cbUnchecked;
+  UninstallCheckList.Checked[0] :=
+    UninstallCheckList.Checked[1] and UninstallCheckList.Checked[2];
 end;
 
 function InitializeUninstall: Boolean;
@@ -188,14 +185,14 @@ begin
   UninstallCheckList.Width := ListWidth;
   UninstallCheckList.Height := ListHeight;
   UninstallCheckList.AddCheckBox('Remove everything installed by PanCalc Tools (recommended)', '',
-      0, True, True, cbChecked);
+      0, True, True, False, True, nil);
   UninstallCheckList.AddCheckBox('Settings and configuration', '%APPDATA%\pancalc\pancalc',
-      1, True, True, cbChecked);
+      1, True, True, False, True, nil);
   UninstallCheckList.AddCheckBox('Data, cache, Local Library and GnuPG keys', '%LOCALAPPDATA%\pancalc\pancalc',
-      2, True, True, cbChecked);
+      2, True, True, False, True, nil);
   UninstallCheckList.AddCheckBox('Microsoft Visual C++ Redistributable 2015-2022 (x64)',
       'This setup installs it when your system does not have it. Removing it can break other programs that depend on the Visual C++ runtime, so it is not selected by "Remove everything".',
-      3, True, False, cbUnchecked);
+      3, False, True, False, True, nil);
   UninstallCheckList.OnClick := @UninstallCheckListOnClick;
 
   // Add an "Uninstall" button next to the standard Cancel button and make
