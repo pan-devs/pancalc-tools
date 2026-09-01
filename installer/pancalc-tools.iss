@@ -83,9 +83,10 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Launch PanCalc Tools"; Flags: n
 [UninstallDelete]
 ; Force-remove anything the app created inside its own folder at runtime
 ; (logs etc.) that is not in the [Files] list and would otherwise stay behind.
+; The user's %APPDATA%/%LOCALAPPDATA% cleanup runs from [Code] in the
+; usUninstall step instead — it must target the ORIGINAL user's profile, not
+; the elevated administrator one, so it is handled via ExecAsOriginalUser.
 Type: filesandordirs; Name: "{app}"
-Type: dirifempty; Name: "{userappdata}\pancalc"
-Type: dirifempty; Name: "{localappdata}\pancalc"
 
 [Code]
 // Check if VC++ Redistributable needs to be installed
@@ -126,22 +127,79 @@ var
   UninstallCheckList: TNewCheckListBox;
   UninstallCustomButton: TNewButton;
   OriginalNotebookPage: TNewNotebookPage;
+  MasterBox: TNewCheckBox;
+  OriginalAppData: string;
+  OriginalLocalAppData: string;
 
-procedure UninstallCheckListOnClick(Sender: TObject);
-var
-  I: Integer;
+// "Remove everything" master: while checked, the settings/cache boxes stay
+// checked and greyed out (non-interactive); when unchecked, they become plain
+// independent checkboxes the user can tick one by one. The VC++ box is never
+// touched by this handler.
+procedure MasterBoxOnClick(Sender: TObject);
 begin
-  // The master box toggles the two data boxes; it never touches the VC++ one.
-  if UninstallCheckList.Checked[0] then
-    for I := 1 to 2 do
-      UninstallCheckList.Checked[I] := True
+  if MasterBox.Checked then
+  begin
+    UninstallCheckList.Checked[0] := True;
+    UninstallCheckList.Checked[1] := True;
+    UninstallCheckList.ItemEnabled[0] := False;
+    UninstallCheckList.ItemEnabled[1] := False;
+  end
   else
-    for I := 1 to 2 do
-      UninstallCheckList.Checked[I] := False;
+  begin
+    UninstallCheckList.ItemEnabled[0] := True;
+    UninstallCheckList.ItemEnabled[1] := True;
+    UninstallCheckList.Checked[0] := False;
+    UninstallCheckList.Checked[1] := False;
+  end;
+end;
 
-  // Keep the master box truthful when the user flips a data box directly.
-  UninstallCheckList.Checked[0] :=
-    UninstallCheckList.Checked[1] and UninstallCheckList.Checked[2];
+// The uninstaller runs elevated (administrator token), so the
+// {userappdata}/{localappdata} constants point at the ADMINISTRATOR's profile
+// and not the real (possibly non-admin) user who started the uninstall —
+// deleting those would leave the user's data behind. Resolve the actual
+// user's %APPDATA%/%LOCALAPPDATA% by running a tiny helper as the original
+// user and reading back its output (written under ProgramData, a location
+// both tokens can access).
+procedure CaptureOriginalUserDataPaths;
+var
+  ScriptPath, OutPath, BatContent, S: string;
+  RC, P: Integer;
+begin
+  OriginalAppData := '';
+  OriginalLocalAppData := '';
+  CreateDir(ExpandConstant('{commonappdata}\pancalc'));
+  ScriptPath := ExpandConstant('{commonappdata}\pancalc\get-pancalc-env.bat');
+  OutPath := ExpandConstant('{commonappdata}\pancalc\pancalc_uninstall_env.txt');
+  DeleteFile(OutPath);
+  BatContent := '@echo off' + #13#10 +
+                '>  "' + OutPath + '" echo %APPDATA%' + #13#10 +
+                '>> "' + OutPath + '" echo %LOCALAPPDATA%' + #13#10 +
+                'exit /b 0' + #13#10;
+  if SaveStringToFile(ScriptPath, BatContent, False) then
+  begin
+    if ExecAsOriginalUser(ScriptPath, '', '', SW_HIDE, ewWaitUntilTerminated, RC)
+       and FileExists(OutPath) and LoadStringFromFile(OutPath, S) then
+    begin
+      P := Pos(#13#10, S);
+      if P > 0 then
+      begin
+        OriginalAppData := Trim(Copy(S, 1, P - 1));
+        S := Copy(S, P + 2, Length(S));
+        P := Pos(#13#10, S);
+        if P > 0 then
+          OriginalLocalAppData := Trim(Copy(S, 1, P - 1))
+        else
+          OriginalLocalAppData := Trim(S);
+      end;
+    end;
+    DeleteFile(ScriptPath);
+    DeleteFile(OutPath);
+  end;
+  // Fallback: behave like today if the capture failed for any reason.
+  if OriginalAppData = '' then
+    OriginalAppData := ExpandConstant('{userappdata}');
+  if OriginalLocalAppData = '' then
+    OriginalLocalAppData := ExpandConstant('{localappdata}');
 end;
 
 function InitializeUninstall: Boolean;
@@ -153,6 +211,7 @@ begin
   RemoveCacheChecked := True;
   RemoveVCChecked := False;
   VCRemovalFailed := False;
+  CaptureOriginalUserDataPaths;
 end;
 
 procedure CreateCustomUninstallPage;
@@ -187,27 +246,37 @@ begin
   Note.AutoSize := False;
   Note.Caption := 'The "Remove everything" option keeps the Microsoft Visual C++ Redistributable because other programs may need it. Tick the last box only if you are sure you no longer need it.';
 
-  ListHeight := UninstallProgressForm.InnerNotebook.ClientHeight - Note.Top - Note.Height - ScaleY(20);
+  MasterBox := TNewCheckBox.Create(UninstallCustomPage);
+  MasterBox.Parent := UninstallCustomPage;
+  MasterBox.Left := ScaleX(12);
+  MasterBox.Top := Note.Top + Note.Height + ScaleY(6);
+  MasterBox.Width := ListWidth;
+  MasterBox.AutoSize := False;
+  MasterBox.Caption := 'Remove everything installed by PanCalc Tools (recommended)';
+  MasterBox.Checked := True;
+  MasterBox.OnClick := @MasterBoxOnClick;
+
+  ListHeight := UninstallProgressForm.InnerNotebook.ClientHeight - MasterBox.Top - MasterBox.Height - ScaleY(20);
   if ListHeight < ScaleY(120) then
     ListHeight := ScaleY(120);
 
   UninstallCheckList := TNewCheckListBox.Create(UninstallCustomPage);
   UninstallCheckList.Parent := UninstallCustomPage;
   UninstallCheckList.Left := ScaleX(12);
-  UninstallCheckList.Top := Note.Top + Note.Height + ScaleY(6);
+  UninstallCheckList.Top := MasterBox.Top + MasterBox.Height + ScaleY(6);
   UninstallCheckList.Width := ListWidth;
   UninstallCheckList.Height := ListHeight;
+
   // All boxes sit at the same level (siblings). A higher ALevel would make
   // each one a parent of the next, so checking one cascaded to all of them.
-  UninstallCheckList.AddCheckBox('Remove everything installed by PanCalc Tools (recommended)', '',
-      0, True, True, False, True, nil);
+  // The first two boxes start checked but disabled (the master is checked by
+  // default); MasterBoxOnClick toggles their state and enabledness.
   UninstallCheckList.AddCheckBox('Settings and configuration', '%APPDATA%\pancalc\pancalc',
-      0, True, True, False, True, nil);
+      0, True, False, False, True, nil);
   UninstallCheckList.AddCheckBox('Data, cache, Local Library and GnuPG keys', '%LOCALAPPDATA%\pancalc\pancalc',
-      0, True, True, False, True, nil);
+      0, True, False, False, True, nil);
   UninstallCheckList.AddCheckBox('Microsoft Visual C++ Redistributable 2015-2022 (x64)',
       '', 0, False, True, False, True, nil);
-  UninstallCheckList.OnClick := @UninstallCheckListOnClick;
 
   // Add an "Uninstall" button next to the standard Cancel button and make
   // both break the modal loop (mrOK = proceed, mrCancel = abort).
@@ -235,9 +304,9 @@ begin
   UninstallProgressForm.ShowModal;
 
   // Read the choices, then restore the normal uninstall layout.
-  RemoveConfigChecked := (UninstallCheckList.State[1] = cbChecked);
-  RemoveCacheChecked := (UninstallCheckList.State[2] = cbChecked);
-  RemoveVCChecked := (UninstallCheckList.State[3] = cbChecked);
+  RemoveConfigChecked := MasterBox.Checked or UninstallCheckList.Checked[0];
+  RemoveCacheChecked := MasterBox.Checked or UninstallCheckList.Checked[1];
+  RemoveVCChecked := UninstallCheckList.Checked[2];
   UninstallProgressForm.InnerNotebook.ActivePage := OriginalNotebookPage;
   UninstallCustomButton.Visible := False;
 end;
@@ -248,10 +317,12 @@ var
 begin
   if CurUninstallStep = usUninstall then
   begin
+    // Target the REAL user's profile (captured pre-elevation), not the
+    // administrator's, when the uninstaller runs elevated.
     if RemoveConfigChecked then
-      DelTree(ExpandConstant('{userappdata}\pancalc\pancalc'), True, True, True);
+      DelTree(OriginalAppData + '\pancalc', True, True, True);
     if RemoveCacheChecked then
-      DelTree(ExpandConstant('{localappdata}\pancalc\pancalc'), True, True, True);
+      DelTree(OriginalLocalAppData + '\pancalc', True, True, True);
     if RemoveVCChecked then
     begin
       if Exec(ExpandConstant('{app}\redist\vc_redist.x64.exe'),
