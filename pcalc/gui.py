@@ -4,13 +4,16 @@ View builders live in gui_views.py.
 """
 from __future__ import annotations
 import asyncio
+import os
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 import flet as ft
 from pcalc import __version__, config as pconfig, theme as ptheme
 from pcalc import library as plibrary
 from pcalc import registry as pregistry
+from pcalc import updater as pupdater
 from pcalc.calculator import find_calculator
 from pcalc.cli import _eject as eject_calc
 from pcalc.gui_views import GLOW_COLOR
@@ -122,6 +125,9 @@ class PanCalcGUI:
         self._trashing = False
         self._undo_snapshot: list[dict] = []
         self.views = ViewBuilder(self)
+        self.update_banner: ft.Container | None = None
+        self.update_banner_text: ft.Text | None = None
+        self._update_info: dict | None = None
     def build(self, page: ft.Page) -> None:
         self.page = page
         page.title = f"PanCalc Tools v{__version__}"
@@ -232,6 +238,25 @@ class PanCalcGUI:
         )
         self.trash_target = self.trash_zone.build()
         self.content_area = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
+        self.update_banner_text = ft.Text("", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_PRIMARY_CONTAINER)
+        self.update_banner = ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.NEW_RELEASES, color=ft.Colors.TERTIARY),
+                ft.Container(width=8),
+                self.update_banner_text,
+                ft.Container(expand=True),
+                ft.ElevatedButton("Update", icon=ft.Icons.SYSTEM_UPDATE,
+                                  on_click=lambda _: asyncio.create_task(self._do_update())),
+                ft.IconButton(ft.Icons.CLOSE, tooltip="Dismiss",
+                              on_click=lambda _: self._set_update_banner(visible=False)),
+            ], tight=True),
+            bgcolor=ft.Colors.PRIMARY_CONTAINER,
+            border_radius=10,
+            padding=8,
+            margin=ft.Margin(top=6, left=8, right=8, bottom=0),
+            visible=False,
+        )
+        page.add(self.update_banner)
         page.add(ft.Row([
             ft.Container(
                 content=self.trash_target,
@@ -272,6 +297,8 @@ class PanCalcGUI:
                 await self._scan_calculator()
             await self._load_registry_data()
             self._build_current_view()
+            if pconfig.get("check_updates"):
+                asyncio.create_task(self._check_updates())
         except Exception as e:
             if not isinstance(e, asyncio.CancelledError):
                 try:
@@ -509,6 +536,109 @@ class PanCalcGUI:
         except Exception:
             pass
         self._show_snackbar("Registry updated", type="success")
+    # ── App updates ─────────────────────────────────────────────────
+    def _set_update_banner(self, visible: bool, info: dict | None = None):
+        self._update_info = info if visible else None
+        if visible and info:
+            self.update_banner_text.value = f"New version {info['version']} available"
+        self.update_banner.visible = visible
+        try:
+            self.update_banner.update()
+        except Exception:
+            pass
+    async def _check_updates(self, manual: bool = False):
+        try:
+            info = await run_sync(pupdater.latest_release)
+        except Exception:
+            info = None
+        if not info:
+            if manual:
+                self._show_snackbar("Could not check for updates (offline or no releases).", type="warning")
+            return
+        current = pupdater.current_version()
+        if pupdater._parse_version(info["version"]) > pupdater._parse_version(current):
+            self._set_update_banner(visible=True, info=info)
+            self._show_snackbar(
+                f"New version {info['version']} available",
+                action_text="Update",
+                action_cb=lambda: asyncio.create_task(self._do_update()),
+            )
+        elif manual:
+            self._show_snackbar("You are up to date.", type="success")
+    async def _do_update(self):
+        info = self._update_info
+        if not info:
+            return
+        url = info.get("url")
+        if not url:
+            self._show_snackbar("This release has no installer to download.", type="error")
+            return
+        state: dict = {"msg": f"Downloading PanCalc Tools v{info['version']}...", "frac": 0.0}
+        prog = ft.ProgressBar(value=0, width=320)
+        status = ft.Text(state["msg"], size=12)
+        dlg = ft.AlertDialog(
+            modal=True,
+            content=ft.Container(
+                ft.Column([
+                    ft.Text(f"Updating to v{info['version']}", weight=ft.FontWeight.BOLD),
+                    ft.Container(height=8),
+                    prog,
+                    ft.Container(height=6),
+                    status,
+                ], width=340, tight=True),
+                padding=8,
+            ),
+        )
+        self.page.show_dialog(dlg)
+        dest = Path(tempfile.gettempdir()) / f"PanCalc-Tools-Setup-{info['version']}{pupdater.installer_ext()}"
+        def _on_dl(cb_cur, cb_total, cb_label=""):
+            state["frac"] = cb_cur / cb_total if cb_total else 0.0
+            kbs = f"{cb_cur // 1024} / {cb_total // 1024} KB" if cb_total else f"{cb_cur // 1024} KB"
+            state["msg"] = f"Downloading {cb_label} ({kbs})..."
+        try:
+            task = asyncio.create_task(run_sync(pupdater.download, url, dest, _on_dl))
+            while not task.done():
+                try:
+                    prog.value = state["frac"]
+                    status.value = state["msg"]
+                    dlg.update()
+                except Exception:
+                    pass
+                await asyncio.sleep(0.1)
+            await task
+        except RuntimeError as exc:
+            dlg.open = False
+            try:
+                dlg.update()
+            except Exception:
+                pass
+            self._show_snackbar(f"Update failed: {exc}", type="error")
+            return
+        dlg.open = False
+        try:
+            dlg.update()
+        except Exception:
+            pass
+        ok = await self._confirm(
+            "Update ready",
+            f"PanCalc Tools v{info['version']} downloaded.\nClose the app and run the installer?",
+        )
+        if not ok:
+            self._show_snackbar(f"Update downloaded — you can run it later from {dest}", type="info")
+            return
+        try:
+            if os.name == "nt":
+                os.startfile(dest)
+            else:
+                import subprocess
+                subprocess.Popen([str(dest)])
+        except Exception as exc:
+            self._show_snackbar(f"Could not launch the installer: {exc}\nRun it manually from {dest}", type="error")
+            return
+        try:
+            self.page.window.destroy()
+        except Exception:
+            pass
     async def _load_registry_data(self):
         try:
             self.registry_data = await run_sync(pregistry.get_registry)
