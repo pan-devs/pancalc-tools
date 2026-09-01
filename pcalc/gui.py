@@ -45,6 +45,20 @@ def debug_log(msg: str):
             f.write(f"[DEBUG] {msg}\n")
     except Exception:
         pass
+
+_update_mutex_handle = None
+
+
+def _hold_update_mutex() -> None:
+    """Create a named mutex so the installer's AppMutex can close the app."""
+    global _update_mutex_handle
+    if os.name != "nt" or _update_mutex_handle is not None:
+        return
+    try:
+        import ctypes
+        _update_mutex_handle = ctypes.windll.kernel32.CreateMutexW(None, False, "PanCalcTools_Lock")
+    except Exception:
+        _update_mutex_handle = None
 async def run_sync(fn, *args, **kwargs):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, lambda: fn(*args, **kwargs))
@@ -129,6 +143,7 @@ class PanCalcGUI:
         self.update_banner_text: ft.Text | None = None
         self._update_info: dict | None = None
     def build(self, page: ft.Page) -> None:
+        _hold_update_mutex()
         self.page = page
         page.title = f"PanCalc Tools v{__version__}"
         page.window.width = 1200
@@ -627,18 +642,35 @@ class PanCalcGUI:
             self._show_snackbar(f"Update downloaded — you can run it later from {dest}", type="info")
             return
         try:
-            if os.name == "nt":
-                os.startfile(dest)
-            else:
-                import subprocess
-                subprocess.Popen([str(dest)])
-        except Exception as exc:
-            self._show_snackbar(f"Could not launch the installer: {exc}\nRun it manually from {dest}", type="error")
-            return
-        try:
             self.page.window.destroy()
         except Exception:
             pass
+        if os.name == "nt":
+            # The new installer must replace the running exe, so it can only
+            # start once this process has fully exited and released the file.
+            # A detached helper waits a moment, then launches the setup.
+            import subprocess as _subprocess
+            cmd = f'timeout /t 3 /nobreak >nul & start "" "{dest}"'
+            try:
+                _subprocess.Popen(
+                    ["cmd.exe", "/c", cmd],
+                    stdout=_subprocess.DEVNULL,
+                    stderr=_subprocess.DEVNULL,
+                    creationflags=_subprocess.CREATE_NO_WINDOW | getattr(_subprocess, "DETACHED_PROCESS", 0),
+                    close_fds=True,
+                )
+            except Exception as exc:
+                self._show_snackbar(f"Could not launch the installer: {exc}\nRun it manually from {dest}", type="error")
+                return
+            import time as _time
+            _time.sleep(0.3)
+            os._exit(0)
+        else:
+            try:
+                import subprocess as _subprocess
+                _subprocess.Popen([str(dest)], start_new_session=True)
+            except Exception as exc:
+                self._show_snackbar(f"Could not launch the installer: {exc}\nRun it manually from {dest}", type="error")
     async def _load_registry_data(self):
         try:
             self.registry_data = await run_sync(pregistry.get_registry)

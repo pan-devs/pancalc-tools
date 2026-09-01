@@ -10,6 +10,10 @@
 #define MyAppExeName "pancalc-tools-gui.exe"
 
 [Setup]
+; Fixed AppId so updates replace the same install (the auto-generated id is
+; derived from name/version and would create a duplicate "Add or Remove
+; Programs" entry on upgrade).
+AppId={{368B5286-E697-47E4-96E6-44AA0DF5EB78}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -32,6 +36,14 @@ UninstallDisplayName={#MyAppName} {#MyAppVersion}
 ChangesEnvironment=yes
 DisableWelcomePage=no
 
+; When the app is running (it holds the AppMutex below, e.g. during an in-app
+; update or a manual reinstall), let the installer close just our exe instead
+; of failing to overwrite it. Filtered so it never touches other programs.
+CloseApplications=yes
+CloseApplicationsFilter=pancalc-tools-gui.exe
+AppMutex=PanCalcTools_Lock
+RestartApplications=no
+
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
@@ -48,6 +60,9 @@ Source: "..\ARCHITECTURE.md"; DestDir: "{app}"; Flags: ignoreversion
 ; Prerequisite installers (placed in temp directory during install)
 ; NOTE: GnuPG is bundled INSIDE the app (dist\pancalc-tools\gpg) — not installed system-wide.
 Source: "prereqs\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: ignoreversion
+; A second copy lives inside {app}\redist so the uninstaller can run its
+; /uninstall mode; it is deleted by the uninstaller after use.
+Source: "prereqs\vc_redist.x64.exe"; DestDir: "{app}\redist"; Flags: ignoreversion uninsneveruninstall
 
 [Icons]
 Name: "{group}\PanCalc Tools"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Comment: "Graphical user interface for managing calculator add-ins, converting files, and more"
@@ -64,6 +79,13 @@ Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; \
 
 ; Launch the GUI after install
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch PanCalc Tools"; Flags: nowait postinstall skipifsilent unchecked
+
+[UninstallDelete]
+; Force-remove anything the app created inside its own folder at runtime
+; (logs etc.) that is not in the [Files] list and would otherwise stay behind.
+Type: filesandordirs; Name: "{app}"
+Type: dirifempty; Name: "{userappdata}\pancalc"
+Type: dirifempty; Name: "{localappdata}\pancalc"
 
 [Code]
 // Check if VC++ Redistributable needs to be installed
@@ -84,5 +106,161 @@ begin
   Result := not FileExists(ExpandConstant('{sys}\vcruntime140.dll')) and
             not FileExists(ExpandConstant('{sys}\vcruntime140_1.dll')) and
             not FileExists(ExpandConstant('{sys}\vcruntime140_2.dll'));
+end;
+
+// ── Optional removal at uninstall ─────────────────────────────────────
+// The uninstaller asks what else to remove (with a "remove everything"
+// master checkbox). The Visual C++ Redistributable is always offered but is
+// NOT covered by the master box and is kept by default, because other
+// programs may depend on it.
+//
+// Custom uninstall wizard pages are not supported, so we inject a page into
+// UninstallProgressForm.InnerNotebook and run its modal loop (standard
+// Inno Setup technique).
+var
+  RemoveConfigChecked: Boolean;
+  RemoveCacheChecked: Boolean;
+  RemoveVCChecked: Boolean;
+  VCRemovalFailed: Boolean;
+  UninstallCustomPage: TNewNotebookPage;
+  UninstallCheckList: TNewCheckListBox;
+  UninstallCustomButton: TNewButton;
+  OriginalNotebookPage: TNewNotebookPage;
+
+procedure UninstallCheckListOnClick(Sender: TObject);
+var
+  I: Integer;
+begin
+  // The master box toggles the two data boxes; it never touches the VC++ one.
+  if UninstallCheckList.State[0] = cbChecked then
+    for I := 1 to 2 do
+      UninstallCheckList.State[I] := cbChecked
+  else
+    for I := 1 to 2 do
+      UninstallCheckList.State[I] := cbUnchecked;
+
+  // Keep the master box truthful when the user flips a data box directly.
+  if (UninstallCheckList.State[1] = cbChecked) and
+     (UninstallCheckList.State[2] = cbChecked) then
+    UninstallCheckList.State[0] := cbChecked
+  else
+    UninstallCheckList.State[0] := cbUnchecked;
+end;
+
+function InitializeUninstall: Boolean;
+begin
+  Result := True;
+  // Defaults also cover silent (/VERYSILENT) uninstall where the page is
+  // skipped: app + data + config removed, VC++ Redistributable kept.
+  RemoveConfigChecked := True;
+  RemoveCacheChecked := True;
+  RemoveVCChecked := False;
+  VCRemovalFailed := False;
+end;
+
+procedure CreateCustomUninstallPage;
+var
+  PageTitle: TNewStaticText;
+  CancelButton: TNewButton;
+  ListWidth, ListHeight: Integer;
+begin
+  UninstallCustomPage := TNewNotebookPage.Create(UninstallProgressForm);
+  UninstallCustomPage.Notebook := UninstallProgressForm.InnerNotebook;
+  UninstallCustomPage.Parent := UninstallProgressForm.InnerNotebook;
+  UninstallCustomPage.Align := alClient;
+
+  PageTitle := TNewStaticText.Create(UninstallCustomPage);
+  PageTitle.Parent := UninstallCustomPage;
+  PageTitle.Left := ScaleX(12);
+  PageTitle.Top := ScaleY(14);
+  PageTitle.AutoSize := True;
+  PageTitle.Caption := 'Choose what to remove:';
+
+  ListWidth := UninstallProgressForm.InnerNotebook.ClientWidth - ScaleX(24);
+  ListHeight := UninstallProgressForm.InnerNotebook.ClientHeight - PageTitle.Top - PageTitle.Height - ScaleY(20);
+  if ListHeight < ScaleY(120) then
+    ListHeight := ScaleY(120);
+
+  UninstallCheckList := TNewCheckListBox.Create(UninstallCustomPage);
+  UninstallCheckList.Parent := UninstallCustomPage;
+  UninstallCheckList.Left := ScaleX(12);
+  UninstallCheckList.Top := PageTitle.Top + PageTitle.Height + ScaleY(6);
+  UninstallCheckList.Width := ListWidth;
+  UninstallCheckList.Height := ListHeight;
+  UninstallCheckList.AddCheckBox('Remove everything installed by PanCalc Tools (recommended)', '',
+      0, True, True, cbChecked);
+  UninstallCheckList.AddCheckBox('Settings and configuration', '%APPDATA%\pancalc\pancalc',
+      1, True, True, cbChecked);
+  UninstallCheckList.AddCheckBox('Data, cache, Local Library and GnuPG keys', '%LOCALAPPDATA%\pancalc\pancalc',
+      2, True, True, cbChecked);
+  UninstallCheckList.AddCheckBox('Microsoft Visual C++ Redistributable 2015-2022 (x64)',
+      'This setup installs it when your system does not have it. Removing it can break other programs that depend on the Visual C++ runtime, so it is not selected by "Remove everything".',
+      3, True, False, cbUnchecked);
+  UninstallCheckList.OnClick := @UninstallCheckListOnClick;
+
+  // Add an "Uninstall" button next to the standard Cancel button and make
+  // both break the modal loop (mrOK = proceed, mrCancel = abort).
+  CancelButton := UninstallProgressForm.CancelButton;
+  UninstallCustomButton := TNewButton.Create(UninstallProgressForm);
+  UninstallCustomButton.Parent := UninstallProgressForm;
+  UninstallCustomButton.Left := CancelButton.Left - CancelButton.Width - ScaleX(10);
+  UninstallCustomButton.Top := CancelButton.Top;
+  UninstallCustomButton.Width := CancelButton.Width;
+  UninstallCustomButton.Height := CancelButton.Height;
+  UninstallCustomButton.TabOrder := CancelButton.TabOrder;
+  UninstallCustomButton.Caption := 'Uninstall';
+  UninstallCustomButton.ModalResult := mrOK;
+  UninstallProgressForm.CancelButton.TabOrder := UninstallCustomButton.TabOrder + 1;
+end;
+
+procedure InitializeUninstallProgressForm;
+begin
+  if UninstallSilent then
+    Exit;
+
+  OriginalNotebookPage := UninstallProgressForm.InnerNotebook.ActivePage;
+  CreateCustomUninstallPage;
+  UninstallProgressForm.InnerNotebook.ActivePage := UninstallCustomPage;
+  UninstallProgressForm.ShowModal;
+
+  // Read the choices, then restore the normal uninstall layout.
+  RemoveConfigChecked := (UninstallCheckList.State[1] = cbChecked);
+  RemoveCacheChecked := (UninstallCheckList.State[2] = cbChecked);
+  RemoveVCChecked := (UninstallCheckList.State[3] = cbChecked);
+  UninstallProgressForm.InnerNotebook.ActivePage := OriginalNotebookPage;
+  UninstallCustomButton.Visible := False;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    if RemoveConfigChecked then
+      DelTree(ExpandConstant('{userappdata}\pancalc\pancalc'), True, True, True);
+    if RemoveCacheChecked then
+      DelTree(ExpandConstant('{localappdata}\pancalc\pancalc'), True, True, True);
+    if RemoveVCChecked then
+    begin
+      if Exec(ExpandConstant('{app}\redist\vc_redist.x64.exe'),
+              '/uninstall /quiet /norestart', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+      begin
+        if ResultCode <> 0 then
+          VCRemovalFailed := True;
+      end
+      else
+        VCRemovalFailed := True;
+    end;
+    // The redist copy was only needed for the step above.
+    DelTree(ExpandConstant('{app}\redist'), True, True, True);
+  end;
+  if CurUninstallStep = usPostUninstall then
+  begin
+    if VCRemovalFailed then
+      MsgBox('The Visual C++ Redistributable could not be uninstalled automatically.' #13#10
+             'You can remove it later from "Apps & Features" (Microsoft Visual C++ 2015-2022 Redistributable (x64)).',
+             mbInformation, MB_OK);
+  end;
 end;
 

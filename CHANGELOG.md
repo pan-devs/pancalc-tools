@@ -4,22 +4,22 @@ All notable changes to PanCalc Tools are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
-## [0.2.5] - TBD
+## [0.2.6] - TBD
 
 ### Added
 - **Installed view columns**: cards now split into three columns — Addins | Games (ROMs) | Pthings — each with its own header and updated total counts
 - **App self-update**: checks GitHub Releases on launch (configurable in Settings) and shows a banner when a new version is available; the "Update" flow downloads the installer with a live progress bar and then launches it
 - **Settings**: "Check for new app version on launch" toggle + "Check for Updates" button
-
-### Fixed
-- **Registry update** now shows a progress dialog (add-in catalog → game catalog → reload)
-- **Verify** now shows a progress dialog while checking SHA-256 (it may download the source zip)
-- **Installed cards** wrapped in `ft.Card()` so they show the Material surface instead of looking transparent
-- Installed cards no longer have a per-card trash button — deletion is the global drag-to-trash (batch + undo)
-
-## [0.2.4] - TBD
-
-### Added
+- **Self-update over a running app**: the app now fully exits *before* the new installer is launched (detached delayed launch + `os._exit`), so the setup no longer reports it "cannot close the app"
+- Installer closes a still-running `pancalc-tools-gui.exe` automatically (`CloseApplications` + named `AppMutex`) — also covers manual reinstalls
+- **Stable AppId** (fixed GUID) so updating replaces the same install instead of creating a duplicate entry in Add or Remove Programs
+- **Uninstaller options page**: choose what to remove before uninstalling —
+  - "Remove everything installed by PanCalc Tools" (master box, checked by default)
+  - Settings & configuration (`%APPDATA%\pancalc\pancalc`)
+  - Data, cache, Local Library & GnuPG keys (`%LOCALAPPDATA%\pancalc\pancalc`)
+  - Microsoft Visual C++ Redistributable (x64) — always offered but **not** covered by "Remove everything" and kept by default, since other programs may depend on it; silently uninstalled with `/uninstall /quiet` when chosen (a copy is bundled in `{app}\redist` for that purpose)
+- Uninstaller force-removes runtime leftovers inside the app folder via `[UninstallDelete]`
+- Silent uninstall (`/VERYSILENT`) stays fully clean: app + data + config are removed, VC++ Redistributable is kept
 - **Local Library**: Import/remove local add-ins & games (`pcalc local import/remove/list`)
 - **Games / Emulator Support**: NES, GB, GBA, SMS, GG ROMs via Nesizm/GPSP/SMSPlusGX
 - **Games TUI Screen**: Install/Remove/Verify games alongside addins
@@ -56,6 +56,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **Packaging**: the Windows installer (`build-installer.yml` + `pancalc-tools.iss`) now ships **only the GUI** as the main product, fully self-contained. GnuPG is **bundled inside the app** (`<install>\gpg\bin\gpg.exe` resolved by `_bundled_gpg()` in `pcalc/crypto.py` first, falling back to `PATH`/Program Files) instead of being installed system-wide, and the CLI/TUI/PATH-in-registry shortcut options were removed from the installer. README restructured so end users only see the GUI install, with CLI/TUI/GnuPG documented at the end for developers running via pip (`pancalc-tools[gui]`).
 
 ### Fixed
+- **Registry update** now shows a progress dialog (add-in catalog → game catalog → reload)
+- **Verify** now shows a progress dialog while checking SHA-256 (it may download the source zip)
+- **Installed cards** wrapped in `ft.Card()` so they show the Material surface instead of looking transparent
+- Installed cards no longer have a per-card trash button — deletion is the global drag-to-trash (batch + undo)
 - GUI: Convert no longer rebuilds the whole view after **every** file (which reset the overlay to 0% and made it look broken/cut off). `_convert_single` no longer calls `_build_current_view`; the batch refreshes once at the end and updates the overlay + grid live instead.
 - GUI: Convert progress %/logs weren't visible live because the CPU-bound conversion (GIL-bound encoder) starved the UI thread before Flet could flush each update. The batch loop now does `await asyncio.sleep(0.02)` after each `overlay.update()`, so the determinate ring %, ETA and the per-file log lines render to the client between files.
 - Trash drop: dropping a non-removable item left the zone stuck lit up (ARMED). The `DropZone` reset now always runs to idle before the injected drop logic, and the decorative overlay/badge no longer swallow the drop event.

@@ -23,7 +23,7 @@ _PLATFORM_EXTS = {
 
 
 def _parse_version(value: str) -> tuple:
-    """Parse '0.2.4', 'v0.2.5', '0.2.4-dev' into a comparable (major, minor, patch)."""
+    """Parse '0.2.6', 'v0.2.7', '0.2.6-dev' into a comparable (major, minor, patch)."""
     s = (value or "").strip().lower().lstrip("v")
     parts: list[int] = []
     for chunk in re.split(r"[^\d]+", s):
