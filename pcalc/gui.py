@@ -641,30 +641,47 @@ class PanCalcGUI:
         if not ok:
             self._show_snackbar(f"Update downloaded — you can run it later from {dest}", type="info")
             return
-        try:
-            self.page.window.destroy()
-        except Exception:
-            pass
         if os.name == "nt":
+            import os as _os
+            import subprocess as _subprocess
+            import threading as _threading
+            import time as _time
             # The new installer must replace the running exe, so it can only
             # start once this process has fully exited and released the file.
-            # A detached helper waits a moment, then launches the setup.
-            import subprocess as _subprocess
-            cmd = f'timeout /t 3 /nobreak >nul & start "" "{dest}"'
+            # A hidden, detached helper waits a moment, then launches the
+            # setup. The path travels through an environment variable so the
+            # command line never needs quoting; only CREATE_NO_WINDOW is used
+            # (combining it with DETACHED_PROCESS is undefined and reveals the
+            # console). Spawning happens BEFORE the window is torn down, so a
+            # failure here cannot leave the app half-closed.
             try:
+                _env = _os.environ.copy()
+                _env["PCALC_UPDATE_SETUP"] = str(dest)
                 _subprocess.Popen(
-                    ["cmd.exe", "/c", cmd],
+                    ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",
+                     "-Command", "Start-Sleep -Seconds 3; Start-Process -FilePath $env:PCALC_UPDATE_SETUP"],
+                    env=_env,
                     stdout=_subprocess.DEVNULL,
                     stderr=_subprocess.DEVNULL,
-                    creationflags=_subprocess.CREATE_NO_WINDOW | getattr(_subprocess, "DETACHED_PROCESS", 0),
+                    creationflags=_subprocess.CREATE_NO_WINDOW,
                     close_fds=True,
                 )
             except Exception as exc:
+                # Keep the running app fully usable; the user can run it later.
                 self._show_snackbar(f"Could not launch the installer: {exc}\nRun it manually from {dest}", type="error")
                 return
-            import time as _time
-            _time.sleep(0.3)
-            os._exit(0)
+            # Guaranteed exit even if the window close handshake gets stuck,
+            # so the app can never hang half-closed with a busy spinner.
+            def _force_exit():
+                _time.sleep(3)
+                _os._exit(0)
+            _threading.Thread(target=_force_exit, daemon=True).start()
+            try:
+                self.page.window.destroy()
+            except Exception:
+                pass
+            _time.sleep(0.6)
+            _os._exit(0)
         else:
             try:
                 import subprocess as _subprocess

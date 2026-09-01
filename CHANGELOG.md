@@ -4,7 +4,7 @@ All notable changes to PanCalc Tools are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
-## [0.2.7] - TBD
+## [0.2.8] - TBD
 
 ### Added
 - **Installed view columns**: cards now split into three columns — Addins | Games (ROMs) | Pthings — each with its own header and updated total counts
@@ -56,6 +56,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **Packaging**: the Windows installer (`build-installer.yml` + `pancalc-tools.iss`) now ships **only the GUI** as the main product, fully self-contained. GnuPG is **bundled inside the app** (`<install>\gpg\bin\gpg.exe` resolved by `_bundled_gpg()` in `pcalc/crypto.py` first, falling back to `PATH`/Program Files) instead of being installed system-wide, and the CLI/TUI/PATH-in-registry shortcut options were removed from the installer. README restructured so end users only see the GUI install, with CLI/TUI/GnuPG documented at the end for developers running via pip (`pancalc-tools[gui]`).
 
 ### Fixed
+- **Windows self-update**: the delayed installer launch no longer flashes a console window or errors with "Windows cannot find the file '\'" — it now spawns a hidden PowerShell helper (routing the setup path through an environment variable, single `CREATE_NO_WINDOW` flag) *before* tearing down the window, and a watchdog thread guarantees the app exits even if the window close handshake stalls, so it can never hang half-closed with a busy spinner
 - **Uninstaller options**: the checkboxes are now siblings instead of a parent/child tree, so ticking one no longer ticks all the others (the "Remove everything" master box still toggles the settings/cache boxes, and Visual C++ always stays independent and unchecked by default)
 - **Uninstaller**: the Visual C++ Redistributable description is no longer clipped to a single line — it now renders as a wrapping note above the list
 - **Registry update** now shows a progress dialog (add-in catalog → game catalog → reload)
