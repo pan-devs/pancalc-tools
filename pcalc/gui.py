@@ -472,16 +472,43 @@ class PanCalcGUI:
             self._build_current_view()
         return calc
     async def _update_registry(self):
-        self._show_snackbar("Updating registry...", type="info")
+        status = ft.Text("Starting...", size=12)
+        dlg = ft.AlertDialog(
+            modal=True,
+            content=ft.Container(
+                ft.Column([
+                    ft.Text("Updating registry", weight=ft.FontWeight.BOLD),
+                    ft.Container(height=8),
+                    ft.ProgressRing(width=28, height=28),
+                    ft.Container(height=6),
+                    status,
+                ], width=340, tight=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=8,
+            ),
+        )
+        self.page.show_dialog(dlg)
         try:
+            status.value = "Downloading add-in catalog..."
+            dlg.update()
             await run_sync(lambda: pregistry.get_registry(force=True))
+            status.value = "Downloading game catalog..."
+            dlg.update()
             await run_sync(lambda: pregistry.get_games(force=True))
-            self._show_snackbar("Registry updated", type="success")
-        except RuntimeError as e:
-            self._show_snackbar(f"Failed: {e}", type="error")
+        except RuntimeError as exc:
+            dlg.open = False
+            try:
+                dlg.update()
+            except Exception:
+                pass
+            self._show_snackbar(f"Failed: {exc}", type="error")
+            return
         await self._load_registry_data()
-        if self.current_view_index in (0, 1):
-            self._build_current_view()
+        dlg.open = False
+        try:
+            dlg.update()
+        except Exception:
+            pass
+        self._show_snackbar("Registry updated", type="success")
     async def _load_registry_data(self):
         try:
             self.registry_data = await run_sync(pregistry.get_registry)
@@ -900,10 +927,38 @@ class PanCalcGUI:
         if not calc:
             self._show_snackbar("No calculator", type="warning")
             return
+        status = ft.Text(f"Verifying {name}...", size=12)
+        dlg = ft.AlertDialog(
+            modal=True,
+            content=ft.Container(
+                ft.Column([
+                    ft.Text("Verifying add-in", weight=ft.FontWeight.BOLD),
+                    ft.Container(height=8),
+                    ft.ProgressRing(width=28, height=28),
+                    ft.Container(height=6),
+                    status,
+                ], width=340, tight=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=8,
+            ),
+        )
+        self.page.show_dialog(dlg)
         try:
             ok = await run_sync(verify_addin, addin, calc)
+            status.value = f"{name}: {'OK' if ok else 'FAILED'}"
+            dlg.update()
+            await asyncio.sleep(1.2)
+            dlg.open = False
+            try:
+                dlg.update()
+            except Exception:
+                pass
             self._show_snackbar(f"{name} {'OK' if ok else 'FAILED'}", type="success" if ok else "error")
         except RuntimeError as e:
+            dlg.open = False
+            try:
+                dlg.update()
+            except Exception:
+                pass
             self._show_snackbar(f"Verify failed: {e}", type="error")
     async def _remove_item(self, addin: dict, name: str):
         if pconfig.get("confirm_remove"):

@@ -566,8 +566,6 @@ class ViewBuilder:
             leading=ft.Icon(ft.Icons.LAYERS, size=20, color=color),
             title=ft.Text(f"{stem} [{label}]", size=14, weight=ft.FontWeight.BOLD if any_selected else None),
             subtitle=ft.Text(f"{first_name} → {last_name} • {_fmt_size(total_size)}", size=11, color=ft.Colors.OUTLINE),
-            trailing=ft.IconButton(ft.Icons.DELETE, tooltip=f"Delete all {count} files",
-                                   on_click=lambda _: asyncio_create(self._remove_group_files(group_files))),
         )
         if any_selected:
             list_tile = ft.Container(
@@ -576,6 +574,7 @@ class ViewBuilder:
                 border_radius=8,
                 padding=2,
             )
+        list_tile = ft.Card(list_tile)
 
         def _on_group_click(e):
             if g._selection_mode:
@@ -721,9 +720,6 @@ class ViewBuilder:
                     ft.IconButton(ft.Icons.VERIFIED, tooltip="Verify",
                                   icon_color=game_color,
                                   on_click=lambda _, a=f.addin, n=name: asyncio_create(g._verify_item(a, n))),
-                    ft.IconButton(ft.Icons.DELETE, tooltip="Remove",
-                                  icon_color=game_color,
-                                  on_click=lambda _, a=f.addin, n=name: asyncio_create(g._remove_item(a, n))),
                 ], tight=True),
             )
             if is_selected:
@@ -733,6 +729,7 @@ class ViewBuilder:
                     border_radius=8,
                     padding=2,
                 )
+            list_tile = ft.Card(list_tile)
             def _on_click(e, aid=aid):
                 if g._selection_mode:
                     if aid in g._selected_registry_ids:
@@ -797,8 +794,6 @@ class ViewBuilder:
                 leading=ft.Icon(icon, color=ft.Colors.AMBER_ACCENT),
                 title=ft.Text(f.stem, size=14, color=ft.Colors.AMBER_ACCENT),
                 subtitle=ft.Text(f"orphan • {rel}", size=11, color=ft.Colors.OUTLINE),
-                trailing=ft.IconButton(ft.Icons.DELETE, tooltip="Remove orphan",
-                                       on_click=lambda _, p=f: asyncio_create(g._remove_orphan(p))),
             )
             fpath_str = str(f)
             is_selected = fpath_str in g._selected_registry_ids
@@ -809,6 +804,7 @@ class ViewBuilder:
                     border_radius=8,
                     padding=2,
                 )
+            list_tile = ft.Card(list_tile)
             def _on_orphan_click(e, p=fpath_str):
                 if g._selection_mode:
                     if p in g._selected_registry_ids:
@@ -871,8 +867,6 @@ class ViewBuilder:
                             leading=ft.Icon(ft.Icons.IMAGE if sub == "fotos" else ft.Icons.DESCRIPTION, size=20),
                             title=ft.Text(f.name, size=14),
                             subtitle=ft.Text(f"pthings/{sub}/", size=11, color=ft.Colors.OUTLINE),
-                            trailing=ft.IconButton(ft.Icons.DELETE, tooltip="Delete",
-                                                   on_click=lambda _, p=f: asyncio_create(g._remove_file(p))),
                         )
                         pfpath = str(f)
                         is_sel = pfpath in g._selected_registry_ids
@@ -883,6 +877,7 @@ class ViewBuilder:
                                 border_radius=8,
                                 padding=2,
                             )
+                        list_tile = ft.Card(list_tile)
                         def _on_pclick(e, p=pfpath):
                             if g._selection_mode:
                                 if p in g._selected_registry_ids:
@@ -967,8 +962,6 @@ class ViewBuilder:
                     trailing=ft.Row([
                         ft.IconButton(ft.Icons.CLOUD_UPLOAD, tooltip="Install to calculator",
                                       on_click=lambda _, a=d: asyncio_create(g._install_item(a, None))),
-                        ft.IconButton(ft.Icons.DELETE, tooltip="Delete from local library",
-                                      on_click=lambda _, a=d: asyncio_create(g._remove_local_library_item(a["id"], a["_type"]))),
                     ], tight=True),
                 )
                 if is_selected:
@@ -978,6 +971,7 @@ class ViewBuilder:
                         border_radius=8,
                         padding=2,
                     )
+                list_tile = ft.Card(list_tile)
                 def _on_click(e, d_=d):
                     if g._selection_mode:
                         if aid in g._selected_registry_ids:
