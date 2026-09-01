@@ -178,8 +178,9 @@ begin
   if SaveStringToFile(ScriptPath, BatContent, False) then
   begin
     if ExecAsOriginalUser(ScriptPath, '', '', SW_HIDE, ewWaitUntilTerminated, RC)
-       and FileExists(OutPath) and LoadStringFromFile(OutPath, S) then
+       and FileExists(OutPath) then
     begin
+      LoadStringFromFile(OutPath, S);
       P := Pos(#13#10, S);
       if P > 0 then
       begin
