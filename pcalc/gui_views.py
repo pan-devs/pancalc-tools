@@ -566,8 +566,6 @@ class ViewBuilder:
             leading=ft.Icon(ft.Icons.LAYERS, size=20, color=color),
             title=ft.Text(f"{stem} [{label}]", size=14, weight=ft.FontWeight.BOLD if any_selected else None),
             subtitle=ft.Text(f"{first_name} → {last_name} • {_fmt_size(total_size)}", size=11, color=ft.Colors.OUTLINE),
-            trailing=ft.IconButton(ft.Icons.DELETE, tooltip=f"Delete all {count} files",
-                                   on_click=lambda _: asyncio_create(self._remove_group_files(group_files))),
         )
         if any_selected:
             list_tile = ft.Container(
@@ -576,6 +574,7 @@ class ViewBuilder:
                 border_radius=8,
                 padding=2,
             )
+        list_tile = ft.Card(list_tile)
 
         def _on_group_click(e):
             if g._selection_mode:
@@ -666,11 +665,13 @@ class ViewBuilder:
         all_registry = g.registry_data + g.games_data
         entries = walk_calc(calc, all_registry)
         dcount = count_calc_files(entries)
-        known = sum(1 for f in iter_calc_files(entries) if f.addin is not None)
         g.installed_addin_ids = {e.addin.get("id") for e in iter_calc_files(entries) if e.addin}
         matched_paths: set[str] = set()
-        calc_rows: list[ft.Control] = []
+        addin_rows: list[ft.Control] = []
+        games_rows: list[ft.Control] = []
         pthings_rows: list[ft.Control] = []
+        n_addin_matched = 0
+        n_game_matched = 0
         # Build ID-to-path mapping for multi-delete via selection
         id_to_path: dict[str, str] = {}
         for fe in iter_calc_files(entries):
@@ -711,6 +712,10 @@ class ViewBuilder:
             icon = _icon_for_addin(f.addin)
             is_game = bool(f.addin.get("emulator") or f.addin.get("category") == "games")
             game_color = "#ed55a1" if is_game else None
+            if is_game:
+                n_game_matched += 1
+            else:
+                n_addin_matched += 1
             is_selected = aid in g._selected_registry_ids
             full_path = str(calc.mount_path / f.name)
             list_tile = ft.ListTile(
@@ -721,9 +726,6 @@ class ViewBuilder:
                     ft.IconButton(ft.Icons.VERIFIED, tooltip="Verify",
                                   icon_color=game_color,
                                   on_click=lambda _, a=f.addin, n=name: asyncio_create(g._verify_item(a, n))),
-                    ft.IconButton(ft.Icons.DELETE, tooltip="Remove",
-                                  icon_color=game_color,
-                                  on_click=lambda _, a=f.addin, n=name: asyncio_create(g._remove_item(a, n))),
                 ], tight=True),
             )
             if is_selected:
@@ -733,6 +735,7 @@ class ViewBuilder:
                     border_radius=8,
                     padding=2,
                 )
+            list_tile = ft.Card(list_tile)
             def _on_click(e, aid=aid):
                 if g._selection_mode:
                     if aid in g._selected_registry_ids:
@@ -772,7 +775,7 @@ class ViewBuilder:
                 drag_data = {"all_paths": all_deletable_paths, "all_ids": all_deletable_ids, "all_lib_types": all_deletable_types, "item_type": "calculator_file"}
             else:
                 drag_data = {"path": full_path, "item_type": "calculator_file"}
-            calc_rows.append(ft.Draggable(
+            (games_rows if is_game else addin_rows).append(ft.Draggable(
                 group="all_items",
                 content=wrap,
                 content_when_dragging=ft.Container(opacity=0.3, content=wrap),
@@ -797,8 +800,6 @@ class ViewBuilder:
                 leading=ft.Icon(icon, color=ft.Colors.AMBER_ACCENT),
                 title=ft.Text(f.stem, size=14, color=ft.Colors.AMBER_ACCENT),
                 subtitle=ft.Text(f"orphan • {rel}", size=11, color=ft.Colors.OUTLINE),
-                trailing=ft.IconButton(ft.Icons.DELETE, tooltip="Remove orphan",
-                                       on_click=lambda _, p=f: asyncio_create(g._remove_orphan(p))),
             )
             fpath_str = str(f)
             is_selected = fpath_str in g._selected_registry_ids
@@ -809,6 +810,7 @@ class ViewBuilder:
                     border_radius=8,
                     padding=2,
                 )
+            list_tile = ft.Card(list_tile)
             def _on_orphan_click(e, p=fpath_str):
                 if g._selection_mode:
                     if p in g._selected_registry_ids:
@@ -845,7 +847,7 @@ class ViewBuilder:
             else:
                 orphan_data = {"path": fpath_str, "item_type": "calculator_file"}
                 orphan_feedback = self._make_drag_feedback(1, f.stem, card=wrap)
-            calc_rows.append(ft.Draggable(
+            addin_rows.append(ft.Draggable(
                 group="all_items",
                 content=wrap,
                 content_when_dragging=ft.Container(opacity=0.3, content=wrap),
@@ -871,8 +873,6 @@ class ViewBuilder:
                             leading=ft.Icon(ft.Icons.IMAGE if sub == "fotos" else ft.Icons.DESCRIPTION, size=20),
                             title=ft.Text(f.name, size=14),
                             subtitle=ft.Text(f"pthings/{sub}/", size=11, color=ft.Colors.OUTLINE),
-                            trailing=ft.IconButton(ft.Icons.DELETE, tooltip="Delete",
-                                                   on_click=lambda _, p=f: asyncio_create(g._remove_file(p))),
                         )
                         pfpath = str(f)
                         is_sel = pfpath in g._selected_registry_ids
@@ -883,6 +883,7 @@ class ViewBuilder:
                                 border_radius=8,
                                 padding=2,
                             )
+                        list_tile = ft.Card(list_tile)
                         def _on_pclick(e, p=pfpath):
                             if g._selection_mode:
                                 if p in g._selected_registry_ids:
@@ -952,8 +953,8 @@ class ViewBuilder:
         local_not_on_calc = [d for d in local_items if d.get("id") not in calc_ids]
         
         if local_not_on_calc:
-            calc_rows.append(ft.Divider())
-            calc_rows.append(ft.Text("🏷️ Local Library (not on calculator)", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.OUTLINE))
+            addin_rows.append(ft.Divider())
+            addin_rows.append(ft.Text("🏷️ Local Library (not on calculator)", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.OUTLINE))
             for d in local_not_on_calc:
                 name = d.get("name", d.get("id", "?"))
                 aid = d.get("id", "?")
@@ -967,8 +968,6 @@ class ViewBuilder:
                     trailing=ft.Row([
                         ft.IconButton(ft.Icons.CLOUD_UPLOAD, tooltip="Install to calculator",
                                       on_click=lambda _, a=d: asyncio_create(g._install_item(a, None))),
-                        ft.IconButton(ft.Icons.DELETE, tooltip="Delete from local library",
-                                      on_click=lambda _, a=d: asyncio_create(g._remove_local_library_item(a["id"], a["_type"]))),
                     ], tight=True),
                 )
                 if is_selected:
@@ -978,6 +977,7 @@ class ViewBuilder:
                         border_radius=8,
                         padding=2,
                     )
+                list_tile = ft.Card(list_tile)
                 def _on_click(e, d_=d):
                     if g._selection_mode:
                         if aid in g._selected_registry_ids:
@@ -1026,7 +1026,7 @@ class ViewBuilder:
                 if g._selection_mode and aid in g._selected_registry_ids:
                     if all_deletable_paths:
                         drag_data["all_paths"] = all_deletable_paths
-                calc_rows.append(ft.Draggable(
+                addin_rows.append(ft.Draggable(
                     group="all_items",
                     content=wrap,
                     content_when_dragging=ft.Container(opacity=0.3, content=wrap),
@@ -1035,29 +1035,28 @@ class ViewBuilder:
                     on_drag_complete=self._on_selection_drag_complete,
                     data=drag_data,
                 ))
-        left_col = ft.Column(
-            controls=calc_rows if calc_rows else [ft.Text("No files found on calculator", color=ft.Colors.OUTLINE)],
-            expand=True, spacing=2,
-        )
-        right_controls: list[ft.Control] = []
-        if pthings_rows:
-            right_controls.append(ft.Text("Pthings", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.OUTLINE))
-            right_controls.extend(pthings_rows)
-        right_col = ft.Column(
-            controls=right_controls if right_controls else [ft.Text("No pthings", color=ft.Colors.OUTLINE)],
-            expand=True, spacing=2,
-        )
+        def _col_with_header(header: str, rows: list, empty_txt: str) -> ft.Column:
+            controls: list[ft.Control] = [ft.Text(header, size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.OUTLINE)]
+            if rows:
+                controls.extend(rows)
+            else:
+                controls.append(ft.Text(empty_txt, size=12, color=ft.Colors.OUTLINE))
+            return ft.Column(controls=controls, expand=True, spacing=2)
+
+        left_col = _col_with_header("Addins", addin_rows, "No addins found on calculator")
+        mid_col = _col_with_header("Games", games_rows, "No games found on calculator")
+        right_col = _col_with_header("Pthings", pthings_rows, "No pthings")
         g._set_content(
             ft.Column([
                 ft.Row([
                     ft.Text("Installed", size=20, weight=ft.FontWeight.BOLD),
-                    ft.Text(f"{known} add-ins  ·  {dcount} files", size=12, color=ft.Colors.OUTLINE),
+                    ft.Text(f"{n_addin_matched} add-ins · {n_game_matched} games · {dcount} files", size=12, color=ft.Colors.OUTLINE),
                     ft.Container(expand=True),
                     ft.ElevatedButton("Refresh", icon=ft.Icons.REFRESH,
                                       on_click=lambda _: asyncio_create(g._scan_calculator())),
                 ]),
                 ft.Container(height=4),
-                ft.Row([left_col, right_col], expand=True, vertical_alignment=ft.CrossAxisAlignment.START),
+                ft.Row([left_col, mid_col, right_col], expand=True, vertical_alignment=ft.CrossAxisAlignment.START),
             ], expand=True)
         )
     # ── 4. Convert View ────────────────────────────────────────────
@@ -1896,6 +1895,8 @@ class ViewBuilder:
         )
         auto_update = ft.Switch(label="Auto-update registry on launch",
                                 value=config_data.get("auto_update", True))
+        check_updates = ft.Switch(label="Check for new app version on launch",
+                                  value=config_data.get("check_updates", True))
         confirm_install = ft.Switch(label="Confirm before installing",
                                     value=config_data.get("confirm_install", True))
         confirm_remove = ft.Switch(label="Confirm before removing",
@@ -1914,6 +1915,7 @@ class ViewBuilder:
             except ValueError:
                 pass
             __import__("pcalc.config", fromlist=["set"]).set("auto_update", auto_update.value)
+            __import__("pcalc.config", fromlist=["set"]).set("check_updates", check_updates.value)
             __import__("pcalc.config", fromlist=["set"]).set("confirm_install", confirm_install.value)
             __import__("pcalc.config", fromlist=["set"]).set("confirm_remove", confirm_remove.value)
             __import__("pcalc.config", fromlist=["set"]).set("confirm_push", confirm_push.value)
@@ -1939,7 +1941,12 @@ class ViewBuilder:
                 ft.Text("Registry", size=16, weight=ft.FontWeight.BOLD),
                 registry_url, ft.Container(height=8), cache_ttl, auto_update, ft.Divider(),
                 ft.Text("Behavior", size=16, weight=ft.FontWeight.BOLD),
-                confirm_install, confirm_remove, confirm_push, ft.Divider(),
+                confirm_install, confirm_remove, confirm_push,
+                ft.Text("Updates", size=16, weight=ft.FontWeight.BOLD),
+                check_updates,
+                ft.OutlinedButton("Check for Updates", icon=ft.Icons.SYSTEM_UPDATE,
+                                  on_click=lambda _: asyncio_create(g._check_updates(manual=True))),
+                ft.Divider(),
                 ft.Row([
                     ft.FilledButton("Save", icon=ft.Icons.SAVE,
                                     on_click=lambda _: asyncio_create(save())),

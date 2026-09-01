@@ -4,6 +4,19 @@ All notable changes to PanCalc Tools are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.2.5] - TBD
+
+### Added
+- **Installed view columns**: cards now split into three columns — Addins | Games (ROMs) | Pthings — each with its own header and updated total counts
+- **App self-update**: checks GitHub Releases on launch (configurable in Settings) and shows a banner when a new version is available; the "Update" flow downloads the installer with a live progress bar and then launches it
+- **Settings**: "Check for new app version on launch" toggle + "Check for Updates" button
+
+### Fixed
+- **Registry update** now shows a progress dialog (add-in catalog → game catalog → reload)
+- **Verify** now shows a progress dialog while checking SHA-256 (it may download the source zip)
+- **Installed cards** wrapped in `ft.Card()` so they show the Material surface instead of looking transparent
+- Installed cards no longer have a per-card trash button — deletion is the global drag-to-trash (batch + undo)
+
 ## [0.2.4] - TBD
 
 ### Added
