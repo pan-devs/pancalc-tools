@@ -62,6 +62,29 @@ def _hold_update_mutex() -> None:
 async def run_sync(fn, *args, **kwargs):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, lambda: fn(*args, **kwargs))
+def _do_delete_sync(items, on_progress=None, delete_fn=None, name_fn=None):
+    """Sync delete loop — runs in a thread so the UI stays responsive."""
+    deleted = 0
+    errors = []
+    total = len(items)
+    for idx, item in enumerate(items, 1):
+        if name_fn:
+            name = name_fn(item)
+        elif isinstance(item, (str, Path)):
+            name = Path(item).name
+        else:
+            name = str(item)
+        if on_progress:
+            try:
+                on_progress(idx, total, name)
+            except Exception:
+                pass
+        try:
+            if delete_fn(item):
+                deleted += 1
+        except Exception as e:
+            errors.append(f"{name}: {e}")
+    return deleted, errors
 def _do_push_sync(selected: set[str], mount_path: Path,
                    on_progress=None) -> tuple[list[str], list[str]]:
     """Sync copy loop — runs in a thread so the UI stays responsive."""
@@ -1168,7 +1191,7 @@ class PanCalcGUI:
             if not ok:
                 return
         try:
-            path.unlink()
+            await run_sync(path.unlink)
             from pcalc.installer import _clean_save_files
             await run_sync(_clean_save_files, path)
             self._show_snackbar(f"🗑️ {path.name} removed", type="success")
@@ -1182,7 +1205,7 @@ class PanCalcGUI:
             if not ok:
                 return
         try:
-            path.unlink()
+            await run_sync(path.unlink)
             self._show_snackbar(f"🗑️ {path.name} deleted", type="success")
             await self._refresh_installed_ids()
             self._build_current_view()
@@ -1317,7 +1340,7 @@ class PanCalcGUI:
             if success:
                 # Delete source file after successful conversion
                 try:
-                    f.unlink()
+                    await run_sync(f.unlink)
                 except OSError:
                     pass
                 self._show_snackbar(f"{f.name} → {target_section}", type="success")
@@ -1326,6 +1349,46 @@ class PanCalcGUI:
         except Exception as e:
             self._show_notification(f"Conversion failed: {e}", type="error")
         return generated
+    async def _run_with_progress(self, title, sync_fn, *args, state=None):
+        """Show a progress dialog while a sync function runs in a thread."""
+        if state is None:
+            state = {"frac": 0.0, "msg": "Starting..."}
+        prog = ft.ProgressBar(value=0, width=320)
+        status = ft.Text(state["msg"], size=12)
+        dlg = ft.AlertDialog(
+            modal=True,
+            content=ft.Container(
+                ft.Column([
+                    ft.Text(title, weight=ft.FontWeight.BOLD),
+                    ft.Container(height=8),
+                    prog,
+                    ft.Container(height=6),
+                    status,
+                ], width=340, tight=True),
+                padding=8,
+            ),
+        )
+        self.page.show_dialog(dlg)
+        def _cb(current, _total, fname):
+            state["frac"] = current / _total if _total else 1.0
+            state["msg"] = f"{current}/{_total} — {fname}"
+        task = asyncio.create_task(run_sync(sync_fn, *args, on_progress=_cb))
+        try:
+            while not task.done():
+                try:
+                    prog.value = state["frac"]
+                    status.value = state["msg"]
+                    dlg.update()
+                except Exception:
+                    pass
+                await asyncio.sleep(0.1)
+            return await task
+        finally:
+            dlg.open = False
+            try:
+                dlg.update()
+            except Exception:
+                pass
     async def _push_files(self, paths: list[str] | None = None):
         # Prevent concurrent pushes
         if getattr(self, '_pushing', False):
@@ -1389,12 +1452,18 @@ class PanCalcGUI:
             pushed_paths, errors = await task
             state["pushed"] = pushed_paths
             state["errors"] = errors
-            # Auto-delete pushed files BEFORE rebuilding view
+            # Auto-delete pushed files with progress
             if pushed_paths:
-                for fpath in pushed_paths:
-                    src = Path(fpath)
+                def _del_pushed(p):
+                    src = Path(p)
                     if src.exists():
                         src.unlink()
+                        return True
+                    return False
+                await self._run_with_progress(
+                    "Deleting pushed files", _do_delete_sync,
+                    pushed_paths, delete_fn=_del_pushed,
+                )
                 self.views._selected_push_paths.difference_update(pushed_paths)
             if errors:
                 self._show_notification("Errors: " + "; ".join(errors), type="error")
@@ -1426,7 +1495,7 @@ class PanCalcGUI:
         """Remove an item from the local library."""
         try:
             from pcalc import library as plibrary
-            ok = plibrary.remove(item_id)
+            ok = await run_sync(plibrary.remove, item_id)
             if ok:
                 self._show_snackbar(f"Deleted from local library", type="success")
             else:
@@ -1440,7 +1509,7 @@ class PanCalcGUI:
         try:
             full_path = source_dir / path.name
             if full_path.exists():
-                full_path.unlink()
+                await run_sync(full_path.unlink)
                 self._multi_selected.discard(str(full_path))
                 self._show_snackbar(f"Deleted input file: {path.name}", type="success")
             else:
@@ -1561,13 +1630,17 @@ class PanCalcGUI:
                 ok = await self._confirm("Delete", f"Delete {len(deletable)} converted file(s)?")
                 if not ok:
                     return
-            deleted = 0
-            for p in all_paths:
+            def _del_convert(p):
                 pp = Path(p)
                 if pp.exists():
                     self._snap_file(pp)
                     pp.unlink()
-                    deleted += 1
+                    return True
+                return False
+            deleted, _err = await self._run_with_progress(
+                "Deleting converted files", _do_delete_sync,
+                deletable, delete_fn=_del_convert,
+            )
             if deleted:
                 self.views._selected_push_paths.difference_update(all_paths)
                 self._multi_selected.difference_update(all_paths)
@@ -1609,34 +1682,40 @@ class PanCalcGUI:
                     if lp:
                         lib_snapshot_paths.add(str(Path(lp)))
         
-        # Delete calculator files (matched addins, orphans, pthings)
-        if all_paths:
-            from pcalc.installer import _clean_save_files
-            for p in all_paths:
-                pp = Path(p)
-                if str(pp) in lib_snapshot_paths:
-                    continue
-                if pp.exists():
-                    self._snap_file(pp)
-                    try:
+        # Delete calculator files + library items with progress
+        from pcalc.installer import _clean_save_files
+        calc_items = [p for p in all_paths if str(Path(p)) not in lib_snapshot_paths]
+        lib_items = list(all_ids) if all_ids else []
+        combined = [(p, "c") for p in calc_items] + [(i, "l") for i in lib_items]
+        if combined:
+            def _del_combined(item):
+                kind, value = item
+                if kind == "c":
+                    pp = Path(value)
+                    if pp.exists():
+                        self._snap_file(pp)
                         pp.unlink()
-                    except OSError:
-                        pass
-                self._snap_save_companions(pp)
-                await run_sync(_clean_save_files, pp)
+                        self._snap_save_companions(pp)
+                        _clean_save_files(pp)
+                        return True
+                    return False
+                else:
+                    return plibrary.remove(value)
+            def _name_combined(item):
+                kind, value = item
+                return Path(value).name if kind == "c" else value
+            _deleted, _err = await self._run_with_progress(
+                "Deleting files", _do_delete_sync,
+                combined, delete_fn=_del_combined, name_fn=_name_combined,
+            )
+        if all_paths:
             self._multi_selected.difference_update(all_paths)
             self._selected_registry_ids.clear()
-        
-        # Delete local library items
         if all_ids:
-            count = 0
             for item_id in all_ids:
-                ok = plibrary.remove(item_id)
-                if ok:
-                    count += 1
                 self._multi_selected.discard(item_id)
                 self._selected_registry_ids.discard(item_id)
-            if count:
+            if combined:
                 need_registry_reload = True
         
         self._selection_mode = False

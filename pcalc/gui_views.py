@@ -649,13 +649,17 @@ class ViewBuilder:
             ok = await g._confirm("Delete", f"Delete {len(files)} file(s)?\n" + "\n".join(names))
             if not ok:
                 return
-        deleted = 0
-        for f in files:
+        from pcalc.gui import _do_delete_sync
+        def _del(p):
             try:
-                f.unlink()
-                deleted += 1
+                p.unlink()
+                return True
             except OSError:
-                pass
+                return False
+        deleted, _err = await g._run_with_progress(
+            "Deleting files", _do_delete_sync,
+            files, delete_fn=_del,
+        )
         if deleted:
             g._show_snackbar(f"🗑️ {deleted} file(s) deleted", type="success")
             g._build_current_view()
