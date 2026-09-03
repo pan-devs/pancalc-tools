@@ -169,11 +169,11 @@ class ViewBuilder:
             parts = [p.lower() for p in path.parts]
             
             if "fotos" in parts or ext in (".g3p", ".png", ".jpg", ".jpeg", ".bmp"):
-                section = "Fotos (Calc)" if "fotos" in parts else "Imágenes (Local)"
+                section = "Photos (Calc)" if "fotos" in parts else "Images (Local)"
             elif "textos" in parts or ext in (".txt", ".pdf", ".doc", ".docx"):
-                section = "Textos (Calc)" if "textos" in parts else "Docs (Local)"
+                section = "Texts (Calc)" if "textos" in parts else "Docs (Local)"
             else:
-                section = "Archivos (Calc)" if "pthings" in parts else "Archivos (Local)"
+                section = "Files (Calc)" if "pthings" in parts else "Files (Local)"
             return name, section
             
         # 2. Comprobar si es un add-in en la librería local
@@ -193,7 +193,7 @@ class ViewBuilder:
             return name, section
             
         # 4. Fallback por defecto
-        return key, "Elemento"
+        return key, "Item"
 
     def _make_drag_feedback(self, count: int, name: str = "",
                             breakdown: dict[str, int] | None = None,
@@ -219,16 +219,16 @@ class ViewBuilder:
                 
         # Fallback si no hay selección global activa pero se pasa un nombre en el argumento
         if not items_info:
-            fallback_sec = "Archivos"
+            fallback_sec = "Files"
             if breakdown:
-                fallback_sec = list(breakdown.keys())[0] if breakdown else "Archivos"
-            items_info.append((name or "Elemento", fallback_sec))
+                fallback_sec = list(breakdown.keys())[0] if breakdown else "Files"
+            items_info.append((name or "Item", fallback_sec))
             
         # Construir contenido de la tarjeta de arrastre múltiple
         card_content = [
             ft.Row([
                 ft.Icon(ft.Icons.DRAG_INDICATOR, size=18, color=ft.Colors.PRIMARY),
-                ft.Text(f"Arrastrando {count} elementos", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.PRIMARY),
+                ft.Text(f"Dragging {count} items", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.PRIMARY),
             ], spacing=6),
             ft.Container(height=4),
         ]
@@ -254,7 +254,7 @@ class ViewBuilder:
             card_content.append(
                 ft.Row([
                     ft.Container(width=18),
-                    ft.Text(f"+ {remaining} elementos más...", size=10, color=ft.Colors.OUTLINE, italic=True),
+                    ft.Text(f"+ {remaining} more items...", size=10, color=ft.Colors.OUTLINE, italic=True),
                 ])
             )
             
@@ -575,7 +575,7 @@ class ViewBuilder:
         last_name = group_files[-1].name
         any_selected = any(p in g._selected_registry_ids for p in all_paths)
 
-        label = f"{count} archivos" if count != 1 else "1 archivo"
+        label = f"{count} files" if count != 1 else "1 file"
         list_tile = ft.ListTile(
             leading=ft.Icon(ft.Icons.LAYERS, size=20, color=color),
             title=ft.Text(f"{stem} [{label}]", size=14, weight=ft.FontWeight.BOLD if any_selected else None),
