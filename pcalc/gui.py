@@ -644,7 +644,9 @@ class PanCalcGUI:
             pass
         ok = await self._confirm(
             "Update ready",
-            f"PanCalc Tools v{info['version']} downloaded.\nClose the app and run the installer?",
+            f"PanCalc Tools v{info['version']} downloaded.\n\n"
+            "Please CLOSE this app window to finish. The installer will start "
+            "automatically as soon as the app closes.",
         )
         if not ok:
             self._show_snackbar(f"Update downloaded — you can run it later from {dest}", type="info")
@@ -652,12 +654,12 @@ class PanCalcGUI:
         if os.name == "nt":
             import os as _os
             import subprocess as _subprocess
-            import threading as _threading
-            import time as _time
             # The new installer must replace the running exe, so it can only
             # start once this process has fully exited and released the file.
-            # A hidden, detached helper waits a moment, then launches the
-            # setup. The path travels through an environment variable so the
+            # A hidden, detached helper waits for THIS process to end (waiting on
+            # its PID), then launches the setup — so the installer appears right
+            # after the app window is closed, no matter when the user closes it.
+            # Paths and the PID travel through environment variables so the
             # command line never needs quoting; only CREATE_NO_WINDOW is used
             # (combining it with DETACHED_PROCESS is undefined and reveals the
             # console). Spawning happens BEFORE the window is torn down, so a
@@ -665,9 +667,12 @@ class PanCalcGUI:
             try:
                 _env = _os.environ.copy()
                 _env["PCALC_UPDATE_SETUP"] = str(dest)
+                _env["PCALC_UPDATE_PID"] = str(_os.getpid())
                 _subprocess.Popen(
                     ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",
-                     "-Command", "Start-Sleep -Seconds 3; Start-Process -FilePath $env:PCALC_UPDATE_SETUP"],
+                     "-Command",
+                     "Wait-Process -Id $env:PCALC_UPDATE_PID -Timeout 60 -ErrorAction SilentlyContinue; "
+                     "Start-Process -FilePath $env:PCALC_UPDATE_SETUP"],
                     env=_env,
                     stdout=_subprocess.DEVNULL,
                     stderr=_subprocess.DEVNULL,
@@ -678,26 +683,15 @@ class PanCalcGUI:
                 # Keep the running app fully usable; the user can run it later.
                 self._show_snackbar(f"Could not launch the installer: {exc}\nRun it manually from {dest}", type="error")
                 return
-            # Guaranteed exit even if the window close handshake gets stuck,
-            # so the app can never hang half-closed with a busy spinner.
-            #
-            # The hard exit MUST live on its own thread, NOT inline after
-            # window.destroy(): _do_update runs inside an asyncio task, and
-            # window.destroy() tears down the event loop, which can CANCEL this
-            # task before an inline _os._exit(0) ever runs. A plain thread that
-            # was started before destroy() is not affected by that cancellation,
-            # so it always reaches the exit. It is non-daemon so the interpreter
-            # waits for it even if the main thread begins to wind down.
-            def _force_exit():
-                _time.sleep(0.3)
-                _os._exit(0)
-            _threading.Thread(target=_force_exit, daemon=False).start()
+            # Try to close the window programmatically, but do not force-kill the
+            # process: the user was asked to close the app window themselves, and
+            # the detached helper (waiting on this process's PID) will launch the
+            # installer the moment the process actually ends — whether that close
+            # comes from here or from the user closing the window by hand.
             try:
                 self.page.window.destroy()
             except Exception:
                 pass
-            # Do NOT call _os._exit(0) here — it may be cancelled with the task.
-            # The detached thread above terminates the process a moment later.
         else:
             try:
                 import subprocess as _subprocess
