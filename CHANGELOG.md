@@ -4,6 +4,16 @@ All notable changes to PanCalc Tools are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.3.2] - 2026-09-03
+
+### Fixed
+- **Uninstaller**: no longer crashes with a "cannot call 'ExecAsOriginalUser' function during Uninstall" runtime error. The real user's `%APPDATA%`/`%LOCALAPPDATA%` is now captured by the installer (where `ExecAsOriginalUser` is legal), persisted to `HKLM\Software\Pan Devs\PanCalc Tools`, and read back by the uninstaller so cleanup targets the correct profile even when elevated.
+- **Self-update**: the app now reliably closes when confirming an update (hard exit moved to a dedicated thread so it cannot be skipped by the window teardown cancelling the async task); the installer wizard opens only after the app has exited.
+
+### Changed
+- **Download dialogs**: added "please be patient" guidance to the first-run registry download, the manual registry refresh, and the update download dialogs.
+- **UI text**: remaining user-visible Spanish strings (drag feedback, file/photos/texts section labels) translated to English.
+
 ## [0.3.0] - 2026-09-03
 
 ### Changed

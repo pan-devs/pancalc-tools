@@ -531,6 +531,9 @@ class PanCalcGUI:
                     ft.ProgressRing(width=28, height=28),
                     ft.Container(height=6),
                     status,
+                    ft.Container(height=4),
+                    ft.Text("Downloading the catalog can take a moment — please be patient.",
+                            size=11, italic=True, color=ft.Colors.ON_SURFACE_VARIANT),
                 ], width=340, tight=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 padding=8,
             ),
@@ -602,6 +605,9 @@ class PanCalcGUI:
                     prog,
                     ft.Container(height=6),
                     status,
+                    ft.Container(height=4),
+                    ft.Text("Downloading may take a while — please be patient.",
+                            size=11, italic=True, color=ft.Colors.ON_SURFACE_VARIANT),
                 ], width=340, tight=True),
                 padding=8,
             ),
@@ -674,16 +680,24 @@ class PanCalcGUI:
                 return
             # Guaranteed exit even if the window close handshake gets stuck,
             # so the app can never hang half-closed with a busy spinner.
+            #
+            # The hard exit MUST live on its own thread, NOT inline after
+            # window.destroy(): _do_update runs inside an asyncio task, and
+            # window.destroy() tears down the event loop, which can CANCEL this
+            # task before an inline _os._exit(0) ever runs. A plain thread that
+            # was started before destroy() is not affected by that cancellation,
+            # so it always reaches the exit. It is non-daemon so the interpreter
+            # waits for it even if the main thread begins to wind down.
             def _force_exit():
-                _time.sleep(3)
+                _time.sleep(0.3)
                 _os._exit(0)
-            _threading.Thread(target=_force_exit, daemon=True).start()
+            _threading.Thread(target=_force_exit, daemon=False).start()
             try:
                 self.page.window.destroy()
             except Exception:
                 pass
-            _time.sleep(0.6)
-            _os._exit(0)
+            # Do NOT call _os._exit(0) here — it may be cancelled with the task.
+            # The detached thread above terminates the process a moment later.
         else:
             try:
                 import subprocess as _subprocess
@@ -792,6 +806,9 @@ class PanCalcGUI:
                     spinner,
                     ft.Container(height=10),
                     status_text,
+                    ft.Container(height=4),
+                    ft.Text("This can take a moment — please be patient.",
+                            size=11, italic=True, color=ft.Colors.ON_SURFACE_VARIANT),
                     ft.Container(height=10),
                     update_row,
                 ]
