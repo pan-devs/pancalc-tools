@@ -163,6 +163,7 @@ end;
 procedure CaptureOriginalUserDataPaths;
 var
   ScriptPath, OutPath, BatContent, S: string;
+  RawS: AnsiString;
   RC, P: Integer;
 begin
   OriginalAppData := '';
@@ -180,7 +181,8 @@ begin
     if ExecAsOriginalUser(ScriptPath, '', '', SW_HIDE, ewWaitUntilTerminated, RC)
        and FileExists(OutPath) then
     begin
-      LoadStringFromFile(OutPath, S);
+      LoadStringFromFile(OutPath, RawS);
+      S := RawS;
       P := Pos(#13#10, S);
       if P > 0 then
       begin
