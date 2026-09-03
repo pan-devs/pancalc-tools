@@ -146,6 +146,8 @@ class PanCalcGUI:
         self._trashing = False
         self._undo_snapshot: list[dict] = []
         self.views = ViewBuilder(self)
+        self.update_banner: ft.Container | None = None
+        self.update_banner_text: ft.Text | None = None
         self._update_info: dict | None = None
     def build(self, page: ft.Page) -> None:
         _hold_update_mutex()
@@ -258,6 +260,25 @@ class PanCalcGUI:
         )
         self.trash_target = self.trash_zone.build()
         self.content_area = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
+        self.update_banner_text = ft.Text("", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_PRIMARY_CONTAINER)
+        self.update_banner = ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.NEW_RELEASES, color=ft.Colors.TERTIARY),
+                ft.Container(width=8),
+                self.update_banner_text,
+                ft.Container(expand=True),
+                ft.ElevatedButton("Update", icon=ft.Icons.SYSTEM_UPDATE,
+                                  on_click=lambda _: asyncio.create_task(self._do_update())),
+                ft.IconButton(ft.Icons.CLOSE, tooltip="Dismiss",
+                              on_click=lambda _: self._set_update_banner(visible=False)),
+            ], tight=True),
+            bgcolor=ft.Colors.PRIMARY_CONTAINER,
+            border_radius=10,
+            padding=8,
+            margin=ft.Margin(top=6, left=8, right=8, bottom=0),
+            visible=False,
+        )
+        page.add(self.update_banner)
         page.add(ft.Row([
             ft.Container(
                 content=self.trash_target,
@@ -538,6 +559,15 @@ class PanCalcGUI:
             pass
         self._show_snackbar("Registry updated", type="success")
     # ── App updates ─────────────────────────────────────────────────
+    def _set_update_banner(self, visible: bool, info: dict | None = None):
+        self._update_info = info if visible else None
+        if visible and info:
+            self.update_banner_text.value = f"New version {info['version']} available"
+        self.update_banner.visible = visible
+        try:
+            self.update_banner.update()
+        except Exception:
+            pass
     async def _check_updates(self, manual: bool = False):
         try:
             info = await run_sync(pupdater.latest_release)
@@ -549,12 +579,7 @@ class PanCalcGUI:
             return
         current = pupdater.current_version()
         if pupdater._parse_version(info["version"]) > pupdater._parse_version(current):
-            self._update_info = info
-            self._show_snackbar(
-                f"New version {info['version']} available",
-                action_text="Update",
-                action_cb=lambda: asyncio.create_task(self._do_update()),
-            )
+            self._set_update_banner(visible=True, info=info)
         elif manual:
             self._show_snackbar("You are up to date.", type="success")
     async def _do_update(self):
