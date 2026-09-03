@@ -62,15 +62,22 @@ def _hold_update_mutex() -> None:
 async def run_sync(fn, *args, **kwargs):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, lambda: fn(*args, **kwargs))
-def _do_push_sync(selected: set[str], mount_path: Path) -> tuple[list[str], list[str]]:
+def _do_push_sync(selected: set[str], mount_path: Path,
+                   on_progress=None) -> tuple[list[str], list[str]]:
     """Sync copy loop — runs in a thread so the UI stays responsive."""
     from pcalc import library as plibrary
     pushed_paths: list[str] = []
     errors: list[str] = []
-    for fpath in selected:
+    total = len(selected)
+    for idx, fpath in enumerate(selected, 1):
         src = Path(fpath)
         if not src.exists():
             continue
+        if on_progress:
+            try:
+                on_progress(idx, total, src.name)
+            except Exception:
+                pass
         sub = "g3p" if src.suffix.lower() == ".g3p" else "txt"
         dest_sub = "fotos" if sub == "g3p" else "textos"
         dest_dir = mount_path / "pthings" / dest_sub
@@ -573,11 +580,6 @@ class PanCalcGUI:
         current = pupdater.current_version()
         if pupdater._parse_version(info["version"]) > pupdater._parse_version(current):
             self._set_update_banner(visible=True, info=info)
-            self._show_snackbar(
-                f"New version {info['version']} available",
-                action_text="Update",
-                action_cb=lambda: asyncio.create_task(self._do_update()),
-            )
         elif manual:
             self._show_snackbar("You are up to date.", type="success")
     async def _do_update(self):
@@ -1343,28 +1345,69 @@ class PanCalcGUI:
             self._pushing = False
             self._show_snackbar("No calculator connected", type="warning")
             return
-        # Show "Pushing..." state on button
-        self.views._push_active = True
-        self._build_current_view()
-        pushed_paths, errors = await run_sync(_do_push_sync, selected, calc.mount_path)
-        # Auto-delete pushed files BEFORE rebuilding view
-        if pushed_paths:
-            for fpath in pushed_paths:
-                src = Path(fpath)
-                if src.exists():
-                    src.unlink()
-            self.views._selected_push_paths.difference_update(pushed_paths)
-        self._pushing = False
-        self.views._push_active = False
-        self._selection_mode = False
-        self._multi_selected.difference_update(pushed_paths)
-        self._build_current_view()
-        if errors:
-            self._show_notification("Errors: " + "; ".join(errors), type="error")
-        if pushed_paths:
-            self._show_snackbar(f"{len(pushed_paths)} file(s) pushed and deleted", type="success")
-        elif not errors:
-            self._show_snackbar("No valid selected files found.", type="warning")
+        # Show a progress dialog while copying files to the calculator.
+        total = len(selected)
+        state: dict = {"msg": "Starting...", "frac": 0.0, "done": False,
+                        "pushed": [], "errors": []}
+        prog = ft.ProgressBar(value=0, width=320)
+        status = ft.Text(state["msg"], size=12)
+        dlg = ft.AlertDialog(
+            modal=True,
+            content=ft.Container(
+                ft.Column([
+                    ft.Text("Pushing to calculator", weight=ft.FontWeight.BOLD),
+                    ft.Container(height=8),
+                    prog,
+                    ft.Container(height=6),
+                    status,
+                ], width=340, tight=True),
+                padding=8,
+            ),
+        )
+        self.page.show_dialog(dlg)
+        def _on_progress(current, _total, fname):
+            state["frac"] = current / _total if _total else 1.0
+            state["msg"] = f"{current}/{_total} — {fname}"
+        task = asyncio.create_task(
+            run_sync(_do_push_sync, selected, calc.mount_path,
+                     on_progress=_on_progress)
+        )
+        try:
+            while not task.done():
+                try:
+                    prog.value = state["frac"]
+                    status.value = state["msg"]
+                    dlg.update()
+                except Exception:
+                    pass
+                await asyncio.sleep(0.1)
+            pushed_paths, errors = await task
+            state["pushed"] = pushed_paths
+            state["errors"] = errors
+            # Auto-delete pushed files BEFORE rebuilding view
+            if pushed_paths:
+                for fpath in pushed_paths:
+                    src = Path(fpath)
+                    if src.exists():
+                        src.unlink()
+                self.views._selected_push_paths.difference_update(pushed_paths)
+            if errors:
+                self._show_notification("Errors: " + "; ".join(errors), type="error")
+            if pushed_paths:
+                self._show_snackbar(f"{len(pushed_paths)} file(s) pushed and deleted", type="success")
+            elif not errors:
+                self._show_snackbar("No valid selected files found.", type="warning")
+        finally:
+            dlg.open = False
+            try:
+                dlg.update()
+            except Exception:
+                pass
+            self._pushing = False
+            self._selection_mode = False
+            pp = state.get("pushed", [])
+            self._multi_selected.difference_update(pp)
+            self._build_current_view()
     async def _toggle_dark(self, dark: bool):
         self.page.theme_mode = ft.ThemeMode.DARK if dark else ft.ThemeMode.LIGHT
         self.page.theme = _create_theme()

@@ -121,21 +121,35 @@ class ViewBuilder:
         if not isinstance(data, dict):
             g.page.update()
             return
-        # Convert cards are keyed by path and selected via _multi_selected;
-        # addin/registry cards are keyed by item_id and selected via _selected_registry_ids.
-        if "all_paths" in data:
-            dragged = data.get("path")
-            sel = g._multi_selected
-        else:
-            dragged = data.get("item_id") or data.get("aid")
+        # Determine which selection set to use.  Convert cards are keyed by
+        # path and selected via _multi_selected; installed/registry cards
+        # are keyed by item_id / file path and selected via
+        # _selected_registry_ids.  Both may carry "all_paths" in multi-select
+        # drag data, so we probe _selected_registry_ids first.
+        paths = data.get("all_paths", [])
+        if any(p in g._selected_registry_ids for p in paths):
             sel = g._selected_registry_ids
-        if dragged is not None and dragged in sel:
-            for key in list(sel):
-                if key == dragged:
+        elif paths:
+            sel = g._multi_selected
+        elif "item_id" in data or "aid" in data:
+            sel = g._selected_registry_ids
+        else:
+            sel = g._multi_selected
+        # Identify the dragged card so we can skip dimming it.
+        dragged = data.get("path") or data.get("item_id") or data.get("aid")
+        dragged_wrap = None
+        if dragged is None:
+            # Group tiles register multiple keys pointing at the same wrap
+            # container; find the wrap that matches the Draggable's content.
+            dragged_wrap = e.control.content
+        for key in list(sel):
+            if key == dragged:
+                continue
+            c = self._card_refs.get(key)
+            if c is not None:
+                if dragged_wrap is not None and c is dragged_wrap:
                     continue
-                c = self._card_refs.get(key)
-                if c is not None:
-                    c.opacity = 0.3
+                c.opacity = 0.3
         g.page.update()
 
     def _on_selection_drag_complete(self, e: ft.DragEndEvent):
@@ -1955,6 +1969,7 @@ class ViewBuilder:
                 ]),
                 ft.Container(height=20),
                 ft.Text(f"PanCalc Tools v{__version__}", size=11, color=ft.Colors.OUTLINE),
+                ft.TextButton("github.com/pan-devs/pancalc-tools", url="https://github.com/pan-devs/pancalc-tools"),
             ], expand=True, scroll=ft.ScrollMode.AUTO)
         )
     # ── Install Drop Target ──────────────────────────────────────────
