@@ -1698,13 +1698,25 @@ class PanCalcGUI:
                 kind, value = item
                 if kind == "c":
                     pp = Path(value)
-                    if pp.exists():
-                        self._snap_file(pp)
-                        pp.unlink()
-                        self._snap_save_companions(pp)
-                        _clean_save_files(pp)
+                    exists = pp.exists()
+                    # Path.exists() can report False on some removable/FUSE mounts
+                    # even for existing files, so don't gate on it. Try to unlink
+                    # directly and tolerate the already-gone case so the delete is
+                    # robust regardless of the exists() result.
+                    self._snap_file(pp)
+                    try:
+                        pp.unlink(missing_ok=True)
+                    except OSError as e:
+                        debug_log(f"_del_combined unlink failed [{pp}]: {e}")
+                        raise
+                    if not exists and not pp.exists():
+                        debug_log(f"_del_combined: file truly absent [{pp}]")
                         return True
-                    return False
+                    if not exists:
+                        debug_log(f"_del_combined: exists()=False but unlink ok [{pp}]")
+                    self._snap_save_companions(pp)
+                    _clean_save_files(pp)
+                    return True
                 else:
                     return plibrary.remove(value)
             def _name_combined(item):
