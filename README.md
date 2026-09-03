@@ -566,3 +566,6 @@ pip install -e ".[dev]"
 - **Contact:** pan.devs@proton.me
 - **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 - **Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md)
+
+## Privacidad
+PanCalc Tools no recopila, almacena ni comparte ningún tipo de información personal del usuario.
