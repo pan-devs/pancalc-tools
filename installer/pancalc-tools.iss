@@ -50,6 +50,12 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"
 
+[Dirs]
+; Shared scratch folder used at install time to exchange %APPDATA%/%LOCALAPPDATA%
+; between the elevated installer and the original (non-elevated) user. It must be
+; writable by both tokens, hence users-modify.
+Name: "{commonappdata}\pancalc"; Permissions: users-modify
+
 [Files]
 Source: "..\dist\pancalc-tools-gui\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\pancalc-tools-gui\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -85,7 +91,8 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Launch PanCalc Tools"; Flags: n
 ; (logs etc.) that is not in the [Files] list and would otherwise stay behind.
 ; The user's %APPDATA%/%LOCALAPPDATA% cleanup runs from [Code] in the
 ; usUninstall step instead — it must target the ORIGINAL user's profile, not
-; the elevated administrator one, so it is handled via ExecAsOriginalUser.
+; the elevated administrator one, so it deletes the paths persisted by the
+; installer at install time (see CaptureAndStoreOriginalUserDataPaths).
 Type: filesandordirs; Name: "{app}"
 
 [Code]
@@ -153,24 +160,35 @@ begin
   end;
 end;
 
-// The uninstaller runs elevated (administrator token), so the
-// {userappdata}/{localappdata} constants point at the ADMINISTRATOR's profile
-// and not the real (possibly non-admin) user who started the uninstall —
-// deleting those would leave the user's data behind. Resolve the actual
-// user's %APPDATA%/%LOCALAPPDATA% by running a tiny helper as the original
-// user and reading back its output (written under ProgramData, a location
-// both tokens can access).
-procedure CaptureOriginalUserDataPaths;
+// ── Resolving the REAL user's data folders ───────────────────────────
+//
+// Both the installer and the uninstaller run elevated (Administrator token),
+// so the {userappdata}/{localappdata} constants point at the ADMINISTRATOR's
+// profile, not the real (possibly non-admin) user. Deleting those would miss
+// the user's actual data.
+//
+// ExecAsOriginalUser is LEGAL during install but is NOT supported at
+// uninstall time (Inno raises "cannot call ... during Uninstall"). So we:
+//   1. install-time : capture the real user's %APPDATA%/%LOCALAPPDATA% via
+//                     ExecAsOriginalUser and persist them under HKLM.
+//   2. uninstall-time: only READ those persisted values back from HKLM and
+//                      delete there (no ExecAsOriginalUser needed).
+
+const
+  RegRootKey = 'Software\Pan Devs\PanCalc Tools';
+
+// Install-time: run a tiny helper as the ORIGINAL (non-elevated) user to echo
+// the real %APPDATA%/%LOCALAPPDATA%, read them back via a shared temp file,
+// and persist them under HKLM so the (later, elevated) uninstaller can use them.
+procedure CaptureAndStoreOriginalUserDataPaths;
 var
   ScriptPath, OutPath, BatContent, S: string;
   RawS: AnsiString;
   RC, P: Integer;
 begin
-  OriginalAppData := '';
-  OriginalLocalAppData := '';
-  CreateDir(ExpandConstant('{commonappdata}\pancalc'));
   ScriptPath := ExpandConstant('{commonappdata}\pancalc\get-pancalc-env.bat');
-  OutPath := ExpandConstant('{commonappdata}\pancalc\pancalc_uninstall_env.txt');
+  OutPath := ExpandConstant('{commonappdata}\pancalc\pancalc_env.txt');
+  CreateDir(ExpandConstant('{commonappdata}\pancalc'));
   DeleteFile(OutPath);
   BatContent := '@echo off' + #13#10 +
                 '>  "' + OutPath + '" echo %APPDATA%' + #13#10 +
@@ -186,23 +204,47 @@ begin
       P := Pos(#13#10, S);
       if P > 0 then
       begin
-        OriginalAppData := Trim(Copy(S, 1, P - 1));
+        RegWriteStringValue(HKLM, RegRootKey, 'AppData', Trim(Copy(S, 1, P - 1)));
         S := Copy(S, P + 2, Length(S));
         P := Pos(#13#10, S);
         if P > 0 then
-          OriginalLocalAppData := Trim(Copy(S, 1, P - 1))
+          RegWriteStringValue(HKLM, RegRootKey, 'LocalAppData', Trim(Copy(S, 1, P - 1)))
         else
-          OriginalLocalAppData := Trim(S);
+          RegWriteStringValue(HKLM, RegRootKey, 'LocalAppData', Trim(S));
       end;
     end;
     DeleteFile(ScriptPath);
     DeleteFile(OutPath);
   end;
-  // Fallback: behave like today if the capture failed for any reason.
+end;
+
+// Uninstall-time: read back the real user's data folders persisted during
+// install. Uses ONLY HKLM reads (works from the elevated uninstaller). Falls
+// back to the elevated {userappdata}/{localappdata} if nothing was stored
+// (e.g. an install that predates this mechanism).
+procedure CaptureOriginalUserDataPaths;
+var
+  V: string;
+begin
+  OriginalAppData := '';
+  OriginalLocalAppData := '';
+  if RegQueryStringValue(HKLM, RegRootKey, 'AppData', V) then
+    OriginalAppData := V;
+  if RegQueryStringValue(HKLM, RegRootKey, 'LocalAppData', V) then
+    OriginalLocalAppData := V;
+  // Fallback: behave like before this mechanism if nothing was captured.
   if OriginalAppData = '' then
     OriginalAppData := ExpandConstant('{userappdata}');
   if OriginalLocalAppData = '' then
     OriginalLocalAppData := ExpandConstant('{localappdata}');
+end;
+
+// Install-time entry point: persist the real user's paths right after the
+// files are installed, while ExecAsOriginalUser is still legal.
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    CaptureAndStoreOriginalUserDataPaths;
 end;
 
 function InitializeUninstall: Boolean;
@@ -341,6 +383,10 @@ begin
   end;
   if CurUninstallStep = usPostUninstall then
   begin
+    // Clean up the persisted real-user paths; they'll be re-created by the
+    // next install.
+    RegDeleteValue(HKLM, RegRootKey, 'AppData');
+    RegDeleteValue(HKLM, RegRootKey, 'LocalAppData');
     if VCRemovalFailed then
       MsgBox('The Visual C++ Redistributable could not be uninstalled automatically.' #13#10
              'You can remove it later from "Apps & Features" (Microsoft Visual C++ 2015-2022 Redistributable (x64)).',
