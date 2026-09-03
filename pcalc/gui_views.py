@@ -651,17 +651,17 @@ class ViewBuilder:
                 return
         from pcalc.gui import _do_delete_sync
         def _del(p):
-            try:
-                p.unlink()
-                return True
-            except OSError:
-                return False
-        deleted, _err = await g._run_with_progress(
+            p.unlink()
+            return True
+        deleted, errors = await g._run_with_progress(
             "Deleting files", _do_delete_sync,
             files, delete_fn=_del,
         )
         if deleted:
             g._show_snackbar(f"🗑️ {deleted} file(s) deleted", type="success")
+        if errors:
+            g._show_snackbar(f"Errors: {'; '.join(errors[:3])}", type="error")
+        if deleted or errors:
             g._build_current_view()
 
     # ── 3. Installed View ──────────────────────────────────────────

@@ -82,8 +82,12 @@ def _do_delete_sync(items, on_progress=None, delete_fn=None, name_fn=None):
         try:
             if delete_fn(item):
                 deleted += 1
+            else:
+                errors.append(f"{name}: not found or already deleted")
         except Exception as e:
+            debug_log(f"_do_delete_sync error [{name}]: {e}")
             errors.append(f"{name}: {e}")
+    debug_log(f"_do_delete_sync done: {deleted}/{total} deleted, {len(errors)} errors")
     return deleted, errors
 def _do_push_sync(selected: set[str], mount_path: Path,
                    on_progress=None) -> tuple[list[str], list[str]]:
@@ -1637,7 +1641,7 @@ class PanCalcGUI:
                     pp.unlink()
                     return True
                 return False
-            deleted, _err = await self._run_with_progress(
+            deleted, errors = await self._run_with_progress(
                 "Deleting converted files", _do_delete_sync,
                 deletable, delete_fn=_del_convert,
             )
@@ -1649,6 +1653,8 @@ class PanCalcGUI:
                     action_text="UNDO",
                     action_cb=lambda: asyncio_create(self._undo_trash()),
                 )
+            elif errors:
+                self._show_snackbar(f"Errors: {'; '.join(errors[:3])}", type="error")
             else:
                 self._show_snackbar("No files found to delete.", type="warning")
             self._selection_mode = False
@@ -1704,10 +1710,12 @@ class PanCalcGUI:
             def _name_combined(item):
                 kind, value = item
                 return Path(value).name if kind == "c" else value
-            _deleted, _err = await self._run_with_progress(
+            _deleted, _errors = await self._run_with_progress(
                 "Deleting files", _do_delete_sync,
                 combined, delete_fn=_del_combined, name_fn=_name_combined,
             )
+            if _errors:
+                self._show_snackbar(f"Errors: {'; '.join(_errors[:3])}", type="error")
         if all_paths:
             self._multi_selected.difference_update(all_paths)
             self._selected_registry_ids.clear()
