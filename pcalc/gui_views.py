@@ -1950,6 +1950,9 @@ class ViewBuilder:
             ft.Column([
                 ft.Text("Settings", size=20, weight=ft.FontWeight.BOLD),
                 ft.Container(height=8),
+                ft.Text(f"PanCalc Tools v{__version__}", size=11, color=ft.Colors.OUTLINE),
+                ft.TextButton("github.com/pan-devs/pancalc-tools", url="https://github.com/pan-devs/pancalc-tools"),
+                ft.Container(height=8),
                 ft.Text("Appearance", size=16, weight=ft.FontWeight.BOLD),
                 dark_mode, ft.Divider(),
                 ft.Text("Registry", size=16, weight=ft.FontWeight.BOLD),
@@ -1967,9 +1970,6 @@ class ViewBuilder:
                     ft.OutlinedButton("Reset to Defaults", icon=ft.Icons.RESTORE,
                                       on_click=lambda _: asyncio_create(reset_all())),
                 ]),
-                ft.Container(height=20),
-                ft.Text(f"PanCalc Tools v{__version__}", size=11, color=ft.Colors.OUTLINE),
-                ft.TextButton("github.com/pan-devs/pancalc-tools", url="https://github.com/pan-devs/pancalc-tools"),
             ], expand=True, scroll=ft.ScrollMode.AUTO)
         )
     # ── Install Drop Target ──────────────────────────────────────────

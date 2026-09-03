@@ -4,6 +4,11 @@ All notable changes to PanCalc Tools are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.3.3] - 2026-09-03
+
+### Changed
+- **Settings**: moved the app version + repository link to the top of the Settings view.
+
 ## [0.3.2] - 2026-09-03
 
 ### Fixed
