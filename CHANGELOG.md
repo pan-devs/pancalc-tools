@@ -4,6 +4,11 @@ All notable changes to PanCalc Tools are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.3.4] - 2026-09-03
+
+### Changed
+- **Self-update**: the update dialog now asks the user to close the app window to finish, and the installer is launched by a detached helper that waits for the app process to actually end (instead of relying on an unreliable programmatic window close / forced exit). The installer still starts automatically right after the app closes.
+
 ## [0.3.3] - 2026-09-03
 
 ### Changed
