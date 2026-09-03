@@ -1349,7 +1349,7 @@ class PanCalcGUI:
         except Exception as e:
             self._show_notification(f"Conversion failed: {e}", type="error")
         return generated
-    async def _run_with_progress(self, title, sync_fn, *args, state=None):
+    async def _run_with_progress(self, title, sync_fn, *args, state=None, **kwargs):
         """Show a progress dialog while a sync function runs in a thread."""
         if state is None:
             state = {"frac": 0.0, "msg": "Starting..."}
@@ -1372,7 +1372,7 @@ class PanCalcGUI:
         def _cb(current, _total, fname):
             state["frac"] = current / _total if _total else 1.0
             state["msg"] = f"{current}/{_total} — {fname}"
-        task = asyncio.create_task(run_sync(sync_fn, *args, on_progress=_cb))
+        task = asyncio.create_task(run_sync(sync_fn, *args, on_progress=_cb, **kwargs))
         try:
             while not task.done():
                 try:
