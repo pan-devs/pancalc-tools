@@ -1969,6 +1969,7 @@ class ViewBuilder:
                 ]),
                 ft.Container(height=20),
                 ft.Text(f"PanCalc Tools v{__version__}", size=11, color=ft.Colors.OUTLINE),
+                ft.TextButton("github.com/pan-devs/pancalc-tools", url="https://github.com/pan-devs/pancalc-tools"),
             ], expand=True, scroll=ft.ScrollMode.AUTO)
         )
     # ── Install Drop Target ──────────────────────────────────────────
