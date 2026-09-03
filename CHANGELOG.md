@@ -4,6 +4,13 @@ All notable changes to PanCalc Tools are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.3.0] - 2026-09-03
+
+### Changed
+- **Update notice**: the new-version notification now shows only as the top banner (removed the duplicate snackbar)
+- **Settings**: added a clickable link to the project repository (`github.com/pan-devs/pancalc-tools`)
+- **Delete flow**: reverted the file-deletion progress dialogs to the previous direct delete logic (restoring reliable behavior when removing installed/calculator files)
+
 ## [0.2.9] - TBD
 
 ### Added
