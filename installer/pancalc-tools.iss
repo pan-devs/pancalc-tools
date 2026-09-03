@@ -254,7 +254,6 @@ begin
   MasterBox.Left := ScaleX(12);
   MasterBox.Top := Note.Top + Note.Height + ScaleY(6);
   MasterBox.Width := ListWidth;
-  MasterBox.AutoSize := False;
   MasterBox.Caption := 'Remove everything installed by PanCalc Tools (recommended)';
   MasterBox.Checked := True;
   MasterBox.OnClick := @MasterBoxOnClick;
