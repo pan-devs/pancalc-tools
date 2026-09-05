@@ -4,6 +4,15 @@ All notable changes to PanCalc Tools are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.3.5] - 2026-09-03
+
+### Fixed
+- **Version shown in the app**: the window title, app bar, and Settings no longer report the stale or `0.0.0` package metadata version. They now read `version.txt` bundled with the build, so they reflect the actual release tag after updating.
+- **Empty registry fallback**: when the add-in/games catalog is empty, the Registry and Games views now show a "downloading or not yet available — please wait, then click Refresh" message instead of a bare "no add-ins loaded".
+
+### Changed
+- **Self-update**: the update confirmation dialog now states that "the installation will start shortly after you close the app".
+
 ## [0.3.4] - 2026-09-03
 
 ### Changed
