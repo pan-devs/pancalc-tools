@@ -6,6 +6,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 Version: follows `pcalc/__init__.py` (`__version__`) — kept in sync with the
 release tag and the CI fallback string in `.github/workflows/build-installer.yml`.
 
+## [1.0.0] - 2026-09-05
+
+### First stable release 🎉
+
+This is the **primera versión estable**, produced by merging the full
+`dev` line (0.3.x → 0.4.0) into `main`. No new features vs v0.4.0 — everything
+that shipped up to the v0.4.0 "ultimate test build" is included:
+
+- **Real OCR for photos** → `.txt`: RapidOCR (bundled models, offline),
+  confidence filter (default 0.5) and ASCII transliteration (`café` → `cafe`).
+  GUI + `pcalc convert photo.jpg --ocr`.
+- **Indeterminate progress** ("OCR en curso…") while recognizing images.
+- **Installed view** fixes: multi-file add-ins shown as one card, orphan ROMs
+  listed under Games, delete removes all of an add-in's files.
+- **Registry installs** verified by PGP (official pinned key) + SHA256; local
+  add-ins/games skip PGP.
+- Docs for **forking / using another registry** (pinned key in `pcalc/crypto.py`).
+
+Enjoy. Installer and PyPI links land on the release page automatically.
+
 ## [0.4.0] - 2026-09-05
 
 ### Fixed
