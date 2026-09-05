@@ -6,7 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 Version: follows `pcalc/__init__.py` (`__version__`) — kept in sync with the
 release tag and the CI fallback string in `.github/workflows/build-installer.yml`.
 
-## [Unreleased]
+## [0.4.0] - 2026-09-05
 
 ### Fixed
 - **OCR progress**: the conversion overlay now shows an **indeterminate
@@ -20,6 +20,10 @@ release tag and the CI fallback string in `.github/workflows/build-installer.yml
   `pcalc/crypto.py`), what a fork must change to use its own key, and that
   local/imported add-ins & games are never PGP-checked.
 - ARCHITECTURE: same pinned-key note added to the PGP section.
+
+### Notes
+- **Ultimate test build.** Includes everything since 0.3.9 (real OCR via
+  RapidOCR, confidence filtering, ASCII transliteration).
 
 ## [0.3.9] - 2026-09-05
 
