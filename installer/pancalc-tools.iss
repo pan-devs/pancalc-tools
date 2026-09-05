@@ -62,6 +62,7 @@ Source: "..\dist\pancalc-tools-gui\*"; DestDir: "{app}"; Flags: ignoreversion re
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\ARCHITECTURE.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Prerequisite installers (placed in temp directory during install)
 ; NOTE: GnuPG is bundled INSIDE the app (dist\pancalc-tools\gpg) — not installed system-wide.

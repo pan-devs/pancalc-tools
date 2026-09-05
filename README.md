@@ -31,7 +31,7 @@ _Click the image below to watch the tutorial (it will be downloaded)_
 
 > 💡 **Tips:**
 > - Use your mouse/trackpad and click to interact.
-> - Questions? Ask the specialiced AI at https://deepwiki.com/pan-devs/pancalc-tools
+> - Questions? Ask the specialized AI at https://deepwiki.com/pan-devs/pancalc-tools
 > - Press **Ctrl+S** to open the command palette.
 > - Press **Esc** to return to the home screen.
 > - Use **↑** and **↓** to move between items.
@@ -64,6 +64,8 @@ _Click the image below to watch the tutorial (it will be downloaded)_
   developers who run the source directly.
 - **🔑 PGP key management** — Import, trust, list, and untrust additional keys
   for advanced users.
+- **🔁 In-app self-update** — Checks GitHub Releases on launch and installs new
+  versions with a live progress bar and a guided restart flow.
 
 > **Filename Limitations:** The Casio calculator cannot read files with spaces
 > or non-English characters (accents, special symbols). Files are automatically
@@ -535,14 +537,19 @@ Local library files skip PGP (they came from you, no signature needed).
 
 ## License
 
-**PAN DEVS NON-COMMERCIAL ATTRIBUTION LICENSE v1.0**
+**GNU Affero General Public License v3.0 (AGPL-3.0)**
 
-- **Non-commercial use** is free with attribution required.
-- **Commercial use** requires a separate paid license.
-  Contact `pan.devs@proton.me`.
-- **AI/ML training** on this code is explicitly prohibited.
+Copyright © 2026 Pan Devs
 
-See [LICENSE.md](LICENSE.md) for the full text.
+Free software: you may redistribute and/or modify it under the terms of the
+AGPL-3.0 (or, at your option, any later version). Redistributions and network
+use of modified versions must keep the source code available to their users
+under AGPL-3.0. Commercial use is permitted as long as the license terms are
+respected.
+
+See [LICENSE.md](LICENSE.md) for the full text, and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the licenses of bundled
+third-party components.
 
 ## Contributing
 
@@ -566,6 +573,12 @@ pip install -e ".[dev]"
 - **Contact:** pan.devs@proton.me
 - **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 - **Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md)
+- **Third-party notices:** [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 
-## Privacidad
-PanCalc Tools no recopila, almacena ni comparte ningún tipo de información personal del usuario.
+## Privacy
+PanCalc Tools does not collect, store, or share any personal information.
+
+## AI Assistance
+
+The idea and design are the author's own. The code implementation is supported
+by, and in large part written with, AI assistance.

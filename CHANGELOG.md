@@ -4,6 +4,13 @@ All notable changes to PanCalc Tools are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.3.6] - 2026-09-05
+
+### Changed
+- **License**: the project is now licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**, replacing the previous "Pan Devs Non-Commercial Attribution License". This makes the project compatible with its AGPL-licensed dependency (PyMuPDF) and removes the non-commercial / no-AI-training restrictions.
+- **Debug log**: `pcalc_debug.log` is no longer tracked by version control and is ignored via `.gitignore`.
+- **Docs**: added `THIRD_PARTY_NOTICES.md` with licenses of all bundled third-party components (bundled with the installer too); `GAMES.md` documents the registry ROM policy and a candidate GBA emulator.
+
 ## [0.3.5] - 2026-09-03
 
 ### Fixed

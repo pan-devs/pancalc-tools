@@ -17,6 +17,23 @@ Play retro games on your Casio fx-CG50 via emulators installed from the registry
 
 \* Emulator add-in not yet available in the registry — check back later.
 
+> **Candidate**: a Game Boy Advance emulator port (`gpsp-sh4-jit`, by
+> KaraRyougi) has been identified for the fx-CG50/fx-CG100. It is **not** part
+> of the registry yet — it still needs review and signing by Pan Devs. No date
+> is promised; follow the registry for updates.
+
+## ROM Policy & Responsibility
+
+- PanCalc Tools and the **registry do not host or distribute copyrighted ROMs**.
+  The only hosted entry is a small mock/test file used to demonstrate the
+  registry architecture (`test_rom` — **do not download it**, it is not a game).
+- **You are responsible** for the game files you add, install, and play. Only
+  use ROMs you own, that are freely licensed, or whose copyright holder has
+  authorised distribution (e.g. homebrew, public-domain, or openly licensed
+  games). Please support the original creators.
+- Games you add locally stay on your machine; PanCalc Tools only ever transfers
+  files you explicitly choose to install on your calculator.
+
 ## Installing an Emulator
 
 1. Go to **Install** screen (TUI) or run:
@@ -40,7 +57,7 @@ pcalc install nesizm
 
 ```bash
 pcalc games import supermario.nes              # import to library
-pcalc games install lawn_mower                  # install by registry ID
+pcalc games install test_rom                    # install by registry ID
 pcalc games remove supermario                   # remove from library
 ```
 
@@ -68,13 +85,14 @@ pcalc games remove supermario                   # remove from library
 
 ## Registry Games
 
-Games in the official registry include metadata:
+Games in the official registry include metadata (only a mock/test entry is
+hosted — see [ROM Policy](#rom-policy--responsibility)):
 
 ```json
 {
   "emulator": "nesizm",
   "platform": "NES",
-  "filename": "lawnmow.nes"
+  "filename": "test.nes"
 }
 ```
 

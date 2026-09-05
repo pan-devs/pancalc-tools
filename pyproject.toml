@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pancalc-tools"
-version = "0.3.5"
+version = "0.3.6"
 description = "Package manager and developer toolkit for Casio Prizm calculators"
 readme = "README.md"
-license = { text = "PAN DEVS NON-COMMERCIAL ATTRIBUTION LICENSE v1.0" }
+license = { text = "AGPL-3.0-only (GNU Affero General Public License v3.0)" }
 authors = [{ name = "Pan Devs", email = "pan.devs@proton.me" }]
 requires-python = ">=3.10"
 keywords = ["casio", "prizm", "fx-cg50", "calculator", "package-manager"]
@@ -16,7 +16,7 @@ classifiers = [
     "Environment :: Console",
     "Environment :: X11 Applications",
     "Intended Audience :: End Users/Desktop",
-    "License :: Other/Proprietary License",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
