@@ -11,6 +11,7 @@ from pathlib import Path
 import flet as ft
 from pcalc import config as pconfig
 from pcalc import library as plibrary
+from pcalc import updater as pupdater
 from pcalc.calculator import find_calculator
 from pcalc.crypto import list_keys, official_key_info
 from pcalc.installer import (
@@ -304,7 +305,7 @@ class ViewBuilder:
                 ft.Column([
                     ft.Text("Registry", size=20, weight=ft.FontWeight.BOLD),
                     ft.Container(height=10),
-                    ft.Text("No add-ins loaded. Click the refresh button above.", color=ft.Colors.OUTLINE),
+                    ft.Text("The catalog is downloading or not yet available. Please wait, then click Refresh.", color=ft.Colors.OUTLINE),
                 ], expand=True)
             )
             return
@@ -522,7 +523,7 @@ class ViewBuilder:
                 ft.Column([
                     ft.Text("Games", size=20, weight=ft.FontWeight.BOLD),
                     ft.Container(height=10),
-                    ft.Text("No games available in registry.", color=ft.Colors.OUTLINE),
+                    ft.Text("The game catalog is downloading or not yet available. Please wait, then click Refresh.", color=ft.Colors.OUTLINE),
                 ], expand=True)
             )
             return
@@ -1945,12 +1946,11 @@ class ViewBuilder:
                 g.page.update()
                 self._build_settings_view()
                 g._show_snackbar("Settings reset", type="success")
-        from pcalc import __version__
         g._set_content(
             ft.Column([
                 ft.Text("Settings", size=20, weight=ft.FontWeight.BOLD),
                 ft.Container(height=8),
-                ft.Text(f"PanCalc Tools v{__version__}", size=11, color=ft.Colors.OUTLINE),
+                ft.Text(f"PanCalc Tools v{pupdater.current_version()}", size=11, color=ft.Colors.OUTLINE),
                 ft.TextButton("github.com/pan-devs/pancalc-tools", url="https://github.com/pan-devs/pancalc-tools"),
                 ft.Container(height=8),
                 ft.Text("Appearance", size=16, weight=ft.FontWeight.BOLD),
