@@ -11,6 +11,7 @@ import requests
 from platformdirs import user_cache_dir
 
 from pcalc import config
+from pcalc import library
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -138,13 +139,14 @@ def _load_games_cache() -> list[dict]:
 # Public API
 # ---------------------------------------------------------------------------
 
-def get_registry(force: bool = False) -> list[dict]:
+def get_registry(force: bool = False, include_local: bool = True) -> list[dict]:
     """
     Return the full list of add-in dicts from the registry.
     Uses cache if fresh, otherwise fetches from GitHub.
 
     Args:
         force: If True, bypass cache and always fetch fresh data.
+        include_local: If True, append user-imported local add-ins.
 
     Returns:
         List of add-in dicts.
@@ -153,12 +155,17 @@ def get_registry(force: bool = False) -> list[dict]:
         RuntimeError: If network is unavailable and no cache exists.
     """
     if not force and _cache_is_fresh():
-        return _load_cache()
+        addins = _load_cache()
+    else:
+        index = _fetch_json(REGISTRY_URL)
+        addins = _build_full_registry(index)
+        _save_cache(addins)
 
-    # Cache is stale or missing — fetch fresh
-    index = _fetch_json(REGISTRY_URL)
-    addins = _build_full_registry(index)
-    _save_cache(addins)
+    if include_local:
+        for loc in library.get_all(item_type="addin"):
+            loc["source"] = "local"
+            addins.append(loc)
+
     return addins
 
 
@@ -223,13 +230,14 @@ def filter_by_category(category: str) -> list[dict]:
     return [a for a in addins if a.get("category", "").lower() == category.lower()]
 
 
-def get_games(force: bool = False) -> list[dict]:
+def get_games(force: bool = False, include_local: bool = True) -> list[dict]:
     """
     Return the full list of game dicts from the registry.
     Uses cache if fresh, otherwise fetches from GitHub.
 
     Args:
         force: If True, bypass cache and always fetch fresh data.
+        include_local: If True, append user-imported local games.
 
     Returns:
         List of game dicts.
@@ -238,12 +246,17 @@ def get_games(force: bool = False) -> list[dict]:
         RuntimeError: If network is unavailable and no cache exists.
     """
     if not force and _cache_games_is_fresh():
-        return _load_games_cache()
+        games = _load_games_cache()
+    else:
+        index = _fetch_json(REGISTRY_URL)
+        games = _build_games_registry(index)
+        _save_games_cache(games)
 
-    # Cache is stale or missing — fetch fresh
-    index = _fetch_json(REGISTRY_URL)
-    games = _build_games_registry(index)
-    _save_games_cache(games)
+    if include_local:
+        for loc in library.get_all(item_type="game"):
+            loc["source"] = "local"
+            games.append(loc)
+
     return games
 
 

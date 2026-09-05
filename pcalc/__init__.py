@@ -3,9 +3,10 @@ PanCalc Tools — Package manager and developer toolkit for Casio Prizm calculat
 https://github.com/pan-devs/pancalc-tools
 """
 
-__version__ = "0.1.0"
 __author__  = "Pan Devs"
 __email__   = "pan.devs@proton.me"
+
+__version__ = "0.4.0"
 
 from pathlib import Path
 from platformdirs import user_data_dir

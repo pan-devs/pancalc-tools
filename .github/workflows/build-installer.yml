@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Windows installer with Inno Setup
+    name: Build Windows GUI installer (self-contained, GnuPG bundled)
     runs-on: windows-latest
 
     steps:
@@ -22,59 +22,109 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Create prerequisites directory
-        run: mkdir -p installer/prereqs
-
-      - name: Download VC++ Redistributable
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -Uri https://aka.ms/vs/17/release/vc_redist.x64.exe -OutFile installer/prereqs/vc_redist.x64.exe
-
-      - name: Download GnuPG
-        shell: pwsh
-        run: |
-          # Using a specific version of GnuPG standalone installer
-          # Update this version periodically as needed
-          $gnupgFile = "gnupg-w32-2.5.20_20260513.exe"
-          Invoke-WebRequest -Uri https://www.gnupg.org/ftp/gcrypt/binary/$gnupgFile -OutFile installer/prereqs/$gnupgFile
-          echo "GPG4WIN_FILE=$gnupgFile" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Verify prerequisites downloaded
-        shell: pwsh
-        run: |
-          if (!(Test-Path installer\prereqs\vc_redist.x64.exe)) {
-            Write-Error "VC++ Redistributable not found"
-            exit 1
-          }
-          if (!(Test-Path installer\prereqs\$env:GPG4WIN_FILE)) {
-            Write-Error "Gpg4win not found"
-            exit 1
-          }
-
-      - name: Install Python dependencies
+      - name: Install Python dependencies (GUI)
         shell: pwsh
         run: |
           pip install --upgrade pip
-          pip install -e .[windows]
-          pip install pyinstaller
-          
-      - name: Build standalone executable with PyInstaller
+          pip install -e .[windows,gui,ocr]
+          pip install flet-desktop pyinstaller
+          pip list | findstr -i flet
+
+      - name: Build standalone GUI executable with PyInstaller
         shell: pwsh
         run: |
-          pyinstaller --onedir --noconfirm --name pancalc-tools `
-            --collect-all pcalc --collect-all textual --collect-all fitz --collect-all gnupg `
+          pyinstaller --onedir --windowed --noconfirm --name pancalc-tools-gui `
+            --collect-all flet --collect-all flet_desktop --collect-all certifi `
+            --collect-all pcalc --collect-all fitz --collect-all gnupg `
+            --collect-all onnxruntime --collect-all cv2 --collect-data rapidocr_onnxruntime `
+            --hidden-import flet_desktop --hidden-import flet_desktop.version `
+            --hidden-import pcalc.gui --hidden-import pcalc.gui_views `
             --hidden-import pcalc.cli --hidden-import pcalc.tui --hidden-import pcalc.installer `
             --hidden-import pcalc.converter --hidden-import pcalc.registry --hidden-import pcalc.crypto `
             --hidden-import pcalc.config --hidden-import pcalc.banner --hidden-import pcalc.theme `
-            --hidden-import pcalc.calculator `
+            --hidden-import pcalc.calculator --hidden-import pcalc.library `
+            --hidden-import rapidocr_onnxruntime --hidden-import onnxruntime --hidden-import cv2 `
             --icon installer/favicon.ico `
-            pcalc/__main__.py
+            main_gui.py
+          # Ship favicon.ico next to the exe so page.window.icon can use it.
+          Copy-Item -Path installer\favicon.ico -Destination dist\pancalc-tools-gui\favicon.ico -Force
+
+      - name: Pre-download and bundle Flet desktop client
+        shell: pwsh
+        run: |
+          # ensure_client_cached() downloads the Flet client and returns its cache dir.
+          # Suppress its "Preparing..." stdout message to capture only the path.
+          $fletCache = (python -c "import sys,io;o=sys.stdout;sys.stdout=io.StringIO();from flet_desktop import ensure_client_cached;r=ensure_client_cached();sys.stdout=o;print(r)").Trim()
+          Write-Output "Flet cache dir returned: '$fletCache'"
+          if (!(Test-Path $fletCache)) {
+            Write-Error "Flet client cache path does not exist: $fletCache"
+            exit 1
+          }
+          $fletDst = "dist\pancalc-tools-gui\flet_client"
+          New-Item -ItemType Directory -Force -Path $fletDst | Out-Null
+          Copy-Item -Path "$fletCache\*" -Destination $fletDst -Recurse -Force
+          Write-Output "Bundled Flet client contents:"
+          Get-ChildItem -Path $fletDst | Select-Object -First 20
+          # main_gui.py sets FLET_VIEW_PATH to <app>/flet_client/flet expecting
+          # flet.exe inside it. Verify that layout survived the copy.
+          $fletExe = "dist\pancalc-tools-gui\flet_client\flet\flet.exe"
+          if (!(Test-Path $fletExe)) {
+            Write-Error "Expected client exe not found at $fletExe"
+            exit 1
+          }
+          Write-Output "Flet client exe found at $fletExe"
+
+      - name: Download and bundle standalone GnuPG
+        shell: pwsh
+        run: |
+          # Install GnuPG PORTABLE via Scoop (extracts binaries, no silent NSIS
+          # installer / UAC elevation, so it can't hang the CI), then copy into bundle.
+          Set-ExecutionPolicy RemoteSigned -Scope Process -Force
+          Invoke-RestMethod -Uri get.scoop.sh | Invoke-Expression
+          scoop install gnupg --no-cache
+          $scoopBin = Join-Path $env:USERPROFILE "scoop\apps\gnupg\current\bin"
+          if (!(Test-Path $scoopBin)) {
+            Write-Error "GnuPG scoop bin not found"
+            exit 1
+          }
+          $gpgDst = "dist\pancalc-tools-gui\gpg\bin"
+          New-Item -ItemType Directory -Force -Path $gpgDst | Out-Null
+          Copy-Item -Path "$scoopBin\*" -Destination $gpgDst -Recurse -Force
+          Write-Output "Bundled GnuPG contents:"
+          Get-ChildItem -Path $gpgDst | Select-Object -First 20
 
       - name: Extract version from tag
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}" -replace '^v', ''
+          # On a release tag, use its version (strip leading 'v'); on a manual
+          # dispatch (branch name like 'dev') fall back to a dev version.
+          $ref = "${{ github.ref_name }}"
+          if ($ref -match '^v?[0-9]+\.[0-9]+\.[0-9]+') {
+            $version = $ref -replace '^v', ''
+          } else {
+            $version = "0.4.0-dev"
+          }
           echo "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Write version.txt next to the exe
+        shell: pwsh
+        run: |
+          # The installed app reads this file (via pcalc/updater.current_version)
+          # to know which build is running, so the updater can compare releases.
+          $dst = "dist\pancalc-tools-gui\version.txt"
+          Set-Content -Path $dst -Value $env:APP_VERSION -Encoding ascii -NoNewline
+          Write-Output "Wrote $dst = '$env:APP_VERSION'"
+
+      - name: Download VC++ Redistributable prerequisite
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path installer\prereqs | Out-Null
+          $vcUrl = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+          Invoke-WebRequest -Uri $vcUrl -OutFile installer\prereqs\vc_redist.x64.exe
+          if (!(Test-Path installer\prereqs\vc_redist.x64.exe)) {
+            Write-Error "VC++ redistributable not found"
+            exit 1
+          }
 
       - name: Install Inno Setup
         shell: pwsh
@@ -82,7 +132,7 @@ jobs:
 
       - name: Compile Inno Setup installer
         shell: cmd
-        run: iscc installer\pancalc-tools.iss /DMyAppVersion=%APP_VERSION% /DGPG4WIN_FILE=%GPG4WIN_FILE%
+        run: iscc installer\pancalc-tools.iss /DMyAppVersion=%APP_VERSION%
 
       - name: Upload installer to release
         if: github.event_name == 'release'

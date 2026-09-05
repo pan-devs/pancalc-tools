@@ -18,8 +18,12 @@ DEFAULTS = {
     "registry_url":   "https://raw.githubusercontent.com/pan-devs/pancalc-registry/main/registry.json",
     "cache_ttl_hours": 6,
     "auto_update":     True,   # check for registry updates on launch
+    "check_updates":   True,   # check GitHub Releases for a new app version on launch
     "confirm_install": True,   # ask before installing
     "confirm_remove":  True,   # ask before removing
+    "confirm_push":    True,   # ask before pushing converted files (on by default, like dark mode)
+    "theme_mode":      "dark", # default to dark mode
+    "ocr_min_confidence": 0.5, # OCR: minimum confidence (0..1) to keep a detected line
 }
 
 
