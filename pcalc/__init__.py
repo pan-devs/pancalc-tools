@@ -6,7 +6,7 @@ https://github.com/pan-devs/pancalc-tools
 __author__  = "Pan Devs"
 __email__   = "pan.devs@proton.me"
 
-__version__ = "0.3.7"
+__version__ = "0.3.8"
 
 from pathlib import Path
 from platformdirs import user_data_dir

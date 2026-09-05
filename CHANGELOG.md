@@ -4,6 +4,15 @@ All notable changes to PanCalc Tools are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.3.8] - 2026-09-05
+
+### Changed
+- **Installed view — multi-file add-ins as one card**: an add-in spanning several files (e.g. KhiCAS with `g3a` + `ac2`) now renders as a **single card** in the Installed view instead of one entry per file. The header count *"add-ins · games"* reflects the number of cards (unique add-ins), not the number of files.
+- **Installed view — orphan ROMs under Games**: orphan files on the calculator with ROM extensions (`.rom`, `.bin`, `.gba`, `.nes`, `.sms`, `.gg`) now show up in the **Games** column of the Installed view (with a game icon and counted as games), instead of being mixed into the Add-ins list.
+
+### Fixed
+- **Deleting a multi-file add-in**: dragging a multi-file add-in card (e.g. KhiCAS) to the trash now removes **all** of its files, not just a single one (the drag payload carries every file path).
+
 ## [0.3.7] - 2026-09-05
 
 ### Fixed

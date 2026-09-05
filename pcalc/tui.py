@@ -668,16 +668,23 @@ class MainScreen(Screen):
             except RuntimeError:
                 pass
 
-            # Matched entries from walk_calc
+            # Matched entries from walk_calc — group multi-file addins
+            # (e.g. KhiCAS → g3a + ac2) into ONE row per addin id.
             matched_paths: set[str] = set()
             try:
                 addin_entries = [e for e in walk_calc(calc, all_registry) if e.addin]
-                for i, e in enumerate(addin_entries):
-                    name = e.addin.get("name", e.addin.get("id", "?"))
-                    # Icon: 🎮 for games (has emulator), 📦 for addins
-                    icon = "🎮" if e.addin.get("emulator") else "📦"
-                    rows.append(RemoveRow(i, name, e.name, kind="addin", icon=icon))
+                grouped: dict[str, list] = {}
+                for e in addin_entries:
+                    aid = e.addin.get("id", "")
+                    grouped.setdefault(aid, []).append(e)
                     matched_paths.add(e.name)
+                for aid, group in grouped.items():
+                    e0 = group[0]
+                    name = e0.addin.get("name", e0.addin.get("id", "?"))
+                    # Icon: 🎮 for games (has emulator), 📦 for addins
+                    icon = "🎮" if e0.addin.get("emulator") else "📦"
+                    files_label = " · ".join(x.name for x in group)
+                    rows.append(RemoveRow(len(rows), name, files_label, kind="addin", icon=icon))
             except RuntimeError:
                 pass
 

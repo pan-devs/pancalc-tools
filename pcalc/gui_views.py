@@ -687,21 +687,22 @@ class ViewBuilder:
         pthings_rows: list[ft.Control] = []
         n_addin_matched = 0
         n_game_matched = 0
-        # Build ID-to-path mapping for multi-delete via selection
-        id_to_path: dict[str, str] = {}
+        # Build ID-to-paths mapping for multi-delete via selection
+        # (one addin may span several files, e.g. KhiCAS → g3a + ac2)
+        id_to_paths: dict[str, list[str]] = defaultdict(list)
         for fe in iter_calc_files(entries):
             if fe.addin:
                 aid = fe.addin.get("id", "")
                 if aid:
-                    id_to_path[aid] = str(calc.mount_path / fe.name)
+                    id_to_paths[aid].append(str(calc.mount_path / fe.name))
         # Unified deletable items for selection mode — same list used by ALL card builders
         all_deletable_paths: list[str] = []
         all_deletable_ids: list[str] = []
         all_deletable_types: list[str] = []
         if g._selection_mode:
             for sid in list(g._selected_registry_ids):
-                if sid in id_to_path:
-                    all_deletable_paths.append(id_to_path[sid])
+                if sid in id_to_paths:
+                    all_deletable_paths.extend(id_to_paths[sid])
                 elif Path(sid).exists():
                     all_deletable_paths.append(sid)
                 else:
@@ -719,28 +720,42 @@ class ViewBuilder:
                 label = ttype + "s"
                 _del_breakdown[label] = _del_breakdown.get(label, 0) + 1
                 _del_local[label] = _del_local.get(label, 0) + 1
-        for f in iter_calc_files(entries):
-            if not f.addin:
+        # Group matched files by addin id so multi-file addins (e.g. KhiCAS
+        # → g3a + ac2) render as ONE card.
+        addin_groups: dict[str, dict] = {}
+        for fe in iter_calc_files(entries):
+            if not fe.addin:
                 continue
-            name = f.addin.get("name", f.addin.get("id", "?"))
-            aid = f.addin.get("id", "")
-            icon = _icon_for_addin(f.addin)
-            is_game = bool(f.addin.get("emulator") or f.addin.get("category") == "games")
+            aid = fe.addin.get("id", "")
+            if not aid:
+                continue
+            group = addin_groups.setdefault(aid, {"addin": fe.addin, "files": []})
+            group["files"].append(fe)
+
+        for aid, group in addin_groups.items():
+            addin = group["addin"]
+            files = group["files"]
+            for fe in files:
+                matched_paths.add(fe.name)
+            name = addin.get("name", addin.get("id", "?"))
+            icon = _icon_for_addin(addin)
+            is_game = bool(addin.get("emulator") or addin.get("category") == "games")
             game_color = "#ed55a1" if is_game else None
             if is_game:
                 n_game_matched += 1
             else:
                 n_addin_matched += 1
             is_selected = aid in g._selected_registry_ids
-            full_path = str(calc.mount_path / f.name)
+            file_subtitle = " · ".join(fe.name for fe in files)
+            all_paths = [str(calc.mount_path / fe.name) for fe in files]
             list_tile = ft.ListTile(
                 leading=ft.Icon(icon, color=game_color),
                 title=ft.Text(name, size=14, color=game_color),
-                subtitle=ft.Text(f.name, size=11, color=ft.Colors.OUTLINE),
+                subtitle=ft.Text(file_subtitle, size=11, color=ft.Colors.OUTLINE),
                 trailing=ft.Row([
                     ft.IconButton(ft.Icons.VERIFIED, tooltip="Verify",
                                   icon_color=game_color,
-                                  on_click=lambda _, a=f.addin, n=name: asyncio_create(g._verify_item(a, n))),
+                                  on_click=lambda _, a=addin, n=name: asyncio_create(g._verify_item(a, n))),
                 ], tight=True),
             )
             if is_selected:
@@ -789,7 +804,7 @@ class ViewBuilder:
             if g._selection_mode and aid in g._selected_registry_ids:
                 drag_data = {"all_paths": all_deletable_paths, "all_ids": all_deletable_ids, "all_lib_types": all_deletable_types, "item_type": "calculator_file"}
             else:
-                drag_data = {"path": full_path, "item_type": "calculator_file"}
+                drag_data = {"all_paths": all_paths, "item_type": "calculator_file"}
             (games_rows if is_game else addin_rows).append(ft.Draggable(
                 group="all_items",
                 content=wrap,
@@ -799,7 +814,6 @@ class ViewBuilder:
                 on_drag_complete=self._on_selection_drag_complete,
                 data=drag_data,
             ))
-            matched_paths.add(f.name)
         for f in sorted(calc.mount_path.rglob("*"), key=lambda p: p.name):
             if not f.is_file():
                 continue
@@ -810,7 +824,13 @@ class ViewBuilder:
                 continue
             if _match_addin_by_filename(f.name, all_registry):
                 continue
-            icon = ft.Icons.EXTENSION if f.suffix.lower() in ADDIN_EXTS else ft.Icons.SPORTS_ESPORTS
+            ext = f.suffix.lower()
+            is_game_orphan = ext in GAME_EXTS
+            if is_game_orphan:
+                n_game_matched += 1
+            else:
+                n_addin_matched += 1
+            icon = ft.Icons.EXTENSION if ext in ADDIN_EXTS else ft.Icons.SPORTS_ESPORTS
             list_tile = ft.ListTile(
                 leading=ft.Icon(icon, color=ft.Colors.AMBER_ACCENT),
                 title=ft.Text(f.stem, size=14, color=ft.Colors.AMBER_ACCENT),
@@ -862,7 +882,7 @@ class ViewBuilder:
             else:
                 orphan_data = {"path": fpath_str, "item_type": "calculator_file"}
                 orphan_feedback = self._make_drag_feedback(1, f.stem, card=wrap)
-            addin_rows.append(ft.Draggable(
+            (games_rows if is_game_orphan else addin_rows).append(ft.Draggable(
                 group="all_items",
                 content=wrap,
                 content_when_dragging=ft.Container(opacity=0.3, content=wrap),
