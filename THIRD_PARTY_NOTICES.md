@@ -28,6 +28,9 @@ installer, either directly or as transitive dependencies of PyInstaller:
 | python-gnupg   | LGPL-3.0         | Vinay Sajip. |
 | platformdirs   | MIT              | This project is licensed under the terms of the MIT license. |
 | pywin32        | PSF-2.0          | Mark Hammond and contributors (Windows build only). |
+| onnxruntime    | MIT              | ONNX Runtime contributors. Inference runtime used by OCR (optional `[ocr]` extra). |
+| RapidOCR       | Apache-2.0       | RapidAI. OCR engine built on PaddleOCR models (models Apache-2.0). Bundled in the Windows build. |
+| OpenCV (`cv2`) | Apache-2.0       | OpenCV team. Image preprocessing used by RapidOCR (transitive dependency). |
 
 ## Bundled binaries
 

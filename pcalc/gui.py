@@ -136,6 +136,14 @@ ADDIN_EXTS = {".g3a", ".g3e"}
 GAME_EXTS = {".rom", ".bin", ".gba", ".nes", ".sms", ".gg"}
 ALL_EXTS = ADDIN_EXTS | GAME_EXTS
 SAVE_EXTS = {".sav", ".srm", ".state", ".sgm", ".frz"}
+_IMG_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif", ".webp"}
+
+
+def _likely_image(name: str) -> bool:
+    """True if a filename points to a photograph/image (OCR input)."""
+    return Path(name).suffix.lower() in _IMG_EXTS
+
+
 # ── Main Application ────────────────────────────────────────────────
 class PanCalcGUI:
     def __init__(self):
@@ -1319,11 +1327,22 @@ class PanCalcGUI:
                     success = True
                 if txt_want:
                     out = txt_dir / (f.stem + ".txt")
-                    await run_sync(pconverter.convert_text, str(f), str(out), _mk_cb())
+                    _min_conf = float(pconfig.get("ocr_min_confidence") or 0.5)
+                    ocr_stats = await run_sync(
+                        pconverter.convert_image_ocr, str(f), str(out),
+                        min_confidence=_min_conf)
                     units_done += 1
                     _report(1.0)
-                    generated.append(out)
+                    generated.append(Path(ocr_stats["out"]))
                     success = True
+                    if ocr_stats["lines"]:
+                        self._show_snackbar(
+                            f"OCR: {ocr_stats['lines']} líneas · conf. media {ocr_stats['avg_conf']:.0%}",
+                            type="info")
+                    else:
+                        self._show_snackbar(
+                            "OCR: no se detectó texto legible (¿manuscrito o poco contraste?)",
+                            type="warning")
             elif ftype == "DOC":
                 if g3p_want:
                     out = g3p_dir / f.stem

@@ -1345,8 +1345,11 @@ def _auto_output_path(input_path: Path, category: str, decode: bool, filename: s
               show_default=True, help="Split tall images into strips")
 @click.option("--overlap", type=int, default=16, show_default=True,
               help="Overlap in pixels between strips")
+@click.option("--ocr", is_flag=True, help="Image → TXT via OCR (printed text)")
+@click.option("--min-confidence", "min_conf", type=float, default=0.5, show_default=True,
+              help="OCR: minimum confidence (0..1) to keep a detected line")
 @pass_ctx
-def cmd_convert(app, file, output, bits, decode, split, overlap):
+def cmd_convert(app, file, output, bits, decode, split, overlap, ocr, min_conf):
     """Convert files: image→G3P, PDF/DOCX→G3P or TXT, G3P→PNG.
 
     Puts output under converted/ next to convert/.
@@ -1354,6 +1357,7 @@ def cmd_convert(app, file, output, bits, decode, split, overlap):
     Examples:
       pcalc convert photo.jpg        → converted/g3p/photo.g3p
       pcalc convert doc.pdf          → (prompts g3p or txt)
+      pcalc convert photo.jpg --ocr  → converted/txt/photo.txt (printed text)
       pcalc convert photo.g3p -d     → converted/images/photo_decoded.png
     """
     from pcalc.converter import convert_image, decode_image, convert_text, convert_document_g3p
@@ -1388,10 +1392,25 @@ def cmd_convert(app, file, output, bits, decode, split, overlap):
             convert_text(str(input_path), txt_out)
             console.print(f"  [bold {theme.SUCCESS}]✓[/] {file} → [dim]{txt_out}[/]")
     else:
-        if not output:
-            output = str(_auto_output_path(input_path, category, decode, file))
-        convert_image(str(input_path), output, int(bits), split, overlap)
-        console.print(f"  [bold {theme.SUCCESS}]✓[/] {file} → [dim]{output}[/]")
+        if ocr:
+            from pcalc.converter import convert_image_ocr
+            if not output:
+                output = str(CONVERTED_DIR / "txt" / f"{input_path.stem}.txt")
+            stats = convert_image_ocr(str(input_path), output, min_confidence=min_conf)
+            if stats["lines"]:
+                console.print(
+                    f"  [bold {theme.SUCCESS}]✓[/] OCR {file} → [dim]{output}[/]"
+                    f"  [dim]({stats['lines']} líneas · conf. media {stats['avg_conf']:.0%}"
+                    f" · {stats['dropped']} descartadas)[/]")
+            else:
+                console.print(
+                    f"  [bold {theme.WARNING}]⚠[/] OCR {file} → {output}: "
+                    f"no se detectó texto legible (¿manuscrito o poco contraste?)")
+        else:
+            if not output:
+                output = str(_auto_output_path(input_path, category, decode, file))
+            convert_image(str(input_path), output, int(bits), split, overlap)
+            console.print(f"  [bold {theme.SUCCESS}]✓[/] {file} → [dim]{output}[/]")
 
 
 # ---------------------------------------------------------------------------

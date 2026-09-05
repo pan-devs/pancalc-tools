@@ -4,6 +4,17 @@ All notable changes to PanCalc Tools are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.3.9] - 2026-09-05
+
+### Added
+- **Real OCR for photos**: images (`.png`, `.jpg`, `.jpeg`, `.bmp`, …) dropped into the **Text** conversion target are now recognized with **RapidOCR** (ONNXRuntime, bundled models, fully offline) instead of producing an (almost) empty TXT. Works in the GUI and via `pcalc convert photo.jpg --ocr`.
+- **Confidence filtering**: OCR lines below a confidence threshold (default `0.5`, adjustable via `ocr_min_confidence` in Settings/data or `--min-confidence` in the CLI) are **discarded** — the app never writes "invented" text from handwriting or low-quality images. The GUI reports *"OCR: N líneas · conf. media M%"* (and warns when nothing readable was found).
+- **ASCII transliteration**: recognized text keeps PDF/DOCX behaviour — accents/`ñ` are stripped for calculator compatibility (`café` → `cafe`).
+
+### Changed
+- **OCR is optional**: the core package does not pull the (~60 MB) ONNX runtime; the Windows build bundles it via the new `[ocr]` extra. Installer grows to ≈150 MB.
+- **New optional dependency group**: `pip install pancalc-tools[ocr]` adds the OCR engine.
+
 ## [0.3.8] - 2026-09-05
 
 ### Changed

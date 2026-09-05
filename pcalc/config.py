@@ -23,6 +23,7 @@ DEFAULTS = {
     "confirm_remove":  True,   # ask before removing
     "confirm_push":    True,   # ask before pushing converted files (on by default, like dark mode)
     "theme_mode":      "dark", # default to dark mode
+    "ocr_min_confidence": 0.5, # OCR: minimum confidence (0..1) to keep a detected line
 }
 
 

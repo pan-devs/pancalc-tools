@@ -203,6 +203,112 @@ def _process_image_to_g3p(img: Image.Image, output_path: str, bit_depth: int = 1
         print(f"    {len(g3p_bytes)} bytes, {bit_depth}-bit, {WIDTH}x{HEIGHT}")
 
 
+# ---------------------------------------------------------------------------
+# OCR (RapidOCR + ONNX) — optional dependency, imported lazily.
+# ---------------------------------------------------------------------------
+
+_ocr_engine = None
+_ocr_missing_reason = ""   # non-empty when the OCR deps are not installed
+
+
+def _get_ocr_engine():
+    """Return a cached RapidOCR engine, or None if the OCR deps are missing."""
+    global _ocr_engine, _ocr_missing_reason
+    if _ocr_engine is not None:
+        return _ocr_engine
+    if _ocr_missing_reason:
+        return None
+    try:
+        import onnxruntime  # noqa: F401  (ensures the runtime is available too)
+        from rapidocr_onnxruntime import RapidOCR
+    except (ImportError, OSError) as e:
+        _ocr_missing_reason = str(e)
+        return None
+    try:
+        _ocr_engine = RapidOCR()
+    except (OSError, RuntimeError, ValueError) as e:
+        _ocr_missing_reason = str(e)
+        return None
+    return _ocr_engine
+
+
+def convert_image_ocr(input_path: str, output_path: str, min_confidence: float = 0.5,
+                      on_progress=None):
+    """Extract printed text from an image using OCR and save as plain ASCII text.
+
+    Returns a dict with the generated output path and stats:
+      {out: str, lines: int, dropped: int, avg_conf: float}
+    Lines detected below ``min_confidence`` are dropped (no 'invented' text).
+    The OCR engine is optional: if the dependencies are missing this produces an
+    empty .txt and reports the reason via the returned stats (never raises).
+    """
+    import numpy as np
+
+    empty_result = {"out": output_path, "lines": 0, "dropped": 0, "avg_conf": 0.0}
+    engine = _get_ocr_engine()
+    if engine is None:
+        with open(output_path, "w", encoding="ascii") as f:
+            f.write("")
+        empty_result["reason"] = _ocr_missing_reason or "OCR engine unavailable"
+        return empty_result
+
+    img = Image.open(input_path)
+    img = ImageOps.exif_transpose(img) or img
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    _report_progress(on_progress, 1, 3)
+
+    try:
+        result, _elapsed = engine(np.asarray(img))
+    except (OSError, RuntimeError, ValueError) as e:
+        with open(output_path, "w", encoding="ascii") as f:
+            f.write("")
+        empty_result["reason"] = str(e)
+        return empty_result
+    _report_progress(on_progress, 2, 3)
+
+    # result is a list of [box, text, score]. Sort by vertical position (top Y)
+    # so lines come out in reading order, then by left-to-right X.
+    kept: list[str] = []
+    dropped = 0
+    conf_sum = 0.0
+    if result:
+        try:
+            ordered = sorted(
+                (r for r in result if len(r) >= 3),
+                key=lambda r: (float(r[0][0][1]), float(r[0][0][0])),
+            )
+        except (TypeError, ValueError, IndexError):
+            ordered = result
+        for r in ordered:
+            try:
+                text = str(r[1]).strip()
+                score = float(r[2])
+            except (TypeError, ValueError, IndexError):
+                continue
+            if not text:
+                continue
+            conf_sum += score
+            if score < min_confidence:
+                dropped += 1
+                continue
+            kept.append(_clean_text(text) or text.strip())
+
+    _report_progress(on_progress, 3, 3)
+    joined = "\n".join(kept)
+    with open(output_path, "w", encoding="ascii") as f:
+        f.write(joined)
+        f.write("\n")
+
+    n_kept = len(kept)
+    total = n_kept + dropped
+    avg_conf = (conf_sum / total) if total else 0.0
+    stats = {"out": output_path, "lines": n_kept, "dropped": dropped, "avg_conf": avg_conf}
+    if _ocr_missing_reason:
+        stats["reason"] = _ocr_missing_reason
+    return stats
+
+
 def convert_image(input_path, output_path, bit_depth=16, split="auto", overlap=16, on_progress=None):
     img = Image.open(input_path)
     img = ImageOps.exif_transpose(img) or img

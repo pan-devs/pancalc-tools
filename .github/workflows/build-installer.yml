@@ -26,7 +26,7 @@ jobs:
         shell: pwsh
         run: |
           pip install --upgrade pip
-          pip install -e .[windows,gui]
+          pip install -e .[windows,gui,ocr]
           pip install flet-desktop pyinstaller
           pip list | findstr -i flet
 
@@ -36,12 +36,14 @@ jobs:
           pyinstaller --onedir --windowed --noconfirm --name pancalc-tools-gui `
             --collect-all flet --collect-all flet_desktop --collect-all certifi `
             --collect-all pcalc --collect-all fitz --collect-all gnupg `
+            --collect-all onnxruntime --collect-all cv2 --collect-data rapidocr_onnxruntime `
             --hidden-import flet_desktop --hidden-import flet_desktop.version `
             --hidden-import pcalc.gui --hidden-import pcalc.gui_views `
             --hidden-import pcalc.cli --hidden-import pcalc.tui --hidden-import pcalc.installer `
             --hidden-import pcalc.converter --hidden-import pcalc.registry --hidden-import pcalc.crypto `
             --hidden-import pcalc.config --hidden-import pcalc.banner --hidden-import pcalc.theme `
             --hidden-import pcalc.calculator --hidden-import pcalc.library `
+            --hidden-import rapidocr_onnxruntime --hidden-import onnxruntime --hidden-import cv2 `
             --icon installer/favicon.ico `
             main_gui.py
           # Ship favicon.ico next to the exe so page.window.icon can use it.
@@ -100,7 +102,7 @@ jobs:
           if ($ref -match '^v?[0-9]+\.[0-9]+\.[0-9]+') {
             $version = $ref -replace '^v', ''
           } else {
-            $version = "0.3.8-dev"
+            $version = "0.3.9-dev"
           }
           echo "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
