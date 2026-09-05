@@ -532,6 +532,35 @@ The key is **auto-downloaded** on first use — no manual setup required.
 - Public key: [`pandevs.asc`](https://github.com/pan-devs/pancalc-registry/blob/main/pandevs.asc)
 
 Local library files skip PGP (they came from you, no signature needed).
+Local/imported add-ins and games are never PGP-checked either — at most their
+SHA256 (if present) is verified. Only files coming from a registry
+(`download_url`/`signature_url`) go through signature verification.
+
+#### Forking / using another registry
+
+By default the installer only accepts signatures made with the **official Pan
+Devs key pinned in [`pcalc/crypto.py`](pcalc/crypto.py):
+
+- `OFFICIAL_KEY_ID` — fingerprint suffix (`1A370E1B68A194A8`)
+- `OFFICIAL_KEY_URL` — where to fetch the public key (defaults to the Pan Devs registry)
+- `_BUNDLED_KEY` — offline fallback copy bundled into the app
+
+If you **fork the tools** to ship your own builds or point at **another
+registry**, you must:
+
+1. Replace those three constants with **your own key** (generate one with
+   `gpg --full-generate-key`).
+2. Sign your registry files with that key and publish the `.asc` files next to
+   each download (see the
+   [registry `CONTRIBUTING.md`](https://github.com/pan-devs/pancalc-registry/blob/main/CONTRIBUTING.md)
+   for how entries are signed).
+3. Rebuild the Windows installer so the bundled key matches.
+
+If you instead keep the Pan Devs key pinned, files signed by any other key
+will be rejected even if you import/trust them (`pcalc import-key`/`trust-key`
+only manage the key list UI — they never change what the installer accepts
+today). A future improvement, contributed to `main`, could make verification
+configurable or accept a set of trusted keys. Until then, this is how it works.
 
 ---
 

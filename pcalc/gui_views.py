@@ -1627,13 +1627,23 @@ class ViewBuilder:
                         state["sub"] = sub
 
                     def _file_progress(frac, idx=i, name=src_path.name):
-                        """Called from the worker thread — marshal UI update to the event loop."""
-                        gfrac = (idx - 1 + frac) / total
-                        def _apply(ff=gfrac, ii=idx, nn=name):
+                        """Called from the worker thread — marshal UI update to the event loop.
+                        A negative frac means 'indeterminate' (e.g. a single-blocking OCR
+                        call): the ring switches to an animated spinner until a normal
+                        fraction arrives."""
+                        indet = frac < 0
+                        gfrac = None if indet else (idx - 1 + frac) / total
+
+                        def _apply(ff=gfrac, ii=idx, nn=name, indet=indet):
                             if prog:
-                                prog["ring"].value = ff
-                                prog["pct"].value = f"{round(ff * 100)}%"
-                                prog["time"].value = f"{ii}/{total} · {nn}"
+                                if indet:
+                                    prog["ring"].value = None
+                                    prog["pct"].value = "…"
+                                    prog["time"].value = "OCR en curso…"
+                                else:
+                                    prog["ring"].value = ff
+                                    prog["pct"].value = f"{round(ff * 100)}%"
+                                    prog["time"].value = f"{ii}/{total} · {nn}"
                             if overlay:
                                 try:
                                     overlay.update()

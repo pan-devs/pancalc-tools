@@ -1304,6 +1304,9 @@ class PanCalcGUI:
             if not on_progress:
                 return
             try:
+                if unit_frac < 0:
+                    on_progress(unit_frac)
+                    return
                 ffrac = (units_done + unit_frac) / max(units_total, 1)
                 on_progress(min(max(ffrac, 0.0), 1.0))
             except Exception:
@@ -1328,6 +1331,7 @@ class PanCalcGUI:
                 if txt_want:
                     out = txt_dir / (f.stem + ".txt")
                     _min_conf = float(pconfig.get("ocr_min_confidence") or 0.5)
+                    _report(-1.0)
                     ocr_stats = await run_sync(
                         pconverter.convert_image_ocr, str(f), str(out),
                         min_confidence=_min_conf)

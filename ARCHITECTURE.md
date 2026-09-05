@@ -250,7 +250,10 @@ Uses `python-gnupg` (not `pgpy` — broken on Python 3.14+).
 - **`verify_official_signature(data, signature_text)`** — downloads the
   official key if needed, imports it, and verifies the signature.
 - **Key management**: `import_key()`, `list_keys()`, `trust_key()`,
-  `untrust_key()`.
+  `untrust_key()`. Note: these only manage the key-list UI; the installer
+  verification path (`verify_official_signature()`) accepts **only** the
+  pinned official key. Forks that re-sign with their own key must replace
+  `OFFICIAL_KEY_ID`, `OFFICIAL_KEY_URL` and `_BUNDLED_KEY` in `crypto.py`.
 
 **Known issue with GPG 2.4.9**: `verify_data()` causes `BrokenPipeError`.
 The module uses `verify_file()` with `io.BytesIO` and tempfiles instead.

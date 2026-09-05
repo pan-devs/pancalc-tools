@@ -3,6 +3,23 @@
 All notable changes to PanCalc Tools are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
+Version: follows `pcalc/__init__.py` (`__version__`) — kept in sync with the
+release tag and the CI fallback string in `.github/workflows/build-installer.yml`.
+
+## [Unreleased]
+
+### Fixed
+- **OCR progress**: the conversion overlay now shows an **indeterminate
+  spinner** ("OCR en curso…") while a photo is being recognized instead of a
+  frozen percentage — OCR is a single blocking call, so there is no usable
+  fine-grained progress to report.
+
+### Docs
+- README "Secure PGP Signatures": new **Forking / using another registry**
+  subsection describing the pinned official key (the three constants in
+  `pcalc/crypto.py`), what a fork must change to use its own key, and that
+  local/imported add-ins & games are never PGP-checked.
+- ARCHITECTURE: same pinned-key note added to the PGP section.
 
 ## [0.3.9] - 2026-09-05
 
