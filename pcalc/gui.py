@@ -10,7 +10,7 @@ import sys
 import tempfile
 from pathlib import Path
 import flet as ft
-from pcalc import __version__, config as pconfig, theme as ptheme
+from pcalc import config as pconfig, theme as ptheme
 from pcalc import library as plibrary
 from pcalc import registry as pregistry
 from pcalc import updater as pupdater
@@ -152,7 +152,7 @@ class PanCalcGUI:
     def build(self, page: ft.Page) -> None:
         _hold_update_mutex()
         self.page = page
-        page.title = f"PanCalc Tools v{__version__}"
+        page.title = f"PanCalc Tools v{pupdater.current_version()}"
         page.window.width = 1200
         page.window.height = 800
         page.window.min_width = 900
@@ -191,7 +191,7 @@ class PanCalcGUI:
         page.appbar = ft.AppBar(
             title=ft.Row([
                 ft.Text("PanCalc Tools", weight=ft.FontWeight.BOLD, size=18),
-                ft.Text(f"v{__version__}", size=11, color=ft.Colors.OUTLINE),
+                ft.Text(f"v{pupdater.current_version()}", size=11, color=ft.Colors.OUTLINE),
                 ft.Container(expand=True),
                 self.status_chip,
                 ft.IconButton(
@@ -645,8 +645,8 @@ class PanCalcGUI:
         ok = await self._confirm(
             "Update ready",
             f"PanCalc Tools v{info['version']} downloaded.\n\n"
-            "Please CLOSE this app window to finish. The installer will start "
-            "automatically as soon as the app closes.",
+            "Please CLOSE this app window to finish.\n"
+            "The installation will start shortly after you close the app.",
         )
         if not ok:
             self._show_snackbar(f"Update downloaded — you can run it later from {dest}", type="info")
