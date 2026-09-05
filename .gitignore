@@ -32,6 +32,9 @@ research/
 # Local installed DB
 installed.json
 
+# Debug log (created at runtime)
+pcalc_debug.log
+
 # Build artifacts
 *.spec
 PanCalc-Tools-Setup-*.exe
