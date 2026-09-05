@@ -88,11 +88,11 @@ def latest_release(timeout: float = 6.0) -> dict | None:
     for asset in data.get("assets") or []:
         name = str(asset.get("name", ""))
         asset_url = asset.get("browser_download_url", "")
-        if name.lower().endswith(ext) and asset_url:
+        if name.lower().endswith(ext.lower()) and asset_url:
             url = asset_url
             break
     if not url:
-        url = data.get("html_url")
+        return None
     return {"version": tag, "url": url, "name": str(data.get("name", ""))}
 
 

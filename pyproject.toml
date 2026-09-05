@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pancalc-tools"
-version = "0.3.6"
+dynamic = ["version"]
 description = "Package manager and developer toolkit for Casio Prizm calculators"
 readme = "README.md"
 license = { text = "AGPL-3.0-only (GNU Affero General Public License v3.0)" }
@@ -42,6 +42,9 @@ pcalc-gui = "main_gui:main"
 
 [tool.setuptools.packages.find]
 include = ["pcalc*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "pcalc.__version__" }
 
 [project.optional-dependencies]
 windows = ["pywin32"]

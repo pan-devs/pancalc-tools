@@ -41,7 +41,9 @@ def _fmt_size(size: int) -> str:
     return f"{size:.1f} TB"
 def debug_log(msg: str):
     try:
-        with open("/home/goduserr/Git/pan-devs/pancalc-tools/pcalc_debug.log", "a", encoding="utf-8") as f:
+        log_dir = pconfig.CONFIG_DIR
+        log_dir.mkdir(parents=True, exist_ok=True)
+        with open(log_dir / "pcalc_debug.log", "a", encoding="utf-8") as f:
             f.write(f"[DEBUG] {msg}\n")
     except Exception:
         pass
@@ -89,8 +91,19 @@ def _do_push_sync(selected: set[str], mount_path: Path,
         except OSError as e:
             errors.append(f"Failed to copy {src.name}: {e}")
     return pushed_paths, errors
+def _log_task_exception(task: asyncio.Task) -> None:
+    try:
+        exc = task.exception()
+    except asyncio.CancelledError:
+        return
+    if exc is not None:
+        debug_log(f"async task failed: {exc!r}")
+
+
 def asyncio_create(coro):
-    return asyncio.create_task(coro)
+    task = asyncio.create_task(coro)
+    task.add_done_callback(_log_task_exception)
+    return task
 def _create_theme() -> ft.Theme:
     from pcalc.theme import PRIMARY, ACCENT, SUCCESS, ERROR, WARNING
     return ft.Theme(
@@ -183,7 +196,7 @@ class PanCalcGUI:
         self.status_chip = ft.Chip(
             label=self.status_label,
             leading=self.status_leading,
-            on_click=lambda _: asyncio.create_task(self._scan_calculator()),
+            on_click=lambda _: asyncio_create(self._scan_calculator()),
         )
         self.registry_count = ft.Text("0 add-ins", size=11, color=ft.Colors.OUTLINE)
         self.games_count = ft.Text("0 games", size=11, color=ft.Colors.OUTLINE)
@@ -197,17 +210,17 @@ class PanCalcGUI:
                 ft.IconButton(
                     icon=ft.Icons.REFRESH, tooltip="Refresh calculator",
                     icon_size=20,
-                    on_click=lambda _: asyncio.create_task(self._scan_calculator()),
+                    on_click=lambda _: asyncio_create(self._scan_calculator()),
                 ),
                 ft.IconButton(
                     icon=ft.Icons.SYSTEM_UPDATE, tooltip="Update registry",
                     icon_size=20,
-                    on_click=lambda _: asyncio.create_task(self._update_registry()),
+                    on_click=lambda _: asyncio_create(self._update_registry()),
                 ),
                 ft.IconButton(
                     icon=ft.Icons.EJECT, tooltip="Eject calculator",
                     icon_size=20,
-                    on_click=lambda _: asyncio.create_task(self._eject()),
+                    on_click=lambda _: asyncio_create(self._eject()),
                 ),
             ]),
             center_title=False,
@@ -268,7 +281,7 @@ class PanCalcGUI:
                 self.update_banner_text,
                 ft.Container(expand=True),
                 ft.ElevatedButton("Update", icon=ft.Icons.SYSTEM_UPDATE,
-                                  on_click=lambda _: asyncio.create_task(self._do_update())),
+                                  on_click=lambda _: asyncio_create(self._do_update())),
                 ft.IconButton(ft.Icons.CLOSE, tooltip="Dismiss",
                               on_click=lambda _: self._set_update_banner(visible=False)),
             ], tight=True),
@@ -307,7 +320,7 @@ class PanCalcGUI:
                 except Exception:
                     pass
         task.add_done_callback(_init_done)
-        asyncio.create_task(self._background_scanner_loop())
+        asyncio_create(self._background_scanner_loop())
     async def _init(self):
         try:
             await asyncio.sleep(0.3)
@@ -320,7 +333,7 @@ class PanCalcGUI:
             await self._load_registry_data()
             self._build_current_view()
             if pconfig.get("check_updates"):
-                asyncio.create_task(self._check_updates())
+                asyncio_create(self._check_updates())
         except Exception as e:
             if not isinstance(e, asyncio.CancelledError):
                 try:
@@ -769,7 +782,7 @@ class PanCalcGUI:
                         ))
                         wizard_container.controls = content
                         dlg.update()
-                    asyncio.create_task(work())
+                    asyncio_create(work())
                 content = [
                     ft.Text("Detecting Calculator", size=22, weight=ft.FontWeight.BOLD),
                     ft.Container(height=10),
@@ -878,7 +891,7 @@ class PanCalcGUI:
             content=ft.Column(lines, width=450, tight=True, scroll=ft.ScrollMode.AUTO),
             actions=[
                 ft.TextButton("Close", on_click=_close_detail),
-                ft.FilledButton("Install", on_click=lambda _: asyncio.create_task(self._install_item(d, dlg))),
+                ft.FilledButton("Install", on_click=lambda _: asyncio_create(self._install_item(d, dlg))),
             ],
         )
         self.page.show_dialog(dlg)
@@ -886,73 +899,80 @@ class PanCalcGUI:
             await asyncio.sleep(0.05)
     async def _install_item(self, d: dict, dlg: ft.AlertDialog | None = None):
         debug_log(f"_install_item called for id='{d.get('id')}'")
-        if dlg:
-            debug_log("Closing detail dialog...")
-            dlg.open = False
-            dlg.update()
-            await asyncio.sleep(0.1)  # allow detail dialog close to complete
-        if pconfig.get("confirm_install"):
-            debug_log("confirm_install is enabled, showing confirmation...")
-            ok = await self._confirm("Install", f"Install '{d.get('name', d.get('id', '?'))}' to calculator?")
-            debug_log(f"confirm result ok={ok}")
-            if not ok:
-                return
-        calc = await run_sync(find_calculator)
-        if not calc:
-            self._show_snackbar("No calculator connected", type="warning")
+        if self._installing:
+            self._show_snackbar("Another install is already in progress", type="info")
             return
-        name = d.get("name", d.get("id", "?"))
-        state: dict = {"msg": f"Installing {name}...", "frac": 0.0}
-        prog = ft.ProgressBar(value=0, width=320)
-        status = ft.Text(state["msg"], size=12)
-        dlg = ft.AlertDialog(
-            modal=True,
-            content=ft.Container(
-                ft.Column([
-                    ft.Text(f"Installing {name}", weight=ft.FontWeight.BOLD),
-                    ft.Container(height=8),
-                    prog,
-                    ft.Container(height=6),
-                    status,
-                ], width=340, tight=True),
-                padding=8,
-            ),
-        )
-        self.page.show_dialog(dlg)
+        self._installing = True
         try:
-            def _set(frac, msg):
-                state["frac"] = max(0.0, min(1.0, frac))
-                if msg:
-                    state["msg"] = msg
-            def _on_dl(cb_cur, cb_total, cb_label=""):
-                _set(cb_cur / cb_total if cb_total else 0.0, f"Downloading {cb_label}...")
-            def _on_wr(cb_label, cb_cur, cb_total):
-                _set(cb_cur / cb_total if cb_total else 0.0, f"Writing {cb_label}...")
-            task = asyncio.create_task(
-                run_sync(install, d, calc,
-                         progress_callback=_on_dl, write_callback=_on_wr)
+            if dlg:
+                debug_log("Closing detail dialog...")
+                dlg.open = False
+                dlg.update()
+                await asyncio.sleep(0.1)  # allow detail dialog close to complete
+            if pconfig.get("confirm_install"):
+                debug_log("confirm_install is enabled, showing confirmation...")
+                ok = await self._confirm("Install", f"Install '{d.get('name', d.get('id', '?'))}' to calculator?")
+                debug_log(f"confirm result ok={ok}")
+                if not ok:
+                    return
+            calc = await run_sync(find_calculator)
+            if not calc:
+                self._show_snackbar("No calculator connected", type="warning")
+                return
+            name = d.get("name", d.get("id", "?"))
+            state: dict = {"msg": f"Installing {name}...", "frac": 0.0}
+            prog = ft.ProgressBar(value=0, width=320)
+            status = ft.Text(state["msg"], size=12)
+            dlg = ft.AlertDialog(
+                modal=True,
+                content=ft.Container(
+                    ft.Column([
+                        ft.Text(f"Installing {name}", weight=ft.FontWeight.BOLD),
+                        ft.Container(height=8),
+                        prog,
+                        ft.Container(height=6),
+                        status,
+                    ], width=340, tight=True),
+                    padding=8,
+                ),
             )
-            while not task.done():
+            self.page.show_dialog(dlg)
+            try:
+                def _set(frac, msg):
+                    state["frac"] = max(0.0, min(1.0, frac))
+                    if msg:
+                        state["msg"] = msg
+                def _on_dl(cb_cur, cb_total, cb_label=""):
+                    _set(cb_cur / cb_total if cb_total else 0.0, f"Downloading {cb_label}...")
+                def _on_wr(cb_label, cb_cur, cb_total):
+                    _set(cb_cur / cb_total if cb_total else 0.0, f"Writing {cb_label}...")
+                task = asyncio.create_task(
+                    run_sync(install, d, calc,
+                             progress_callback=_on_dl, write_callback=_on_wr)
+                )
+                while not task.done():
+                    try:
+                        prog.value = state["frac"]
+                        status.value = state["msg"]
+                        dlg.update()
+                    except Exception:
+                        pass
+                    await asyncio.sleep(0.1)
+                await task
+                self._show_snackbar(f"{name} installed", type="success")
+                await self._refresh_installed_ids()
+                if self.current_view_index in (0, 1, 2):
+                    self._build_current_view()
+            except RuntimeError as e:
+                self._show_snackbar(f"Failed: {e}", type="error")
+            finally:
+                dlg.open = False
                 try:
-                    prog.value = state["frac"]
-                    status.value = state["msg"]
                     dlg.update()
                 except Exception:
                     pass
-                await asyncio.sleep(0.1)
-            await task
-            self._show_snackbar(f"{name} installed", type="success")
-            await self._refresh_installed_ids()
-            if self.current_view_index in (0, 1, 2):
-                self._build_current_view()
-        except RuntimeError as e:
-            self._show_snackbar(f"Failed: {e}", type="error")
         finally:
-            dlg.open = False
-            try:
-                dlg.update()
-            except Exception:
-                pass
+            self._installing = False
     async def _install_selected(self, _e=None, item_ids: list[str] | None = None):
         """Install all items in _selected_registry_ids, or given item_ids."""
         debug_log(f"_install_selected called with item_ids={item_ids}")

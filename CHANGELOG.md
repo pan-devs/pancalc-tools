@@ -4,6 +4,20 @@ All notable changes to PanCalc Tools are documented here.
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [0.3.7] - 2026-09-05
+
+### Fixed
+- **TUI worker lock-up**: starting an install/verify/convert operation with nothing selected (or without a calculator connected) could leave the app permanently blocked until restart. The "operation running" flag is now always cleared when a worker ends.
+- **Partial multi-file installs**: `installed.json` is now persisted after each file is written. If a multi-file add-in fails mid-batch, the files already written are recorded (instead of leaving orphan files the app ignores).
+- **PGP signature download**: the installer no longer downloads the same signature URL twice when the registry entry has no explicit `signature_url`; the default `<download_url>.asc` is only retried when it differs from the configured one.
+- **Version source**: the app version no longer relies on `importlib.metadata`, which could report a stale or `0.0.0` value in dev / non-installed runs. `pcalc.__version__` is now a single literal source of truth (also picked up by `pyproject.toml` via a dynamic version), so the CLI, TUI and GUI always agree.
+- **GUI background tasks**: fire-and-forget async tasks (scan, registry update, eject, self-update, background scanner) now surface exceptions to the debug log instead of silently dropping them.
+- **GUI concurrent installs**: installing straight from an add-in detail dialog is now guarded against running two installations at the same time.
+- **Debug log**: `debug_log` writes to the platform config directory instead of a hard-coded developer path.
+
+### Changed
+- **Updater**: `latest_release()` now returns `None` when a release has no matching installer asset, instead of treating the GitHub release page as a downloadable "installer".
+
 ## [0.3.6] - 2026-09-05
 
 ### Changed

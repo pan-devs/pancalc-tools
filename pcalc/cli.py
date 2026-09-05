@@ -12,6 +12,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.progress import Progress, ProgressColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
 from pcalc import theme
+from pcalc import __version__
 
 console = Console()
 
@@ -36,7 +37,7 @@ class AsciiBarColumn(ProgressColumn):
             result.append("░" * (self.bar_width - filled), style=theme.PRIMARY)
         return result
 
-VERSION = "0.3.6"
+VERSION = __version__
 
 
 # ---------------------------------------------------------------------------

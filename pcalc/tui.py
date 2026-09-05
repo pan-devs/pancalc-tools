@@ -309,9 +309,10 @@ class MainScreen(Screen):
                 self.post_message(LogMessage(f"  ❌ [bold]{f.name}[/]: [red]{e}[/]"))
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        if event.state == WorkerState.ERROR:
+        if event.state in (WorkerState.ERROR, WorkerState.COMPLETE, WorkerState.CANCELLED):
             self._worker_running = False
-            self._log(f"  [bold red]Worker failed[/]")
+            if event.state == WorkerState.ERROR:
+                self._log(f"  [bold red]Worker failed[/]")
 
     # ── Update Registry ────────────────────────────────────────────
 

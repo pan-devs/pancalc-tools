@@ -405,7 +405,10 @@ def install(addin: dict, calc: Calculator, progress_callback=None, write_callbac
 
     files_info = _get_addin_files(addin)
     installed_paths = []
-    file_records = []
+
+    installed = _load_installed()
+    prev_files = installed.get(addin_id, {}).get("files")
+    file_records = list(prev_files) if isinstance(prev_files, list) else []
 
     for i, file_info in enumerate(files_info):
         dl_url  = file_info["download_url"]
@@ -421,25 +424,30 @@ def install(addin: dict, calc: Calculator, progress_callback=None, write_callbac
         raw = _download_bytes(dl_url, progress_callback=progress_callback, cb_label=filename)
 
         # PGP signature verification (optional — against official Pan Devs key)
-        sig_url = file_info.get("signature_url", dl_url + ".asc")
-        sig_data = None
-        try:
-            sig_data = _download_bytes(sig_url)
-        except RuntimeError:
-            pass
-        if sig_data is not None:
-            sig_text = sig_data.decode("utf-8", errors="replace")
-            if not verify_official_signature(raw, sig_text):
-                try:
-                    fallback_sig = _download_bytes(dl_url + ".asc")
-                    sig_text = fallback_sig.decode("utf-8", errors="replace")
-                except RuntimeError:
-                    pass
-                if not verify_official_signature(raw, sig_text):
-                    raise RuntimeError(
-                        f"PGP signature verification failed for {filename}. "
-                        "The file may be corrupted or untrusted."
-                    )
+        default_sig_url = dl_url + ".asc"
+        sig_url = file_info.get("signature_url", default_sig_url)
+        # Only try the default "<download_url>.asc" as a fallback when it is
+        # a different URL than the registry's signature_url (avoids re-downloading
+        # the same file twice on verification failure).
+        sig_candidates = [sig_url]
+        if sig_url != default_sig_url:
+            sig_candidates.append(default_sig_url)
+        signature_downloaded = False
+        signature_ok = False
+        for candidate in sig_candidates:
+            try:
+                sig_data = _download_bytes(candidate)
+            except RuntimeError:
+                continue
+            signature_downloaded = True
+            if verify_official_signature(raw, sig_data.decode("utf-8", errors="replace")):
+                signature_ok = True
+                break
+        if signature_downloaded and not signature_ok:
+            raise RuntimeError(
+                f"PGP signature verification failed for {filename}. "
+                "The file may be corrupted or untrusted."
+            )
 
         # Extract from zip if needed
         if dl_type == "zip":
@@ -470,14 +478,14 @@ def install(addin: dict, calc: Calculator, progress_callback=None, write_callbac
         installed_paths.append(dest)
         file_records.append({"filename": filename, "sha256": _sha256(g3a_bytes)})
 
-    # Record as installed (only if at least one file was written)
-    if file_records:
-        installed = _load_installed()
+        # Persist incrementally after each file so a partial multi-file install
+        # is still tracked — otherwise a failure mid-batch would leave files on
+        # the calculator that verify/remove would not know about.
         installed[addin_id] = {
             "id":         addin_id,
             "name":       name,
             "version":    addin.get("version", "unknown"),
-            "files":      file_records,
+            "files":      list(file_records),
             "mount_path": str(calc.mount_path),
         }
         _save_installed(installed)

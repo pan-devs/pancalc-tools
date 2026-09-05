@@ -6,11 +6,7 @@ https://github.com/pan-devs/pancalc-tools
 __author__  = "Pan Devs"
 __email__   = "pan.devs@proton.me"
 
-try:
-    from importlib.metadata import version as _pkg_version
-    __version__ = _pkg_version("pancalc-tools")
-except Exception:
-    __version__ = "0.0.0"
+__version__ = "0.3.7"
 
 from pathlib import Path
 from platformdirs import user_data_dir
