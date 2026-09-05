@@ -31,7 +31,7 @@ _Click the image below to watch the tutorial (it will be downloaded)_
 
 > 💡 **Tips:**
 > - Use your mouse/trackpad and click to interact.
-> - Questions? Ask the specialiced AI at https://deepwiki.com/pan-devs/pancalc-tools
+> - Questions? Ask the specialized AI at https://deepwiki.com/pan-devs/pancalc-tools
 > - Press **Ctrl+S** to open the command palette.
 > - Press **Esc** to return to the home screen.
 > - Use **↑** and **↓** to move between items.
@@ -64,6 +64,8 @@ _Click the image below to watch the tutorial (it will be downloaded)_
   developers who run the source directly.
 - **🔑 PGP key management** — Import, trust, list, and untrust additional keys
   for advanced users.
+- **🔁 In-app self-update** — Checks GitHub Releases on launch and installs new
+  versions with a live progress bar and a guided restart flow.
 
 > **Filename Limitations:** The Casio calculator cannot read files with spaces
 > or non-English characters (accents, special symbols). Files are automatically
@@ -567,5 +569,10 @@ pip install -e ".[dev]"
 - **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 - **Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md)
 
-## Privacidad
-PanCalc Tools no recopila, almacena ni comparte ningún tipo de información personal del usuario.
+## Privacy
+PanCalc Tools does not collect, store, or share any personal information.
+
+## AI Assistance
+
+The idea and design are the author's own. The code implementation is supported
+by, and in large part written with, AI assistance.

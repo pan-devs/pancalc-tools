@@ -5,13 +5,19 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      User Interface                         │
-│  ┌─────────────────────┐    ┌─────────────────────────────┐ │
-│  │   CLI (pcalc/cli.py) │    │  TUI (pcalc/tui.py)         │ │
-│  │   click commands     │    │  Textual app + MainScreen   │ │
-│  └──────────┬──────────┘    └──────────────┬──────────────┘ │
-└─────────────┼──────────────────────────────┼────────────────┘
-              │                              │
-              ▼                              ▼
+│  ┌─────────────────────────┐    ┌─────────────────────────┐ │
+│  │ GUI (pcalc/gui.py +     │    │ TUI (pcalc/tui.py)      │ │
+│  │      gui_views.py)      │    │ Textual app + MainScreen│ │
+│  │      Flet — main app    │    │                         │ │
+│  └──────────┬──────────────┘    └─────────────┬───────────┘ │
+│             │                                 │             │
+│  ┌──────────┴──────────────┐                  │             │
+│  │ CLI (pcalc/cli.py)      │                  │             │
+│  │   click commands        │                  │             │
+│  └──────────┬──────────────┘                  │             │
+└─────────────┼─────────────────────────────────┼─────────────┘
+              │                                 │
+              ▼                                 ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                     Core Modules                             │
 │                                                              │
@@ -38,17 +44,21 @@
 ```
 pcalc/
 ├── __init__.py      # Package metadata (version, author)
+├── __main__.py      # Entry point for python -m pcalc
 ├── banner.py        # ASCII art banners & header printing
 ├── calculator.py    # Calculator detection & mounting
 ├── cli.py           # CLI commands (click) + AsciiBarColumn
 ├── config.py        # Persistent configuration
 ├── converter.py     # Image/Document → G3P/TXT conversion
 ├── crypto.py        # SHA256 hashing & PGP verification
+├── gui.py           # Flet GUI: main end-user app (core PanCalcGUI)
+├── gui_views.py     # Flet GUI view builders + reusable widgets
 ├── installer.py     # Add-in install/remove/verify + filesystem walk
 ├── library.py       # Local library management (import/remove local files)
 ├── registry.py      # Add-in + game registry (fetch, cache, search, merge)
 ├── theme.py         # Color/style constants
-└── tui.py           # Textual Terminal UI
+├── tui.py           # Textual Terminal UI
+└── updater.py       # Self-update: GitHub Releases check, download, version
 ```
 
 ## Module Descriptions
@@ -388,6 +398,50 @@ UI via Textual messages:
 | `Escape` | Return to Home |
 | `↑/↓` | Navigate |
 | `Space` | Toggle selection |
+
+### `pcalc/gui.py` — Flet GUI (main application)
+
+The end-user graphical app built with [Flet](https://flet.dev/). This is the
+primary interface shipped in the Windows installer.
+
+- **`PanCalcGUI`** — the core app class. Holds the `ft.Page`, coordinates
+  drag & drop (via `DropZone`), multi-selection, snackbars/banners, the
+  calculator connection status, and routes to the per-view builders in
+  `gui_views.py`.
+- **View routing** — each screen (Home, Registry, Install, Games, Convert,
+  Local Library, Orphan removal, Settings, PGP keys, Catch) is built by the
+  corresponding method in `ViewBuilder`.
+- **`_do_update()`** — the self-update flow: downloads the installer with a
+  live progress dialog, asks the user to close the app window, then launches
+  a detached helper (a hidden PowerShell `Wait-Process` helper on Windows)
+  that starts the installer once the app has fully exited.
+- **`main()`** — entry point (also reachable via `python -m pcalc`).
+
+### `pcalc/gui_views.py` — GUI View Builders
+
+Reusable view-building helpers and widgets for the Flet GUI.
+
+- **`ViewBuilder`** — holds the `_build_*_view` methods for every screen and
+  shares state with the core via `self.gui`.
+- **`DropZone`** — a drag-and-drop target with 3-stage feedback (idle →
+  hover → armed glow), used for convert targets, install, and the Trash.
+- Support helpers for cards, badges, glow colors, icon mapping, and the
+  drag feedback overlay.
+
+### `pcalc/updater.py` — Self-Update
+
+Checks GitHub Releases for a newer version and downloads the platform installer.
+
+- **`current_version()`** — best-guess running version: a bundled `version.txt`
+  next to the exe (written by the CI build), or the installed package metadata.
+- **`latest_release()`** / **`update_available()`** — fetch the latest GitHub
+  release (with a timeout) and compare it against the running version.
+- **`download(url, dest, progress_callback)`** — chunked download with
+  progress callbacks, used by the GUI update flow.
+
+### `pcalc/__main__.py` — Module Entry Point
+
+Enables `python -m pcalc`, delegating to the CLI.
 
 ### `pcalc/config.py` — Configuration
 
